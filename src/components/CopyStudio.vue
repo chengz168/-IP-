@@ -21,7 +21,6 @@ const topicsValid=computed(()=>copyInputMatches(topics.value,d.value,'topic',sta
 const candidatesValid=computed(()=>copyInputMatches(candidates.value,d.value,props.kind,state.value,true)&&(props.kind!=='topic'||candidates.value?.topicId===topics.value?.id));
 const topicItem=computed(()=>topics.value?.items[selectedTopic.value]);
 const candidateQuality=computed(()=>candidates.value?assessCandidates(candidates.value.input,candidates.value.items)[selectedCopy.value]:null);
-const activeRun=computed(()=>state.value.runs.find(r=>r.draftId===d.value.id&&r.status==='running'&&r.type.startsWith('copy-')));
 const personas=['老板型IP','专家型IP','顾问型IP','创始人IP','创业者IP','从业者经验派','普通人逆袭','避坑顾问型','知识科普型','测评种草型'];
 watch([()=>d.value.id,()=>props.kind],()=>{dialog.value='';selectedTopic.value=0;selectedCopy.value=0;error.value='';});
 function valid(){error.value='';if(props.kind==='topic'&&!d.value.topic.industry.trim()){error.value='请填写行业或产品';return false;}if(props.kind==='marketing'&&!d.value.marketing.name.trim()&&!d.value.marketing.selling.trim()){error.value='产品名称或卖点至少填写一项';return false;}return true;}
@@ -31,7 +30,6 @@ async function generateTopics(){if(!valid())return;dialog.value='topics';const i
 async function generateCopies(){if(!valid()||!wordValid())return;if(props.kind==='topic'&&!topicsValid.value){error.value='创作资料已经变化，请先重新生成选题';return;}const id=d.value.id,kind=props.kind,r=await act(kind==='topic'?'生成两份选题文案':'生成三份营销文案',()=>call('copyCandidates',{id,kind,topicId:topics.value?.id,index:selectedTopic.value}));if(d.value.id!==id||props.kind!==kind)return;if(r?.stale){error.value='创作资料或原文已经变化，本次文案未覆盖已有候选，请重新生成';return;}if(!r){failed();return;}error.value='';selectedCopy.value=0;dialog.value='copies';}
 function reopen(){error.value='';selectedCopy.value=0;dialog.value=props.kind==='topic'?'topics':'copies';if(candidates.value&&props.kind==='topic')selectedTopic.value=candidates.value.index||0;}
 async function useCopy(){const id=d.value.id,r=await act('使用候选文案',()=>call('useCopyCandidate',{id,kind:props.kind,candidateId:candidates.value.id,index:selectedCopy.value}));if(r){await refresh(d.value.id===id);dialog.value='';notify('所选文案已放入第二步，请核对后改写或确认','success');}}
-async function stop(){if(!activeRun.value)return;try{await call('cancelRun',{id:activeRun.value.id});await refresh();}catch(e){notify(e.message,'error');}}
 function moveCopy(event){if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const count=candidates.value.items.length;selectedCopy.value=event.key==='Home'?0:event.key==='End'?count-1:(selectedCopy.value+(event.key==='ArrowRight'?1:count-1))%count;event.currentTarget.parentElement.children[selectedCopy.value]?.focus();}
 </script>
 <template>
@@ -68,5 +66,4 @@ function moveCopy(event){if(!['ArrowLeft','ArrowRight','Home','End'].includes(ev
   <p v-if="error" class="copy-error" role="alert">{{error}}</p>
   <template #footer><button v-if="kind==='topic'" @click="dialog='topics';error=''">返回选题</button><button v-else :disabled="!!busy" @click="generateCopies">重新生成</button><button class="primary" :disabled="!!busy||!candidatesValid||candidateQuality?.status==='rejected'" @click="useCopy">使用此文案</button></template>
  </Modal>
- <div v-if="activeRun&&dialog" class="copy-run-control" role="status"><I name="LoaderCircle" class="spin" :size="16"/><span>{{activeRun.type==='copy-topics'?'正在生成选题':'正在生成候选文案'}}</span><button @click="stop">停止处理</button></div>
 </template>
