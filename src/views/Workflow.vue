@@ -29,6 +29,7 @@ import {runSpeechAction} from '../speech-action.mjs';
 import {runAvatarAction} from '../avatar-action.mjs';
 import {runExtractAction} from '../extract-action.mjs';
 import WorkflowStatus from '../components/WorkflowStatus.vue';
+import OperationStatus from '../components/OperationStatus.vue';
 import {call} from '../api';
 import {recognitionSnapshot,canApplyRecognition} from '../recognition-state';
 import {recognitionRows,recognitionOptions} from '../caption-recognition.mjs';
@@ -38,7 +39,7 @@ import {openCaptionSession} from '../caption-edit-session.mjs';
 import {getSubtitleTemplate} from '../../server/subtitle-templates.mjs';
 import {downstreamText} from '../../server/story-source.mjs';
 const props=defineProps({view:String});
-const {state,draft:d,busy,notify,act,refresh,save,importAssets,showDialog,newTask,navigate,stepNames,startWorkflow,workflowLocked}=inject('studio');
+const {state,draft:d,busy,activeRecognition,notify,act,refresh,save,importAssets,showDialog,newTask,navigate,stepNames,startWorkflow,workflowLocked}=inject('studio');
 const icons=['BulbOutlined','EditOutlined','SoundOutlined','VideoCameraOutlined','ScissorOutlined','PictureOutlined','RocketOutlined'];
 const pipModal=ref(false),pipSaving=ref(false);
 const coverEditor=ref();
@@ -92,7 +93,7 @@ function formatTime(n){return Number(n||0).toFixed(2);}
   <aside class="step-sidebar"><div class="sidebar-heading"><h1>{{view==='old'?'旧工作流':'新工作流'}}</h1><button class="pill" @click="newTask">开始新任务</button></div><p class="sidebar-description">按步骤完成从对标学习到一键发布<br/>的完整创作流程</p><div class="steps"><button v-for="(name,i) in stepNames" :key="i" :class="{active:activeStep===i,done:activeStep>i}" @click="d.step=i"><em>{{i+1}}</em><span class="step-icon"><I :name="icons[i]" :size="22"/></span><strong>{{name}}</strong></button></div><div v-if="view==='old'" class="sidebar-task"><span>当前任务</span><input v-model="d.title" aria-label="任务名称"/><button @click="navigate('tasks')">查看全部任务 <I name="ArrowRight" :size="13"/></button></div></aside>
   <section class="workflow-main"><h2 class="page-title">{{stepNames[activeStep]}}<span v-if="view==='old'" class="subtle">同一任务 · 紧凑视图</span></h2>
     <div v-if="view==='old'" class="legacy-strip"><button v-for="(name,i) in stepNames" :key="i" :class="{active:activeStep===i}" @click="d.step=i">{{i+1}} {{name}}<small>{{i<2?'文案':i<4?'生成':'制作'}}</small></button></div>
-    <section class="stage-body" :class="['stage-'+activeStep]" :inert="workflowLocked">
+    <section class="stage-body" :class="['stage-'+activeStep,{'stage-story':activeStep===3&&d.video.mode==='story'}]" :inert="workflowLocked">
       <template v-if="activeStep===0"><div class="segmented main-tabs"><button v-for="[id,label] in tabs" :key="id" :class="{active:d.tab===id}" @click="d.tab=id">{{label}}</button></div>
         <div v-if="d.tab==='extract'" class="two-columns extract-columns"><article class="card extract-input"><h3>视频链接</h3><div class="align-right"><button class="text-button danger" @click="d.sourceUrl=''">清空</button></div><div class="link-input"><I name="Link"/><input v-model="d.sourceUrl" placeholder="粘贴视频分享链接或分享文本" aria-label="视频链接"/><button @click="clipboard">粘贴</button></div><div class="or">或</div><button class="upload-zone" @click="choose('all',extract,'从音视频或文本中提取文案')"><I name="Plus" :size="30"/><span><strong>从音频或视频中提取文案</strong><small>点击上传音频/视频，或直接导入已有文本。</small></span></button><button class="primary full" :disabled="!!busy" @click="extract()"><I name="Link"/>提取文案</button><p class="hint">支持直接粘贴分享文本，系统会自动识别有效链接。</p><div class="platform-hints"><span>快捷打开</span><button type="button" aria-label="打开抖音" @click="openPlatform('douyin')">抖</button><button type="button" aria-label="打开快手" @click="openPlatform('kuaishou')">快</button><button type="button" aria-label="打开小红书" @click="openPlatform('xiaohongshu')">红</button></div></article><article class="card text-card"><div class="card-heading"><h3>原文案</h3><button class="text-button" @click="d.sourceText=''">清空</button></div><textarea v-model="d.sourceText" class="large-text" placeholder="提取的文案将在这里显示，也可以直接输入或粘贴。" aria-label="原文案"></textarea><span class="word-count">{{d.sourceText.length}} 字</span></article></div>
 
@@ -106,7 +107,7 @@ function formatTime(n){return Number(n||0).toFixed(2);}
       <CoverEditor ref="coverEditor" v-else-if="activeStep===5" @choose="(kind,assign,title)=>choose(kind,assign,title)"/>
       <PublishPanel v-else @choose="(kind,assign,title)=>choose(kind,assign,title)" @export="exportPack"/>
     </section>
-    <WorkflowStatus/><footer class="workflow-footer"><div class="progress-track"><div :style="{width:((activeStep+1)/7*100)+'%'}"></div></div><div class="footer-actions"><button class="previous" :disabled="activeStep===0" @click="d.step--">上一步</button><div class="step-status" :class="{ready:status.includes('已')}"><span></span>{{status}}<small v-if="activeStep<2">{{(d.rewrite||d.sourceText).slice(0,40)}}</small></div><button class="primary next" :disabled="activeStep===6||workflowLocked||!!busy" @click="next">{{activeStep===5&&!d.cover.assetId?"生成封面并下一步":"下一步"}}</button></div></footer>
+    <WorkflowStatus/><footer class="workflow-footer"><div class="progress-track"><div :style="{width:((activeStep+1)/7*100)+'%'}"></div></div><div class="footer-actions"><button class="previous" :disabled="activeStep===0" @click="d.step--">上一步</button><OperationStatus v-if="busy||activeRecognition" inline/><div v-else class="step-status" :class="{ready:status.includes('已')}"><span></span>{{status}}<small v-if="activeStep<2">{{(d.rewrite||d.sourceText).slice(0,40)}}</small></div><button class="primary next" :disabled="activeStep===6||workflowLocked||!!busy" @click="next">{{activeStep===5&&!d.cover.assetId?"生成封面并下一步":"下一步"}}</button></div></footer>
   </section>
   <AssetPicker v-if="picker" :kind="picker.kind" :title="picker.title" @close="picker=null" @select="selected"/>
   <PipEditor v-if="pipModal" :key="d.id+sourceVideo" :captions="d.edit.captions" :saving="pipSaving" @close="pipModal=false" @confirm="confirmPip"/>

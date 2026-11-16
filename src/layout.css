@@ -639,3 +639,11 @@ input:where(:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=
 
 /* 换源提示随文件名换行，不挤压右侧生成操作。 */
 .stage-4 .source-caption-hint{display:block;line-height:18px;white-space:normal;overflow-wrap:anywhere;margin-top:2px}
+
+/* 页面返回归属内容导航区，管理页使用剩余高度保留自身滚动。 */
+.app>main.management-main{display:flex;flex-direction:column;gap:10px}
+.page-navigation{display:flex;align-items:center;flex:none;min-height:44px}
+.page-navigation>.page-back{min-height:44px;padding:8px 12px;max-width:100%;border-color:#514661;background:#2a2c38}
+.page-navigation>.page-back>span{overflow:hidden;text-overflow:ellipsis}
+.page-navigation>.page-back:hover{background:#393045;border-color:#a078c4}
+.management-main>.management-page,.management-main>.help-page{flex:1;min-height:0;height:auto}

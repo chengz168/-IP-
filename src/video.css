@@ -114,3 +114,7 @@
   .video-result>.media-preview{min-height:0}
   .video-local-entry[open]{max-height:30%;overflow:auto}
 }
+
+/* 非口播是长内容工作台，独立滚动，避免口播面板的溢出裁切。 */
+.stage-3.stage-story{overflow-x:hidden;overflow-y:scroll;scrollbar-gutter:stable;overscroll-behavior:contain;scroll-padding-block:12px;padding-right:8px}
+.stage-story>.video-mode-toolbar,.stage-story>.story-studio{flex:0 0 auto}
