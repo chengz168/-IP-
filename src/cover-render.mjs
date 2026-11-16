@@ -23,9 +23,9 @@ function letters(ctx,row,x,y,s,stroke=false){
   for(const ch of row){(stroke?ctx.strokeText:ctx.fillText).call(ctx,ch,x,y);x+=ctx.measureText(ch).width+s.letterSpacing;}
 }
 export function drawCover(canvas,scene,background=null,blur=0){
-  const ctx=canvas.getContext('2d');ctx.save();ctx.setTransform(canvas.width/1080,0,0,canvas.height/1920,0,0);ctx.clearRect(0,0,1080,1920);
-  const gradient=ctx.createLinearGradient(0,0,0,1920);gradient.addColorStop(0,'#3c3c3b');gradient.addColorStop(1,'#111111');ctx.fillStyle=gradient;ctx.fillRect(0,0,1080,1920);
-  if(background){ctx.save();ctx.filter=blur?`blur(${blur}px)`:'none';const ratio=Math.max(1080/background.width,1920/background.height),w=background.width*ratio,h=background.height*ratio;ctx.drawImage(background,(1080-w)/2,(1920-h)/2,w,h);ctx.restore();}
+  const {width,height}=scene,ctx=canvas.getContext('2d');ctx.save();ctx.setTransform(canvas.width/width,0,0,canvas.height/height,0,0);ctx.clearRect(0,0,width,height);
+  const gradient=ctx.createLinearGradient(0,0,0,height);gradient.addColorStop(0,'#3c3c3b');gradient.addColorStop(1,'#111111');ctx.fillStyle=gradient;ctx.fillRect(0,0,width,height);
+  if(background){ctx.save();ctx.filter=blur?`blur(${blur}px)`:'none';const ratio=Math.max(width/background.width,height/background.height),w=background.width*ratio,h=background.height*ratio;ctx.drawImage(background,(width-w)/2,(height-h)/2,w,h);ctx.restore();}
   maskPaint(ctx,scene.mask);for(const shape of scene.shapes||[]){ctx.save();ctx.globalAlpha=shape.opacity??1;ctx.fillStyle=shape.fill||'#FFFFFF';rectangle(ctx,shape.x,shape.y,shape.width,shape.height,shape.radius);ctx.fill();ctx.restore();}
   const layouts=[];
   for(const layer of scene.layers){

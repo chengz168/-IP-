@@ -38,6 +38,7 @@ import {changeCaptionSource} from '../caption-source.mjs';
 import {openCaptionSession} from '../caption-edit-session.mjs';
 import {getSubtitleTemplate} from '../../server/subtitle-templates.mjs';
 import {downstreamText} from '../../server/story-source.mjs';
+import {workflowOutputStatus} from '../workflow-output-status.mjs';
 const props=defineProps({view:String});
 const {state,draft:d,busy,activeRecognition,notify,act,refresh,save,importAssets,showDialog,newTask,navigate,stepNames,startWorkflow,workflowLocked}=inject('studio');
 const icons=['BulbOutlined','EditOutlined','SoundOutlined','VideoCameraOutlined','ScissorOutlined','PictureOutlined','RocketOutlined'];
@@ -60,10 +61,10 @@ const subtitleSummary=computed(()=>{const edit=d.value.edit;if(!edit.subtitlesEn
 const titleSummary=computed(()=>{const edit=d.value.edit,design=titleDesign(edit);return !edit.titleEnabled?'已关闭':design.mode==='template'?titleTemplates.find(t=>t.id===design.templateId)?.name||'选择模板':'自定义样式';});
 // 平台结果沿用任务中心的有效凭据判断，不能把任意发布记录当成导出。
 const publishStatus=computed(()=>{const v=d.value,stage=state.value.taskSummaries?.find(task=>task.id===v.id)?.stages[6];if(stage?.available)return '平台 '+stage.label;const latest=state.value.runs.find(run=>run.type==='publish'&&run.draftId===v.id);if(['running','queued'].includes(latest?.status))return '平台 正在处理';if(latest?.status==='unknown')return '平台 结果待确认';const record=state.value.publishRecords.find(record=>record.id===v.publish.recordId&&record.draftId===v.id);return record?.status==='exported'?'发布包 已导出':'发布信息 待发布';});
-const status=computed(()=>{const v=d.value;return [v.sourceText?'原文案 已填写':'原文案 未填写',v.confirmed?'最终文案 已确认':v.rewrite?'改写文案 已填写':'改写文案 未填写',v.voice.audioId?'当前音频 已就绪':'当前音频 未生成',v.video.assetId?'当前视频 已就绪':'当前视频 未生成',v.edit.resultId?'剪辑结果 已生成':'剪辑结果 未生成',v.cover.assetId?'标题封面 已生成':'标题封面 未生成',publishStatus.value][activeStep.value];});
+const status=computed(()=>{const v=d.value;return [v.sourceText?'原文案 已填写':'原文案 未填写',v.confirmed?'最终文案 已确认':v.rewrite?'改写文案 已填写':'改写文案 未填写',...([2,3,4,5].map(step=>workflowOutputStatus(state.value,v,step))),publishStatus.value][activeStep.value];});
 function choose(kind,assign,title){picker.value={kind,assign,title};}
 function selectVideoSource(asset){return changeCaptionSource({draft:d,save},asset.id);}
-async function selected(asset){const assign=picker.value.assign;picker.value=null;try{await assign(asset);}catch(error){notify(error.message,'error');}}
+async function selected(asset){const assign=picker.value.assign;picker.value=null;try{await assign(asset);await save();await refresh();}catch(error){notify(error.message,'error');}}
 function openPip(){if(!sourceVideo.value){notify('请先选择视频文件');return;}if(!d.value.edit.captions.length){notify('请先生成或导入字幕');return;}pipModal.value=true;}
 async function confirmPip(rows){const previous=JSON.parse(JSON.stringify(d.value.edit));pipSaving.value=true;try{d.value.edit.captions=rows;d.value.edit.pipMode='captions';d.value.edit.pipEnabled=rows.some(r=>r.pipId)||!!d.value.edit.pipCategory;await save();pipModal.value=false;notify('逐句画中画已保存','success');}catch(error){d.value.edit=previous;notify('画中画保存失败：'+error.message,'error');}finally{pipSaving.value=false;}}
 async function clipboard(){try{d.value.sourceUrl=await navigator.clipboard.readText();}catch{notify('无法读取剪贴板，请直接粘贴到输入框','error');}}
@@ -83,7 +84,7 @@ async function transcribe(){
   try{const rows=alignRowsToReference(recognitionRows(r,Number.isFinite(duration)&&duration>0?duration:Number(r.duration),recognitionOptions(d.value.edit)),downstreamText(d.value));if(r.sourceAssetId&&r.sourceAssetId!==assetId)throw Error('识别结果的视频源不符，当前字幕已保留');d.value.edit.captions=rows;d.value.edit.subtitlesEnabled=true;await save();if(d.value.id===snapshot.id&&sourceVideo.value===assetId&&activeStep.value===4)showCaptionEditor();}
  catch(error){notify(error.message,'error');}
 }
-async function openSubtitleEditor(){if(busy.value||workflowLocked.value)return;try{await save();}catch(error){notify(error.message,'error');return;}if(!sourceVideo.value){notify('请先选择包含音轨的视频');return;}if(d.value.edit.captions.length){showCaptionEditor();return;}await transcribe();}
+async function openSubtitleEditor(){if(busy.value||workflowLocked.value)return;try{await save();}catch(error){notify(error.message,'error');return;}if(!sourceVideo.value){notify('请先选择视频');return;}showCaptionEditor();}
 async function exportPack(){const r=await act('导出发布包',()=>call('exportPackage',{id:d.value.id}));if(r){d.value.publish.recordId=r.id;showDialog('发布包已导出',r.directory+'\n已包含真实视频和发布信息，尚未上传到平台。');}}
 async function next(){if(busy.value||workflowLocked.value)return;if(activeStep.value===1){if(!await confirmCopy())return;if(['auto','background'].includes(d.value.mode))return;}if(activeStep.value===5&&!d.value.cover.assetId){const generated=await coverEditor.value?.generate();if(!generated)return;}const generateCoverTitle=activeStep.value===4;if(activeStep.value<6)d.value.step++;await save();if(generateCoverTitle){await nextTick();await coverEditor.value?.generateTitle();}}
 function formatTime(n){return Number(n||0).toFixed(2);}

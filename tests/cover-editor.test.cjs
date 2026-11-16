@@ -28,3 +28,36 @@ test('封面提交持久化失败不留下半条资产记录，恢复可写后�
  store.save=()=>{throw new Error('验收注入：磁盘不可写');};await assert.rejects(service.invoke('saveCover',payload),/磁盘不可写/);assert.equal(fs.readFileSync(store.file,'utf8'),before);assert.deepEqual(store.draft(),oldDraft);assert.equal(store.data.assets.length,0);assert.deepEqual(fs.readdirSync(store.assetDir),[]);assert.deepEqual(fs.readdirSync(store.outputDir()),[]);
  let calls=0;store.save=()=>{calls++;save();};const asset=await service.invoke('saveCover',payload),reopened=JSON.parse(fs.readFileSync(store.file,'utf8'));assert.equal(calls,1);assert.equal(reopened.drafts[0].cover.assetId,asset.id);assert.equal(reopened.assets.length,1);assert.equal(reopened.assets[0].id,asset.id);assert.ok(fs.existsSync(asset.path));
 });
+
+test('三种画幅保持标题绑定和独立图层，切换往返不丢坐标或污染旧稿',async()=>{
+ const {coverScene,resizeCoverScene,coverFormats,templateScene,validScene}=await model(),cover=createDraft().cover,before=structuredClone(cover);
+ const portrait=coverScene(cover);portrait.layers.push({id:'independent',binding:'',text:'独立图层',style:(await model()).textStyle({x:120,y:400})});
+ for(const format of coverFormats){const target=resizeCoverScene(portrait,format);assert.equal(target.width,format.width);assert.equal(target.height,format.height);assert.deepEqual(target.layers.map(l=>[l.id,l.text,l.binding]),portrait.layers.map(l=>[l.id,l.text,l.binding]));validScene(target);const roundtrip=resizeCoverScene(target,portrait);for(let i=0;i<portrait.layers.length;i++){assert.ok(Math.abs(roundtrip.layers[i].style.x-portrait.layers[i].style.x)<1e-8);assert.ok(Math.abs(roundtrip.layers[i].style.y-portrait.layers[i].style.y)<1e-8);assert.equal(roundtrip.layers[i].style.fontSize,portrait.layers[i].style.fontSize);}}
+ for(const template of (await model()).coverTemplates)for(const format of coverFormats)validScene(templateScene(template.id,'横竖封面','副标题',format));
+ assert.deepEqual(cover,before);assert.equal(coverScene(cover).width,1080);assert.equal(coverScene(cover).height,1920);
+ assert.throws(()=>resizeCoverScene(portrait,{width:1200,height:630}),/画幅无效/);
+});
+
+test('封面尺寸必须与当前画幅一致，改画幅解除旧输出而保留剪辑源',async t=>{
+ const {templateScene}=await model(),service=createService(fixture(t)),store=service.store,d=structuredClone(store.draft());
+ // 夹具表示已经完成的旧任务，避免初始化本身触发生成链失效。
+ d.edit.resultId='kept-edit';d.cover.assetId='old-cover';d.cover.videoId='old-video';d.publish.videoId='old-video';store.data.drafts[0]=d;store.save();
+ const next=structuredClone(store.draft());next.cover.scene=templateScene('default','横屏封面','',{width:1920,height:1080});store.updateDraft(next);
+ assert.equal(store.draft().cover.assetId,'');assert.equal(store.draft().cover.videoId,'');assert.equal(store.draft().publish.videoId,'');assert.equal(store.draft().edit.resultId,'kept-edit');
+ const payload={id:d.id,base64:'data:image/png;base64,'+Buffer.alloc(150).toString('base64')};
+ service.media.probe=async()=>({streams:[{codec_type:'video',width:1080,height:1920}]});await assert.rejects(service.invoke('saveCover',payload),/1920×1080/);assert.equal(store.data.assets.length,0);
+ service.media.probe=async()=>({streams:[{codec_type:'video',width:1920,height:1080}]});const asset=await service.invoke('saveCover',payload);assert.equal(asset.width,1920);assert.equal(asset.height,1080);
+});
+
+test('未显式传签名的旧入口也拒绝绘制期间画幅变化，不附着迟到封面',async t=>{
+ const {templateScene}=await model(),service=createService(fixture(t)),store=service.store,d=store.draft();
+ service.media.probe=async()=>{const next=structuredClone(store.draft());next.cover.scene=templateScene('default','已改变','',{width:1080,height:1080});store.updateDraft(next);return {streams:[{codec_type:'video',width:1080,height:1920}]};};
+ await assert.rejects(service.invoke('saveCover',{id:d.id,base64:'data:image/png;base64,'+Buffer.alloc(150).toString('base64')}),/已变化/);assert.equal(store.data.assets.length,0);assert.equal(store.draft().cover.assetId,'');assert.deepEqual(fs.readdirSync(store.outputDir()),[]);
+});
+
+test('匹配视频画幅读取当前视频实际方向，未知比例不冒认支持',async t=>{
+ const {formatForVideo}=await model(),service=createService(fixture(t)),file=path.join(service.store.root,'sample.mp4');fs.writeFileSync(file,'测试视频占位，仅模拟探测');const asset=service.store.addAsset(file);
+ service.media.probe=async()=>({streams:[{codec_type:'video',width:1920,height:1080,side_data_list:[{rotation:-90}]}]});
+ assert.deepEqual(await service.invoke('coverSourceSize',{assetId:asset.id}),{width:1080,height:1920});
+ assert.equal(formatForVideo(1024,576).id,'landscape');assert.equal(formatForVideo(720,1280).id,'portrait');assert.equal(formatForVideo(800,800).id,'square');assert.equal(formatForVideo(1200,630),null);assert.equal(formatForVideo(0,0),null);
+});

@@ -2,10 +2,13 @@
 import {computed,inject,ref,watch,onBeforeUnmount} from 'vue';import I from '../components/Icon.vue';import {call} from '../api';import Modal from '../components/Modal.vue';
 import PromptManager from '../components/PromptManager.vue';
 import ModelPicker from '../components/ModelPicker.vue';
+import CapabilityKeys from '../components/CapabilityKeys.vue';
+import {createKeyDrafts,keyChanges} from '../provider-key-drafts.mjs';
 import {createProtocolDrafts,createDiscoveryController,discoveryModels} from '../model-settings.mjs';
 import {fontPresets,normalizeFontSize} from '../typography.mjs';
 const {state,busy,act,notify,showDialog,refresh}=inject('studio');const config=ref(JSON.parse(JSON.stringify(state.value.settings))),key=ref(''),changeKey=ref(false),tab=ref('general');const desktop=window.studio;const restorePath=ref(''),restoreDialog=ref(false);
 const tabs=[['general','常规设置','SettingOutlined'],['models','模型设置','RobotOutlined'],['prompts','提示词管理','FormOutlined'],['data','数据设置','DatabaseOutlined'],['update','软件更新','CloudDownloadOutlined']];
+const keyDrafts=ref(createKeyDrafts());
 Object.assign(config.value.provider,{visionProtocol:config.value.provider.visionProtocol||'ollama',visionBaseUrl:config.value.provider.visionBaseUrl||'',visionModel:config.value.provider.visionModel||'',ttsBaseUrl:config.value.provider.ttsBaseUrl||'',asrBaseUrl:config.value.provider.asrBaseUrl||'',avatarProtocol:config.value.provider.avatarProtocol||'compatible'});
 const protocolDrafts=createProtocolDrafts();
 function switchProtocol(group,value){protocolDrafts.switch(config.value.provider,group,value);}
@@ -15,7 +18,7 @@ const controllers=Object.fromEntries(capabilities.map(name=>[name,createDiscover
 function discoverySignature(name){
  const p=config.value.provider;
  const connection=name==='text'?[p.textProtocol,p.baseUrl]:name==='vision'?[p.visionProtocol,p.visionBaseUrl||p.baseUrl]:name==='tts'?[p.ttsProtocol,p.ttsBaseUrl||p.baseUrl,p.indexttsHome]:[p.asrProtocol,p.asrBaseUrl||p.baseUrl,p.asrModelPath,p.asrPythonPath];
- return JSON.stringify({connection,changeKey:changeKey.value,key:key.value});
+ return JSON.stringify({connection,changeKey:changeKey.value,key:key.value,independent:keyDrafts.value[name]});
 }
 for(const name of capabilities)watch(()=>discoverySignature(name),()=>{controllers[name].invalidate();discoveries.value[name]={phase:'idle',models:[],message:'设置已变化，请刷新读取对应来源的模型。当前配置已保留。'};},{flush:'sync'});
 function cancelDiscovery(name){controllers[name].invalidate();discoveries.value[name]={phase:'cancelled',models:[],message:'已取消本次读取，当前配置已保留。'};}
@@ -23,8 +26,9 @@ watch(tab,(value,prior)=>{if(prior==='models'&&value!=='models')for(const name o
 onBeforeUnmount(()=>{for(const name of capabilities)controllers[name].invalidate();});
 async function discover(name){
  if(discoveries.value[name].phase==='loading')return;
+ let changes;try{changes=keyChanges(keyDrafts.value,{validate:true,only:name});}catch(error){notify(error.message,'error');return;}
  const requestId=crypto.randomUUID(),signature=discoverySignature(name);
- const payload={requestId,capability:name,provider:JSON.parse(JSON.stringify(config.value.provider)),changeKey:changeKey.value,...(changeKey.value?{key:key.value}:{}),timeoutMs:12000};
+ const payload={requestId,capability:name,provider:JSON.parse(JSON.stringify(config.value.provider)),changeKey:changeKey.value,...(changeKey.value?{key:key.value}:{}),capabilityKeys:changes,timeoutMs:12000};
  discoveries.value[name]={phase:'loading',models:[],message:'正在读取当前设置的已有模型…'};
  const response=await controllers[name].run(payload);
  if(response.phase==='stale'||signature!==discoverySignature(name))return;
@@ -43,7 +47,7 @@ async function checkLinkExtractor(){if(!await save())return;const r=await act('�
 async function openExtractBrowser(){const r=await act('打开抖音解析窗口',()=>call('openExtractBrowser'));if(r)showDialog('抖音解析窗口已打开','请在独立窗口中完成登录、验证码或其他平台验证，然后回到工作台点击“提取文案”。解析会使用该窗口的会话，不会读取其他浏览器的Cookie。');}
 const currentFontPreset=computed(()=>fontPresets.find(preset=>preset.id===normalizeFontSize(state.value.settings.fontSize)));
 async function changeFontSize(id){if(id===normalizeFontSize(state.value.settings.fontSize))return;const result=await act('切换界面字号',()=>call('saveAppearance',{fontSize:id}));if(result){config.value.fontSize=result.fontSize;notify('界面字号已切换为'+fontPresets.find(preset=>preset.id===id).label,'success');}}
-async function save(){const r=await act('保存设置',()=>call('saveSettings',{...config.value,...(changeKey.value?{key:key.value}:{})}));if(r){key.value='';changeKey.value=false;notify('设置已保存','success');}return r;}
+async function save(){let changes;try{changes=keyChanges(keyDrafts.value,{validate:true});}catch(error){notify(error.message,'error');return false;}const r=await act('保存设置',()=>call('saveSettings',{...config.value,...(changeKey.value?{key:key.value}:{}),capabilityKeys:changes}));if(r){key.value='';changeKey.value=false;keyDrafts.value=createKeyDrafts();notify('设置已保存','success');}return r;}
 async function check(action){if(!await save())return;const r=await act('检查连接',()=>call(action));if(r)showDialog(action==='checkMedia'?'媒体工具可用':'模型服务已连接',action==='checkMedia'?r.ffmpeg+'\n'+r.ffprobe:'服务返回 '+r.models.length+' 个模型。\n'+r.models.slice(0,15).join('、'));}
 async function directory(){if(window.studio){const dir=await window.studio.chooseDirectory();if(dir)config.value.outputDir=dir;}else notify('浏览器预览中请填写绝对路径；桌面程序可打开文件夹选择器');}
 async function backup(){const r=await act('备份任务与素材',()=>call('backup'));if(r)showDialog('备份已导出',r.directory+'\n已复制 '+r.assets+' 项素材。\n'+r.note);}
@@ -100,12 +104,14 @@ const currentHeading=computed(()=>headings[tab.value]);
     </template>
     <template v-else-if="tab==='models'">
       <div class="settings-form-section"><span class="field-title">按能力选择模型来源</span><p class="hint">文本、视觉、语音合成和语音识别可分别选择云端兼容服务或已有本机引擎。刷新只读取列表或已有文件，不自动保存设置、下载模型或生成内容。</p></div>
+      <div class="settings-form-section"><h3>全局服务密钥</h3><label class="settings-field">API Key</label><div class="inline"><input v-model="key" type="password" autocomplete="new-password" :placeholder="state.keyConfigured?'已配置，填写后勾选更新':'尚未配置'" aria-label="API Key"/><label class="check-row"><input v-model="changeKey" type="checkbox"/>更新密钥</label></div><p class="hint">未设置独立密钥的能力沿用此项。勾选更新后留空保存可清除全局密钥。桌面版使用Windows加密存储；浏览器预览仅在本次服务进程中使用。</p></div>
+      <CapabilityKeys :drafts="keyDrafts" :configured="state.capabilityKeyConfigured" :global-configured="state.keyConfigured"/>
       <div class="settings-form-section"><h3>文本模型</h3>
         <div class="two-fields"><label>文本来源<select :value="config.provider.textProtocol" aria-label="文本接入方式" @change="switchProtocol('text',$event.target.value)"><option value="compatible">云端 / 自有兼容聊天服务</option><option value="ollama">本机 Ollama 已有模型</option></select></label><label>文本输出上限<input v-model="config.provider.textMaxTokens" type="number" min="64" max="32768" placeholder="2048"/></label></div>
+        <label class="settings-field">文本等待时间（秒）<input v-model="config.provider.textTimeoutSeconds" type="number" min="30" max="1800" step="1" :placeholder="config.provider.textProtocol==='ollama'?'留空默认600秒':'留空默认180秒'"/></label><p class="hint">可填写30至1800的整数秒；留空时本机Ollama默认600秒，云端兼容服务默认180秒。仅影响文本生成，点击停止仍立即中断本次等待。</p>
         <button @click="useOllama">填写本机Ollama地址</button>
         <template v-if="config.provider.textProtocol==='ollama'"><label class="settings-field">本地上下文长度<input v-model="config.provider.textContextTokens" type="number" min="512" step="1" placeholder="留空使用本地服务默认值"/></label><p class="hint">短文可尝试8192；更大上下文占用更多内存。长文超出输入预算时需调大。</p></template>
         <label class="settings-field">文本服务 Base URL<input v-model="config.provider.baseUrl" aria-label="文本服务 Base URL" placeholder="填写服务完整地址，例如 http://127.0.0.1:11434/v1"/></label>
-        <label class="settings-field">API Key</label><div class="inline"><input v-model="key" type="password" autocomplete="new-password" :placeholder="state.keyConfigured?'已配置，填写后勾选更新':'尚未配置'" aria-label="API Key"/><label class="check-row"><input v-model="changeKey" type="checkbox"/>更新密钥</label></div><p class="hint">桌面版使用Windows加密存储；浏览器预览密钥仅在本次服务进程中使用。</p>
         <ModelPicker label="文本模型" :model-value="config.provider.model" :models="discoveries.text.models" :phase="discoveries.text.phase" :message="discoveries.text.message" :allow-manual="config.provider.textProtocol==='compatible'" @update:model-value="config.provider.model=$event" @refresh="discover('text')" @cancel="cancelDiscovery('text')"/>
       </div>
       <div class="settings-form-section material-model-settings"><h3>素材视觉标记</h3><div class="two-fields"><label>视觉接入方式<select :value="config.provider.visionProtocol" @change="switchProtocol('vision',$event.target.value)" aria-label="视觉接入方式"><option value="ollama">本机 Ollama 已有模型</option><option value="compatible">云端 / 自有兼容多模态服务</option></select></label><span class="hint">模型能力以发现结果为准，未知能力不会标记为支持。</span></div><label class="settings-field">视觉服务地址<input v-model="config.provider.visionBaseUrl" aria-label="视觉服务地址" placeholder="留空沿用Base URL"/></label><ModelPicker label="视觉模型" :model-value="config.provider.visionModel" :models="discoveries.vision.models" :phase="discoveries.vision.phase" :message="discoveries.vision.message" :allow-manual="config.provider.visionProtocol==='compatible'" @update:model-value="config.provider.visionModel=$event" @refresh="discover('vision')" @cancel="cancelDiscovery('vision')"/><button @click="switchProtocol('vision','ollama');config.provider.visionBaseUrl='http://127.0.0.1:11434'">填写本机视觉地址</button><p class="hint">视觉列表只读取服务现有元数据，不下载模型、不执行视觉推理。</p></div>

@@ -5,6 +5,7 @@ const providerFields=['baseUrl','ttsBaseUrl','asrBaseUrl','visionBaseUrl','textP
 const unknown=()=>Object.fromEntries(capabilities.map(key=>[key,'unknown']));
 const failure=(code,message,extra={})=>Object.assign(new Error(message),{code,...extra});
 const {capabilityBaseUrl:endpoint}=require('./provider-endpoints.mjs');
+const {checkedChanges}=require('./provider-keys.cjs');
 function redact(value,secret){if(typeof value==='string')return value.split(secret).join('[已隐藏]');if(Array.isArray(value))return value.map(item=>redact(item,secret));if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,redact(item,secret)]));return value;}
 function withSignal(promise,signal){return new Promise((resolve,reject)=>{const abort=()=>reject(signal.reason);signal.addEventListener('abort',abort,{once:true});Promise.resolve(promise).then(resolve,reject).finally(()=>signal.removeEventListener('abort',abort));if(signal.aborted)abort();});}
 function baseAddress(value){let url;try{url=new URL(value);}catch{throw failure('DISCOVERY_INVALID_INPUT','请填写完整的模型服务地址');}if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash)throw failure('DISCOVERY_INVALID_INPUT','模型地址只支持不含凭据、查询参数和片段的HTTP或HTTPS地址');return url.toString().replace(/\/$/,'');}
@@ -24,6 +25,7 @@ class ModelDiscovery{
   if(this.controllers.has(requestId))return {...result,error:{code:'DISCOVERY_BUSY',message:'该模型发现请求仍在执行'}};
   if(input.timeoutMs!==undefined&&(!Number.isInteger(input.timeoutMs)||input.timeoutMs<1000||input.timeoutMs>15000))return {...result,error:{code:'DISCOVERY_INVALID_INPUT',message:'模型发现超时需为1000至15000毫秒'}};
   if(input.changeKey!==undefined&&typeof input.changeKey!=='boolean'||input.changeKey===true&&typeof input.key!=='string')return {...result,error:{code:'DISCOVERY_INVALID_INPUT',message:'临时密钥参数无效'}};
+  try{if(input.capabilityKeys!==undefined){checkedChanges(input.capabilityKeys);if(Object.keys(input.capabilityKeys).some(key=>!capabilities.includes(key)))throw Error();}}catch{return {...result,error:{code:'DISCOVERY_INVALID_INPUT',message:'独立临时密钥参数无效'}};}
   const controller=new AbortController();this.controllers.set(requestId,controller);const timeout=AbortSignal.timeout(input.timeoutMs??12000),signal=AbortSignal.any([controller.signal,timeout]);
   let secret='';
   try{
@@ -36,8 +38,11 @@ class ModelDiscovery{
    signal.throwIfAborted();
    if(protocol==='ollama'||protocol==='compatible'){
     const base=baseAddress(endpoint(provider,capability)),local=protocol==='ollama';
-    // 本地Ollama查询完全不读取共享云密钥；临时密钥只有明确勾选更新时生效。
-    if(!local)secret=input.changeKey===true?input.key:await withSignal(this.providers.secrets.get(),signal);
+    // 本地列表完全不读取云密钥；明确清除独立草稿后才沿用全局草稿或已保存值。
+    if(!local){
+     const own=input.capabilityKeys&&Object.hasOwn(input.capabilityKeys,capability)?input.capabilityKeys[capability].trim():this.providers.secrets.getScoped?await withSignal(this.providers.secrets.getScoped(capability),signal):'';
+     secret=own||(input.changeKey===true?input.key:await withSignal(this.providers.secrets.get(),signal));
+    }
     signal.throwIfAborted();const headers=secret?{Authorization:'Bearer '+secret}:{};
     const data=await this.json(local?base.replace(/\/v1$/,'')+'/api/tags':base+'/models',{headers},signal);
     const items=local?data?.models:data?.data;if(!Array.isArray(items)||items.length>1000)throw failure('DISCOVERY_INVALID_RESPONSE','模型列表格式无效或超过1000项');

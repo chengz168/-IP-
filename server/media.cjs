@@ -28,22 +28,39 @@ class Media{
     const source=this.store.asset(draft.edit.resultId||draft.edit.sourceId||draft.video.assetId),cover=this.store.asset(draft.cover.assetId);
     const info=await this.probe(source.path),video=info.streams.find(s=>s.codec_type==='video'),audio=info.streams.find(s=>s.codec_type==='audio');
     if(!video||!video.width||!video.height)throw new Error('封面视频需要有效的视频源');
+    const size=(await import('./cover-size.mjs')).displayVideoSize(video);
     if(cover.type!=='image')throw new Error('请选择已经生成的封面图片');
-    const file=path.join(this.store.outputDir(),'cover-video-'+Date.now()+'.mp4'),temp=file+'.part.mp4';
+    const file=path.join(this.store.outputDir(),'cover-video-'+crypto.randomUUID()+'.mp4'),temp=file+'.part.mp4',unrotated=file+'.source.mkv';
+    const rawRotation=Number(video.tags?.rotate??video.side_data_list?.find(item=>item.rotation!==undefined)?.rotation)||0;
+    const rotation=((rawRotation%360)+360)%360;
+    if(rotation&&!([90,180,270].includes(rotation)))throw new Error('封面视频暂不支持此旋转角度，请先将源视频转为标准方向');
     // 封面只覆盖首帧，后续帧沿用原视频时间轴；音轨不增加片头静音。
-    const scale=`scale=${video.width}:${video.height}:force_original_aspect_ratio=decrease,pad=${video.width}:${video.height}:(ow-iw)/2:(oh-ih)/2,setsar=1`;
-    const filters=`[1:v]${scale}[cover];[0:v][cover]overlay=0:0:enable='eq(n,0)':eof_action=pass:repeatlast=0,format=yuv420p[out]`;
-    const args=['-y','-i',source.path,'-i',cover.path,'-filter_complex',filters,'-map','[out]'];
-    if(audio)args.push('-map','0:a:0','-c:a',['aac','mp3'].includes(audio.codec_name)?'copy':'aac');else args.push('-an');
+    const scale=`scale=${size.width}:${size.height}:force_original_aspect_ratio=decrease,pad=${size.width}:${size.height}:(ow-iw)/2:(oh-ih)/2,setsar=1`;
+    const transform=rotation===90?'transpose=cclock':rotation===270?'transpose=clock':'hflip,vflip';
+    const filters=`${rotation?'[0:v]'+transform+'[source];':''}[1:v]${scale}[cover];${rotation?'[source]':'[0:v]'}[cover]overlay=0:0:enable='eq(n,0)':eof_action=pass:repeatlast=0,format=yuv420p[out]`;
+    const args=['-y','-i',rotation?unrotated:source.path,'-i',cover.path];
+    // 音轨直接从原件读取，避免临时重封装改变 AAC 编码延迟或首包信息。
+    if(rotation&&audio)args.push('-i',source.path);
+    args.push('-filter_complex',filters,'-map','[out]');
+    if(audio)args.push('-map',rotation?'2:a:0':'0:a:0','-c:a',['aac','mp3'].includes(audio.codec_name)?'copy':'aac');else args.push('-an');
     args.push('-c:v','libx264','-preset','veryfast','-crf','21','-fps_mode','passthrough','-movflags','+faststart',temp);
     try{
+      ctx.signal?.throwIfAborted();
+      if(rotation){
+        // 部分 FFmpeg 版本直接叠加旋转视频会报 0×0；先无损重封装去掉旋转矩阵，再在最终编码中旋转。
+        await runProcess(this.binaries().ffmpeg,['-y','-display_rotation:v:0','0','-i',source.path,'-map','0:v:0','-an','-c:v','copy',unrotated],{signal:ctx.signal});
+        const prepared=await this.probe(unrotated),preparedVideo=prepared.streams.find(s=>s.codec_type==='video');
+        const preparedRotation=Number(preparedVideo?.tags?.rotate??preparedVideo?.side_data_list?.find(item=>item.rotation!==undefined)?.rotation)||0;
+        if(!preparedVideo||preparedVideo.width!==video.width||preparedVideo.height!==video.height||preparedRotation%360!==0)throw new Error('旋转视频准备失败：原始画面或方向信息不一致');
+      }
       await runProcess(this.binaries().ffmpeg,args,{signal:ctx.signal});
       const result=await this.probe(temp),output=result.streams.find(s=>s.codec_type==='video');
       const duration=Number(result.format.duration),sourceDuration=Number(info.format.duration);
-      if(!output||output.width!==video.width||output.height!==video.height||!Number.isFinite(duration)||duration<=0||Math.abs(duration-sourceDuration)>.12)throw new Error('封面视频校验失败：尺寸或时长与源视频不一致');
+      if(!output||output.width!==size.width||output.height!==size.height||!Number.isFinite(duration)||duration<=0||Math.abs(duration-sourceDuration)>.12)throw new Error('封面视频校验失败：尺寸或时长与源视频不一致');
       if(video.nb_frames&&output.nb_frames&&Number(video.nb_frames)!==Number(output.nb_frames))throw new Error('封面视频校验失败：帧数与源视频不一致');
+      ctx.signal?.throwIfAborted();
       fs.renameSync(temp,file);return this.store.addAsset(file,{origin:'cover-video',duration});
-    }finally{fs.rmSync(temp,{force:true});}
+    }finally{fs.rmSync(temp,{force:true});fs.rmSync(unrotated,{force:true});}
   }
 }
 module.exports={Media,runProcess,toSrt,parseSrt,toAss};

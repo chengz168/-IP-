@@ -62,7 +62,7 @@ class LocalLinkExtractor{
    if(!info.streams.some(stream=>stream.codec_type==='audio'))throw Error('链接对应媒体没有音轨，无法提取口播文案');
    if(!Number.isFinite(duration)||duration<=0||duration>1800)throw Error('链接媒体有效时长须在30分钟以内');
    ctx.signal?.throwIfAborted();
-   asset=this.store.addAsset(downloaded.file,{origin:'local-link-extract',sourceUrl:url,sourceTitle:metadata.title||'',duration},{persist:false});
+   asset=this.store.addAsset(downloaded.file,{type:info.streams.some(stream=>stream.codec_type==='video')?'video':'audio',origin:'local-link-extract',sourceUrl:url,sourceTitle:metadata.title||'',duration},{persist:false});
    if(!['audio','video'].includes(asset.type))throw Error('解析媒体扩展名不受支持');
    const source={url,originalShareText:value,title:String(metadata.title||'').slice(0,2000),extractor:metadata.extractor||'',version:metadata.version,assetId:asset.id,sha256:sha(asset.path),bytes:asset.size,duration};
    ctx.progress?.(25,'正在识别链接音轨，下载标题不会作为正文');
@@ -81,7 +81,7 @@ class LocalLinkExtractor{
    if(!info.streams.some(stream=>stream.codec_type==='audio'))throw Error('链接对应媒体没有音轨，无法提取口播文案');
    if(!Number.isFinite(duration)||duration<=0||duration>1800)throw Error('链接媒体有效时长须在30分钟以内');
    ctx.signal?.throwIfAborted();
-   asset=this.store.addAsset(file,{origin:'browser-link-extract',sourceUrl:url,sourceTitle:String(metadata.title||''),duration},{persist:false});
+   asset=this.store.addAsset(file,{type:info.streams.some(stream=>stream.codec_type==='video')?'video':'audio',origin:'browser-link-extract',sourceUrl:url,sourceTitle:String(metadata.title||''),duration},{persist:false});
    const source={url,originalShareText:value,title:String(metadata.title||'').slice(0,2000),extractor:'douyin-browser-session',version:'browser-session',assetId:asset.id,sha256:sha(asset.path),bytes:asset.size,duration};
    ctx.progress?.(25,'正在识别浏览器会话媒体音轨，页面标题不会作为正文');
    const result=await this.providers.transcribe(asset.id,ctx);ctx.signal?.throwIfAborted();

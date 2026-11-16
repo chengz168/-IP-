@@ -22,6 +22,7 @@ actions.add('proofreadSubtitles');actions.add('applySubtitleProofread');
 actions.add('restoreCaptionHistory');
 for(const action of ['copyTopics','copyCandidates','useCopyCandidate'])actions.add(action);
 actions.add('coverFontData');actions.add('saveCoverDefault');
+actions.add('coverSourceSize');
 for(const action of ['saveStory','splitStoryEpisodes','splitStoryShots','extractStoryAssets','generateStoryImage','selectStoryImage','generateStoryVideo','selectStoryVideo','composeStoryEpisode','useStoryEpisode','saveStoryModels','checkStoryModels'])actions.add(action);
 actions.add('queryStoryResult');
 actions.add('listBgmResources');actions.add('previewBgmResource');actions.add('selectBgmResource');

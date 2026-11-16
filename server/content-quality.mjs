@@ -7,7 +7,7 @@ export function processIssues(source,output){
 }
 export function negativeClauses(source){
  const clauses=String(source).match(/[^，,。.!！?？;；\n]+/gu)||[];
- return [...new Set(clauses.map(value=>value.trim()).filter(value=>value.length<=100&&/(?:不(?:提供|支持|内置|防水|收|代为|代|包含|具备|能|允许|得|要|适合|是)|^(?:也|并)?没有|禁止|不得|无需|无须)/u.test(value)))];
+ return [...new Set(clauses.map(value=>value.trim()).filter(value=>value.length<=100&&/(?:不(?:提供|支持|内置|防水|收|代为|代|包含|具备|能|允许|得|要|适合|是|构成|代表|保证|意味)|^(?:也|并)?没有|禁止|不得|无需|无须)/u.test(value)))];
 }
 // 仅接受这些有明确否定对应的常见写法，不进行宽泛的同义改写或语义判定。
 export function constraintText(value){return compact(String(value).replace(/([^，,。；;！？\n]+)一律不收/gu,'不收$1').replace(/千万别|别急着|切勿|不要/gu,'不要').replace(/不提供邮寄/gu,'不邮寄').replace(/代为保管|代管/gu,'代保管').replace(/剩下的书|剩余书籍/gu,'剩余书').replace(/破书/gu,'破损书'));}

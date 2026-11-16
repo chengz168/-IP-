@@ -17,4 +17,11 @@ export function resolvePrompt(kind,data,selectedId){
  return selected;
 }
 export function promptSnapshot(template){return JSON.parse(JSON.stringify({id:template.id,type:template.type,content:template.content,model:template.model||'',source:template.source||{kind:'user'},purposes:template.purposes||null,titleLimit:template.titleLimit||null,descriptionLimit:template.descriptionLimit||null}));}
-export function generationConfig(data,template){const provider=data.settings?.provider||{};return {protocol:provider.textProtocol||'compatible',baseUrl:provider.baseUrl||'',model:template?.model||provider.model||'',textMaxTokens:provider.textMaxTokens||'',textContextTokens:provider.textContextTokens||''};}
+export function textTimeoutSeconds(provider={}){
+ const value=provider.textTimeoutSeconds;
+ if(value===undefined||typeof value==='string'&&!value.trim())return provider.textProtocol==='ollama'?600:180;
+ const seconds=typeof value==='number'?value:typeof value==='string'&&/^\d+$/.test(value.trim())?Number(value.trim()):NaN;
+ if(!Number.isInteger(seconds)||seconds<30||seconds>1800)throw Error('文本等待时间需为30至1800的整数秒，或留空使用默认值');
+ return seconds;
+}
+export function generationConfig(data,template){const provider=data.settings?.provider||{};return {protocol:provider.textProtocol||'compatible',baseUrl:provider.baseUrl||'',model:template?.model||provider.model||'',textMaxTokens:provider.textMaxTokens||'',textContextTokens:provider.textContextTokens||'',textTimeoutSeconds:textTimeoutSeconds(provider)};}

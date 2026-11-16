@@ -16,6 +16,24 @@ test('从分享文本提取唯一URL，空值、多链接、凭据与错误协�
  assert.equal(extractionMode({extractUrl:'https://bridge.test'}),'bridge');assert.equal(extractionMode({extractProtocol:'browser-session'}),'browser-session');assert.equal(extractionMode({}),'local');assert.throws(()=>extractionMode({extractProtocol:'unknown'}));
 });
 test('本地解析配置在启动前检查完整路径，不把目录当解释器',t=>{const {store,media}=fixture(t);const parser=new LocalLinkExtractor(store,media,{});store.data.settings.provider.extractPythonPath='python';assert.throws(()=>parser.options(),/完整路径/);store.data.settings.provider.extractPythonPath=store.root;assert.throws(()=>parser.options(),/完整路径/);});
+
+test('浏览器下载的MP4依据真实流登记类型，缺音轨时在登记和识别前拒绝',async t=>{
+ for(const [streams,expected]of [[[{codec_type:'audio'}],'audio'],[[{codec_type:'video'},{codec_type:'audio'}],'video'],[[{codec_type:'video'}],null]]){
+  const {root,store,media}=fixture(t),file=path.join(root,'downloaded.mp4');fs.writeFileSync(file,'探针边界夹具');media.probe=async()=>({format:{duration:1},streams});let transcribed=0;
+  const parser=new LocalLinkExtractor(store,media,{transcribe:async id=>{transcribed++;assert.equal(store.asset(id).type,expected);return {text:'识别边界夹具'};}});
+  if(expected){const result=await parser.extractDownloaded(file,'https://video.test/item');assert.equal(store.asset(result.sourceAssetId).type,expected);assert.equal(transcribed,1);assert.equal(new Store(root).asset(result.sourceAssetId).type,expected);}
+  else{await assert.rejects(parser.extractDownloaded(file,'https://video.test/item'),/没有音轨/);assert.equal(transcribed,0);assert.equal(store.data.assets.length,0);assert.equal(fs.readdirSync(store.assetDir).length,0);}
+  assert(!fs.existsSync(file));
+ }
+});
+
+test('真实FFmpeg音轨MP4经本地下载和浏览器导入均登记audio，音轨正文仅使用识别接口回包',{skip:!ready||!process.env.FFMPEG_PATH||!process.env.FFPROBE_PATH},async t=>{
+ const {root,store,media}=fixture(t),file=path.join(root,'source-audio.mp4');const generated=spawnSync(process.env.FFMPEG_PATH,['-v','error','-f','lavfi','-i','sine=frequency=440:sample_rate=16000','-t','0.5','-vn','-c:a','aac',file],{encoding:'utf8',windowsHide:true});assert.equal(generated.status,0,generated.stderr);
+ const probe=await media.probe(file);assert(probe.streams.some(s=>s.codec_type==='audio'));assert(!probe.streams.some(s=>s.codec_type==='video'));
+ const bytes=fs.readFileSync(file),server=http.createServer((req,res)=>{res.writeHead(200,{'Content-Type':'video/mp4','Content-Length':bytes.length});res.end(bytes);});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));const url='http://127.0.0.1:'+server.address().port+'/source.mp4';let calls=0;
+ const parser=new LocalLinkExtractor(store,media,{transcribe:async id=>{calls++;const asset=store.asset(id);assert.equal(path.extname(asset.path),'.mp4');assert.equal(asset.type,'audio');return {text:'接口替身正文，不是实际语音识别'};}});
+ const downloaded=await parser.extract(url);assert.equal(store.asset(downloaded.sourceAssetId).type,'audio');const imported=await parser.extractDownloaded(file,url);assert.equal(store.asset(imported.sourceAssetId).type,'audio');assert.equal(calls,2);assert.equal(new Store(root).data.assets.filter(a=>a.type==='audio').length,2);
+});
 test('实际yt-dlp版本与本机HTTP WAV下载可追溯，正文只来自ASR',{skip:!ready||!process.env.FFPROBE_PATH},async t=>{
  const {store,media}=fixture(t),f=await serve(t);let transcribed=0;
  const parser=new LocalLinkExtractor(store,media,{transcribe:async id=>{transcribed++;assert.equal(store.asset(id).type,'audio');assert.deepEqual(fs.readFileSync(store.asset(id).path),f.bytes);return {text:'来自识别的正文。',segments:[{start:0,end:1,text:'来自识别的正文。'}]};}});

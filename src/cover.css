@@ -14,7 +14,12 @@
 .cover-editor-full .card-heading>strong{font-size:var(--app-font-size-caption)}
 .cover-editor-full .canvas-holder{display:flex;align-items:safe center;justify-content:safe center;flex:1;min-height:0;overflow:auto;padding:18px 16px 0;background:#202331;overscroll-behavior:contain;scrollbar-gutter:stable}
 /* 小窗口保留可编辑尺寸，超出部分仅在画布内滚动，不挤压固定操作条。 */
-.cover-canvas-stack{position:relative;aspect-ratio:9/16;height:100%;width:auto;min-width:202.5px;max-width:none;min-height:360px;flex:0 0 auto;outline-offset:3px;overflow:visible}
+.cover-canvas-stack{position:relative;aspect-ratio:var(--cover-aspect,9/16);height:100%;width:auto;min-width:var(--cover-min-width,202.5px);max-width:none;min-height:var(--cover-min-height,360px);flex:0 0 auto;outline-offset:3px;overflow:visible}
+.cover-canvas-stack.cover-canvas-wide{height:auto;width:100%}
+.cover-format-bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 12px;border-bottom:1px solid #ffffff08;flex-shrink:0}
+.cover-format-bar>label{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}
+.cover-format-bar select{max-width:150px;width:auto}
+.cover-format-bar>button{padding:3px 8px;min-height:28px;font-size:var(--app-font-size-caption)}
 .cover-editor-full .cover-canvas-stack>canvas{display:block;height:100%;width:100%;max-height:none;max-width:none;touch-action:none;border-radius:0;cursor:move}
 .cover-selection{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 .cover-selection rect,.cover-selection line,.cover-selection circle{fill:none;stroke:#38b7ff;stroke-width:1;vector-effect:non-scaling-stroke}
@@ -35,7 +40,7 @@
 .cover-template-item.active{border-color:#4f5aff;box-shadow:inset 0 0 0 1px #4f5aff}
 .cover-template-select{position:relative;display:flex;flex-direction:column;width:100%;min-width:0;gap:8px;margin:0;padding:0;background:none;border:0;border-radius:0}
 .cover-template-select:hover{background:none;border:0}
-.cover-template-select>img,.cover-template-placeholder{width:100%;aspect-ratio:9/16;object-fit:contain;border-radius:4px;display:block;background:#171819}
+.cover-template-select>img,.cover-template-placeholder{width:100%;aspect-ratio:var(--cover-aspect,9/16);object-fit:contain;border-radius:4px;display:block;background:#171819}
 .cover-template-placeholder{font-size:var(--app-font-size-micro);display:flex;align-items:center;justify-content:center;white-space:normal}
 .cover-template-select>span{max-width:100%;width:100%;overflow:hidden;text-overflow:ellipsis;font-size:var(--app-font-size-micro);line-height:20px;text-align:center}
 .cover-template-check{position:absolute;right:2px;top:3px;background:#3f53ff;border-radius:50%;color:#fff}

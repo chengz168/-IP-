@@ -36,7 +36,7 @@ class Brain{
    else if(!sample){
     if(!url.trim())throw new Error('请填写主页链接或导入真实样本文案');
     url=homepage(url);if(!this.providers.config().brainUrl)throw new Error('主页采集服务尚未配置，请使用本地样本文案；保存网址不代表已学习');
-    ctx.progress(5,'正在请求配置的主页采集服务');const data=await this.providers.bridge(this.providers.config().brainUrl,{url,mode},ctx);
+    ctx.progress(5,'正在请求配置的主页采集服务');const data=await this.providers.bridge(this.providers.config().brainUrl,{url,mode},ctx,'brain');
     if(data?.jobId){ctx.remote(data.jobId);const error=new Error('采集服务返回异步任务ID，但当前没有可验证的结果查询契约，请保留记录确认');error.unknown=true;throw error;}
     if(!Array.isArray(data?.samples)||!data.samples.length||data.samples.length>100)throw new Error('主页采集服务未返回有效samples文案样本');
     sources=data.samples.map((s,i)=>({title:text(s?.title||'样本'+(i+1),'样本标题',300),text:text(s?.text,'样本文案',30000),url:s.url?homepage(s.url):''}));sample=sources.map(s=>s.text).join('\n\n');profileName=profileName||text(data.name,'账号名称',60);

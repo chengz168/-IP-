@@ -96,7 +96,7 @@ async function confirm(){if(await persist()){notify('字幕已更新，剪辑时
       </table>
       <div v-if="!rows.length" class="empty-state"><I name="FileText" :size="40"/><p>导入SRT、调用识别服务或手动添加字幕。</p></div>
     </div>
-    <template #footer><div v-if="auxiliaryTools" class="caption-footer-tools"><span>{{rows.length}} 条字幕</span><button :disabled="saving" @click="emit('import')">导入 SRT</button><button :disabled="saving" @click="append"><I name="Plus" :size="14"/>添加字幕</button></div><button :disabled="saving" @click="close">取消</button><button class="primary" :disabled="saving||!!busy" @click="confirm">确定</button></template>
+    <template #footer><div class="caption-footer-tools"><span>{{rows.length}} 条字幕</span><button :disabled="saving||!!busy" @click="emit('import')">导入 SRT</button><button :disabled="saving||!!busy" @click="append"><I name="Plus" :size="14"/>添加字幕</button></div><button :disabled="saving" @click="close">取消</button><button class="primary" :disabled="saving||!!busy" @click="confirm">确定</button></template>
   </Modal>
   <SubtitleProofread v-if="proofreadOpen" @close="auxiliaryClosed('proofread')"/>
   <CaptionHistory v-if="historyOpen" @close="auxiliaryClosed('history')"/>

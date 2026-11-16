@@ -48,7 +48,7 @@ class AvatarRecovery{
     commit({remoteId:id,remote:{...run.remote,statusUrl:run.remote.baseUrl+'/history/'+encodeURIComponent(id),submissionState:'accepted'}},{at,status:'located',remoteId:id});
    }
    if(run.remote.kind==='comfy-h3-v1')result=await providers.comfyH3().query(run.remoteId,run.remote,ctx);
-   else if(run.remote.kind!=='comfy-h3-sequence-v1'){const response=await providers.request(run.remote.statusUrl,{headers:await providers.headers()},ctx);result=await response.json();}ctx.signal.throwIfAborted();
+   else if(run.remote.kind!=='comfy-h3-sequence-v1'){const response=await providers.request(run.remote.statusUrl,{headers:await providers.sameOriginHeaders(run.remote.statusUrl,run.parameters?.input?.avatarUrl,'avatar')},ctx);result=await response.json();}ctx.signal.throwIfAborted();
    if(!result||typeof result!=='object'||Array.isArray(result))throw Error('查询没有返回有效任务对象，远程结果仍待确认');
    if(result.jobId!==undefined&&result.jobId!==run.remoteId)throw Error('查询返回的任务ID与原记录不一致，远程结果仍待确认');
    const status=result.status;

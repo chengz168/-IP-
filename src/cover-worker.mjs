@@ -13,7 +13,7 @@ async function font(font){if(jobs.has(font.id))return jobs.get(font.id);const jo
 window.renderCover=async cover=>{
  const scene=validScene(coverScene(cover)),fonts=await call('listSubtitleFonts'),prepared=await prepareCoverFonts(scene,fonts,font);let image=null;
  if(cover.backgroundId){const url=await call('imageData',{id:cover.backgroundId});image=new Image();await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error('后台封面背景无法解码'));image.src=url;});}
- const canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1920;drawCover(canvas,prepared,image,Number(cover.blur)||0);return canvas.toDataURL('image/jpeg',.95);
+ const canvas=document.createElement('canvas');canvas.width=scene.width;canvas.height=scene.height;drawCover(canvas,prepared,image,Number(cover.blur)||0);return canvas.toDataURL('image/jpeg',.95);
 };
 window.renderTitle=async input=>{
  const snapshot=titleSnapshot({title:input.main,subtitle:input.sub,titleDesign:input.design},input.width,input.height),fonts=await call('listSubtitleFonts'),prepared=await prepareTitle(snapshot,fonts,f=>loadTitleFont(call,f)),canvas=document.createElement('canvas');
