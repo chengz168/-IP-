@@ -24,8 +24,9 @@ class Store{
     const {workflowActive,workflowInput}=require('./workflow-state.cjs'),active=workflowActive(this.data,input.id);
     if(active&&options.workflowJobId!==active.id&&workflowInput(before)!==workflowInput(next))throw new Error('此任务的自动流程正在执行，请先停止后修改生产输入');
     if(typeof next.sourceText!=='string'||typeof next.finalText!=='string'||!next.edit||!next.cover||!next.voice||!next.video||!next.publish)throw new Error('任务数据不完整');
-    // 原文或改写稿变化后旧确认失效；独立编辑的最终文案和历史素材保留。
-    if(before.sourceText!==next.sourceText||before.rewrite!==next.rewrite)next.confirmed=false;
+    // 普通编辑撤销旧确认；服务端选用候选时可原子确认与当前稿完全一致的最终文案。
+    const confirmedCopy=options.confirmCopy===true&&next.confirmed===true&&!!next.finalText.trim()&&next.finalText===(next.rewrite?.trim()?next.rewrite:next.sourceText);
+    if((before.sourceText!==next.sourceText||before.rewrite!==next.rewrite)&&!confirmedCopy)next.confirmed=false;
     // 辅助文本仅属于生成时的原文，改字后不能沿用旧译文或旧关键词。
     for(const row of next.edit.captions||[])if(row.auxiliary&&row.auxiliary.sourceText!==row.text)delete row.auxiliary;
     if(next.edit.subtitleProofread){const proof=next.edit.subtitleProofread,{hash}=require('./subtitle-proofread.cjs');if(hash(JSON.stringify(next.edit.captions))!==proof.captionsSha256||hash(next.finalText?.trim()?next.finalText:next.rewrite||'')!==proof.referenceSha256||(next.edit.sourceId||next.video.assetId)!==proof.sourceId)delete next.edit.subtitleProofread;}

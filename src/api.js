@@ -1,4 +1,6 @@
 import {operationErrorMessage} from './operation-error.mjs';
+import {importDroppedVoice as importVoiceDrop} from './voice-drop.mjs';
+export const importDroppedVoice=files=>importVoiceDrop(files,{studio:window.studio,importFile:payload=>call('importFile',payload),readBase64:file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=()=>reject(new Error('无法读取文件'));reader.readAsDataURL(file);})});
 export const call=async(action,payload={})=>{try{if(window.studio)return await window.studio.invoke(action,JSON.parse(JSON.stringify(payload)));const response=await fetch('/api/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.error||'请求失败');return data.result;}catch(error){throw Error(operationErrorMessage(error),{cause:error});}};
 export const mediaUrl=id=>id?(window.studio?window.studio.media(id):'/media/'+encodeURIComponent(id)):'';
 export async function pickFiles(kind='all',options={}){

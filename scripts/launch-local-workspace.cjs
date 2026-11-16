@@ -37,6 +37,12 @@ if($taskWindow.MainWindowHandle -ne [IntPtr]::Zero){
  const verification=process.argv.find(value=>value.startsWith('--verify-port='));
  if(verification){const port=Number(verification.slice(14));if(!Number.isInteger(port)||port<1024||port>65535)throw Error('验证端口无效');args.push('--remote-debugging-address=127.0.0.1','--remote-debugging-port='+port)}
  const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;delete env.STUDIO_DEV_URL;
+ // 通过桌面 Explorer 启动，避免继承开发工具的管理员权限而失去文件拖放。
+ const normalLaunch=process.platform==='win32'?JSON.parse(execFileSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'windows-normal-launch.ps1')],{windowsHide:true,encoding:'utf8',env:{...env,STUDIO_NORMAL_EXE:electron,STUDIO_NORMAL_ARGS:JSON.stringify(args),STUDIO_NORMAL_CWD:root}})):null;
+ if(normalLaunch?.launchedViaExplorer){
+  const record={at:new Date().toISOString(),pid:normalLaunch.pid,workspace,verificationPort:verification?Number(verification.slice(14)):null,sourceElectron:true,packagedExeStarted:false,launchedViaExplorer:true};
+  fs.appendFileSync(path.join(workspace,'launch-history.jsonl'),JSON.stringify(record)+'\n');console.log(JSON.stringify(record));return;
+ }
  const log=fs.openSync(path.join(workspace,'launcher.log'),'a');
  let child;
  try{

@@ -50,7 +50,7 @@ class CopyStudio{
   if(!['topic','marketing'].includes(kind)||JSON.stringify(batch.input)!==JSON.stringify(copyInput(d,kind,this.store.data,true)))throw new Error('创作资料、模板、字数或风格已经变化，请重新生成文案');
   if(kind==='topic'&&batch.topicId!==d.copyStudio?.topic?.topics?.id)throw new Error('选题批次已经变化，请重新生成文案');
   const quality=(await import('./content-quality.mjs')).assessCandidates(batch.input,batch.items)[index];if(quality.status==='rejected')throw new Error('所选文案未通过内容检查：'+quality.issues.join('；')+'。原文保留，请重新生成');
-  d.sourceText=batch.items[index].text;d.rewrite='';d.finalText='';d.confirmed=false;d.step=1;d.copyStudio.selection={kind,candidateId,index};return this.store.updateDraft(d,{preserveCurrentId:true});});
+  d.sourceText=batch.items[index].text;d.rewrite=batch.items[index].text;d.finalText=batch.items[index].text;d.confirmed=true;d.step=2;d.copyStudio.selection={kind,candidateId,index};return this.store.updateDraft(d,{preserveCurrentId:true,confirmCopy:true});});
  }
 }
 module.exports={CopyStudio};
