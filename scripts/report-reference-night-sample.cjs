@@ -1,0 +1,14 @@
+const fs=require('node:fs'),path=require('node:path');
+const directory=path.resolve('evidence/validation/reference-sample-20261115');
+const media=JSON.parse(fs.readFileSync(path.join(directory,'media-verification.json'))),playback=JSON.parse(fs.readFileSync(path.join(directory,'playback.json')));
+const report={at:new Date().toISOString(),scope:'用户指定示例2夜间，原成片前8秒同输入新生成与字幕标题合成',...media,playback,visualReview:{sampledTimes:[.25,1,2,3,4,5,6,7,7.9],sheet:path.join(directory,'quality-comparison.jpg'),sheetReviewed:true,editedFramesReviewed:[1,4],observations:['原片4至5秒出现侧头视线变化，本次生成仍主要正对镜头','嘴部及面部表情与原片不同','标题与字幕使用已保存原版配置中的相同字体、文字与相对位置；并非整页像素一致验收'],continuousVideoAudited:false,continuousLipSyncReviewed:false},validation:{node:{passed:578,total:578,skipped:0,failed:0,exitCode:0,durationMs:16098.7926,log:path.join(directory,'final-tests.log')},nativeWorker:{realRenderFirstAttempt:'Electron39.8.10原生GC致命崩溃',realRenderSecondAttempt:'相同新视频成功剪辑与播放',forcedGcStressPassed:false,attemptedReferenceRetentionPatchReverted:true,logs:['electron-first-render-crash.log','cover-worker-lifetime-first-failed.log','cover-worker-lifetime.log'].map(file=>path.join(directory,file)),runtimeUpgradeNotPerformed:true}},unresolved:['完整208秒尚未重新生成','原生608×1056低于参考1080×1920，未假称1080p','本次明确复用原音轨，未重新生成声音','侧头/眼神/表情与原版不同，连续口型仍待验收','Electron39.8.10后台绘制原生GC崩溃尚未修复','整个产品的模板功能UI交互一比一仍未完成'],qualityAccepted:false,referenceParityAccepted:false,completeReplica:false};
+const packageSource=path.resolve('evidence/validation/package-report.json');
+const packageReport=JSON.parse(fs.readFileSync(packageSource,'utf8'));
+fs.copyFileSync(packageSource,path.join(directory,'package-report.json'));
+report.validation.package={checkedAt:packageReport.checkedAt,sourceMatchesPackage:packageReport.sourceMatchesPackage,checkedFiles:packageReport.files.length,startupVerified:packageReport.startupVerified,startupLimitation:packageReport.startupLimitation,report:path.join(directory,'package-report.json')};
+report.validation.build={exitCode:0,durationSeconds:6.89,log:path.join(directory,'final-package.log')};
+report.visualReview.stableProductScreenshot={file:path.join(directory,'final-product-stable.png'),reviewed:true};
+report.validation.nativeWorker.successfulRenderUsedTemporaryPatch=true;
+report.validation.nativeWorker.currentSource='强引用尝试已撤回；最终目录包为恢复后的原后台绘制源码。成功剪辑发生在中间补丁进程内，不能外推最终源码已消除崩溃。';
+fs.writeFileSync(path.join(directory,'delivery-report.json'),JSON.stringify(report,null,2));
+console.log(JSON.stringify({video:media.reports.edited.exported,comparison:media.comparison.file,qualityAccepted:false,protectedUnchanged:media.protectedFiles.every(x=>x.unchanged)}));

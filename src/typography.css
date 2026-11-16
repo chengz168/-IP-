@@ -1,0 +1,41 @@
+:root{
+  --app-font-scale:1.14;
+  --app-font-size-micro:12px;
+  --app-font-size-meta:13px;
+  --app-font-size-caption:14px;
+  --app-font-size-secondary:15px;
+  --app-font-size-body:16px;
+  --app-font-size-control:16px;
+  --app-font-size-card-title:18px;
+  --app-font-size-section-title:22px;
+  --app-font-size-page-title:28px;
+}
+
+/* 字体变量设在文档根节点，传送到body的弹窗与主窗口保持同一档。 */
+body{font-size:var(--app-font-size-body);font-family:Avenir,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+.app{font-size:var(--app-font-size-body)}
+.settings-nav>header{height:auto;min-height:0;padding:24px 20px;align-items:center}
+.settings-nav>header h1{font-weight:600;line-height:1.142857}
+.settings-heading{height:auto;min-height:0;padding:32px 40px 24px}
+.settings-heading h2{font-weight:600;line-height:1.1;margin:0 0 8px}
+.settings-heading p{line-height:1.25;margin:0}
+.settings-choice{width:280px;max-width:100%;justify-content:flex-start}
+.settings-choice button{flex:none;min-width:0;line-height:1.5;padding:1px 10px}
+.settings-body .settings-choice button{font-size:var(--app-font-size-control)}
+.settings-body :is(label,.field-title){line-height:1.5}
+.settings-body .hint{line-height:1.57142857}
+.settings-body input:not([type=checkbox]):not([type=radio]):not([type=range]),.settings-body select{height:32px;min-height:32px}
+.settings-nav button{line-height:1.5}
+.settings-nav button>.anticon{flex:none}
+.settings-heading h2,.management-title h1{overflow-wrap:anywhere}
+.modal h2{line-height:1.4}
+.modal>header{gap:16px}
+.modal>header>.icon-button{flex:none}
+.modal-body{font-size:var(--app-font-size-body)}
+.caption-table input{line-height:1.25}
+.rewrite-columns>.text-card>h3,.rewrite-columns>.text-card>.card-heading{min-height:calc(var(--app-font-size-body) * 1.5 + 6px);display:flex;align-items:center}
+.rewrite-columns>.text-card>.card-heading h3{line-height:1.4}
+.title-templates{grid-template-columns:repeat(2,minmax(0,1fr))}
+.title-templates button{min-width:0;white-space:normal;padding:10px 6px}
+.title-templates button>span{max-width:100%;white-space:normal}
+@media(max-width:1230px){.settings-heading{padding-left:28px;padding-right:28px}}

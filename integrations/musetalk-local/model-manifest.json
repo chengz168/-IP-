@@ -1,0 +1,309 @@
+{
+  "candidate": "MuseTalk 1.5",
+  "sourceCommit": "0a89dec45a0192b824e3cf4daf96c239440c5ed8",
+  "modelPlanSha256": "c520116c4baeb353da23cf981192dfdb9b6ab467e0f80fd953e26a71ed3a6ad8",
+  "targetDirectory": "D:/AI-Runtimes/super-ip/musetalk-1.5",
+  "files": [
+    {
+      "target": "models/musetalkV15/musetalk.json",
+      "bytes": 748,
+      "expectedSha256": ""
+    },
+    {
+      "target": "models/musetalkV15/unet.pth",
+      "bytes": 3400074924,
+      "expectedSha256": "7ebf6c98c181e20838e4c0054e96e944ac60d5d692cc01db42839fe11b787007"
+    },
+    {
+      "target": "models/sd-vae/config.json",
+      "bytes": 547,
+      "expectedSha256": ""
+    },
+    {
+      "target": "models/sd-vae/diffusion_pytorch_model.bin",
+      "bytes": 334707217,
+      "expectedSha256": "1b4889b6b1d4ce7ae320a02dedaeff1780ad77d415ea0d744b476155c6377ddc"
+    },
+    {
+      "target": "models/whisper/config.json",
+      "bytes": 1983,
+      "expectedSha256": ""
+    },
+    {
+      "target": "models/whisper/pytorch_model.bin",
+      "bytes": 151095027,
+      "expectedSha256": "9607f98a2b22d9e229ae43c52ecea79dcede9e0c5cfae67e8da6eda86d8aac1d"
+    },
+    {
+      "target": "models/whisper/preprocessor_config.json",
+      "bytes": 184990,
+      "expectedSha256": ""
+    },
+    {
+      "target": "models/dwpose/dw-ll_ucoco_384.pth",
+      "bytes": 406878486,
+      "expectedSha256": "0d9408b13cd863c4e95a149dd31232f88f2a12aa6cf8964ed74d7d97748c7a07"
+    },
+    {
+      "target": "models/face-parse-bisent/79999_iter.pth",
+      "bytes": 53289463,
+      "expectedSha256": "468e13ca13a9b43cc0881a9f99083a430e9c0a38abd935431d1c28ee94b26567"
+    },
+    {
+      "target": "models/face-parse-bisent/resnet18-5c106cde.pth",
+      "bytes": 46827520,
+      "expectedSha256": "5c106cde386e87d4033832f2996f5493238eda96ccf559d1d62760c4de0613f8"
+    },
+    {
+      "target": "musetalk/utils/face_detection/detection/sfd/s3fd.pth",
+      "bytes": 89843225,
+      "expectedSha256": ""
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "musetalk/data/audio.py",
+      "gitBlobSha1": "d80ba4f1e98cc83f271c2e46251c416b227b0045",
+      "bytes": 5471
+    },
+    {
+      "path": "musetalk/data/dataset.py",
+      "gitBlobSha1": "94c90c7647599a58d9c99607af6173852e24c279",
+      "bytes": 22776
+    },
+    {
+      "path": "musetalk/data/sample_method.py",
+      "gitBlobSha1": "c7d12658af97825198069103a3636e5d07b1f1e5",
+      "bytes": 10979
+    },
+    {
+      "path": "musetalk/loss/basic_loss.py",
+      "gitBlobSha1": "4159525a7ce94bdd0d2e3fdfc241fa30ae276d8a",
+      "bytes": 3338
+    },
+    {
+      "path": "musetalk/loss/conv.py",
+      "gitBlobSha1": "92751dbafa9422965b27ab2ffa687aa9f9e4c759",
+      "bytes": 1619
+    },
+    {
+      "path": "musetalk/loss/discriminator.py",
+      "gitBlobSha1": "6a506ede9f565767035b81040a669ea8ec5e6b88",
+      "bytes": 5145
+    },
+    {
+      "path": "musetalk/loss/resnet.py",
+      "gitBlobSha1": "b9b1082ebe0b8eb9048e641b4b2e0600c542b07b",
+      "bytes": 4645
+    },
+    {
+      "path": "musetalk/loss/syncnet.py",
+      "gitBlobSha1": "8593efdb63665d0a79a305765fa31b9a6a3a976b",
+      "bytes": 4214
+    },
+    {
+      "path": "musetalk/loss/vgg_face.py",
+      "gitBlobSha1": "b41faadf0ae9883bded3cba9bfbbb74175c84019",
+      "bytes": 8307
+    },
+    {
+      "path": "musetalk/models/syncnet.py",
+      "gitBlobSha1": "185b236622a470b98c26b70aeb0cea00fe588658",
+      "bytes": 8987
+    },
+    {
+      "path": "musetalk/models/unet.py",
+      "gitBlobSha1": "575e79af26e04b9c37d9c233d406e67a206c6a90",
+      "bytes": 1686
+    },
+    {
+      "path": "musetalk/models/vae.py",
+      "gitBlobSha1": "51efef420f46ec0dc01d5c8ac12825e6e4c355c0",
+      "bytes": 5419
+    },
+    {
+      "path": "musetalk/utils/__init__.py",
+      "gitBlobSha1": "b58c41d239fae3136e82e0d680cd7ab4e9f78aaf",
+      "bytes": 160
+    },
+    {
+      "path": "musetalk/utils/audio_processor.py",
+      "gitBlobSha1": "dbdee25393f721bc27b35bc4cb5bda7a82b2b9bc",
+      "bytes": 4227
+    },
+    {
+      "path": "musetalk/utils/audio_utils.py",
+      "gitBlobSha1": "2d1387ed675343ff249ac27df115d0ac60dd9b96",
+      "bytes": 718
+    },
+    {
+      "path": "musetalk/utils/blending.py",
+      "gitBlobSha1": "fa3effcdd2db04b531255fec72a0afd549d35ec6",
+      "bytes": 5337
+    },
+    {
+      "path": "musetalk/utils/dwpose/default_runtime.py",
+      "gitBlobSha1": "6f27c0345a6cf1b7bc4b035eb456e2c9f3126804",
+      "bytes": 1431
+    },
+    {
+      "path": "musetalk/utils/dwpose/rtmpose-l_8xb32-270e_coco-ubody-wholebody-384x288.py",
+      "gitBlobSha1": "293efad219b835650bf3659a33826c51b04cfad4",
+      "bytes": 7364
+    },
+    {
+      "path": "musetalk/utils/face_detection/__init__.py",
+      "gitBlobSha1": "31c3e227b0b61c2270225cea370ffd35c4e24b99",
+      "bytes": 196
+    },
+    {
+      "path": "musetalk/utils/face_detection/api.py",
+      "gitBlobSha1": "0a6a8d665c3c680848fbf6dc81b4d094a8f51c77",
+      "bytes": 10100
+    },
+    {
+      "path": "musetalk/utils/face_detection/detection/__init__.py",
+      "gitBlobSha1": "1a6b0402dae864a3cc5dc2a90a412fd842a0efc7",
+      "bytes": 30
+    },
+    {
+      "path": "musetalk/utils/face_detection/detection/core.py",
+      "gitBlobSha1": "0f8275e8e53143f66298f75f0517c234a68778cd",
+      "bytes": 4868
+    },
+    {
+      "path": "musetalk/utils/face_detection/detection/sfd/__init__.py",
+      "gitBlobSha1": "5a63ecd45658f22e66c171ada751fb33764d4559",
+      "bytes": 53
+    },
+    {
+      "path": "musetalk/utils/face_detection/detection/sfd/bbox.py",
+      "gitBlobSha1": "4bd7222e5e5f78a51944cbeed3cccbacddc46bed",
+      "bytes": 4279
+    },
+    {
+      "path": "musetalk/utils/face_detection/detection/sfd/detect.py",
+      "gitBlobSha1": "15ccdc5abf5df22937f997ec59993f5da4a14ed6",
+      "bytes": 3792
+    },
+    {
+      "path": "musetalk/utils/face_detection/detection/sfd/net_s3fd.py",
+      "gitBlobSha1": "fc64313c277ab594d0257585c70f147606693452",
+      "bytes": 5291
+    },
+    {
+      "path": "musetalk/utils/face_detection/detection/sfd/sfd_detector.py",
+      "gitBlobSha1": "8fbce15253251d403754ab4348f93ae85a6ba2fb",
+      "bytes": 1809
+    },
+    {
+      "path": "musetalk/utils/face_detection/models.py",
+      "gitBlobSha1": "ee2dde32bdf72c25a4600e48efa73ffc0d4a3893",
+      "bytes": 8619
+    },
+    {
+      "path": "musetalk/utils/face_detection/utils.py",
+      "gitBlobSha1": "3dc4cf3e328efaa227cbcfdd969e1056688adad5",
+      "bytes": 11808
+    },
+    {
+      "path": "musetalk/utils/face_parsing/__init__.py",
+      "gitBlobSha1": "09c1c02a2e736a1f579e0e53ff380418b5c8eb66",
+      "bytes": 4700
+    },
+    {
+      "path": "musetalk/utils/face_parsing/model.py",
+      "gitBlobSha1": "13d13e03b38508216615ac15cb42e3ea0db2d76a",
+      "bytes": 10676
+    },
+    {
+      "path": "musetalk/utils/face_parsing/resnet.py",
+      "gitBlobSha1": "e2e5d87e34439e42f85b1cf80e83b750b4a38eac",
+      "bytes": 3706
+    },
+    {
+      "path": "musetalk/utils/preprocessing.py",
+      "gitBlobSha1": "978480c6d7ab21c290c67996f0d8adc8ce2fa10f",
+      "bytes": 6963
+    },
+    {
+      "path": "musetalk/utils/training_utils.py",
+      "gitBlobSha1": "010f01f12149481df27dc8caf0515a76289be6ac",
+      "bytes": 12167
+    },
+    {
+      "path": "musetalk/utils/utils.py",
+      "gitBlobSha1": "100c35c76359b99df0a3d42cc61b2a4d69d67894",
+      "bytes": 11737
+    },
+    {
+      "path": "musetalk/whisper/audio2feature.py",
+      "gitBlobSha1": "2cfd3a9af14ff2fa4c77944371b264c7dd759d7c",
+      "bytes": 4859
+    },
+    {
+      "path": "musetalk/whisper/whisper/__init__.py",
+      "gitBlobSha1": "b9255534ceae3014481780ab0571b4edb6523212",
+      "bytes": 5442
+    },
+    {
+      "path": "musetalk/whisper/whisper/__main__.py",
+      "gitBlobSha1": "bc9b04a39283f71082f46ec8bb11fe15f8cf75b2",
+      "bytes": 36
+    },
+    {
+      "path": "musetalk/whisper/whisper/audio.py",
+      "gitBlobSha1": "6a1986d630105eeacbcb007338bd8ce54d2a69d6",
+      "bytes": 4071
+    },
+    {
+      "path": "musetalk/whisper/whisper/decoding.py",
+      "gitBlobSha1": "183505481e40a4f3779933e5fde8086d79e4cc39",
+      "bytes": 30930
+    },
+    {
+      "path": "musetalk/whisper/whisper/model.py",
+      "gitBlobSha1": "acb6a0be88109a884b2c4d0e2d50daaf00870307",
+      "bytes": 10591
+    },
+    {
+      "path": "musetalk/whisper/whisper/normalizers/__init__.py",
+      "gitBlobSha1": "0b10d5a9d6389368fe7f3bac38e3b3cd9cc1470f",
+      "bytes": 82
+    },
+    {
+      "path": "musetalk/whisper/whisper/normalizers/basic.py",
+      "gitBlobSha1": "ef8d249bfca2cd10bccdd56950504581e2598560",
+      "bytes": 1882
+    },
+    {
+      "path": "musetalk/whisper/whisper/normalizers/english.py",
+      "gitBlobSha1": "d5c2bb4ebef1a04b9ab14970c10c3fb0d4e948d4",
+      "bytes": 20793
+    },
+    {
+      "path": "musetalk/whisper/whisper/tokenizer.py",
+      "gitBlobSha1": "88142c43c9ca0d951a36b5b30baf54dd7bc7efbf",
+      "bytes": 9837
+    },
+    {
+      "path": "musetalk/whisper/whisper/transcribe.py",
+      "gitBlobSha1": "745e77554b90c63db69ce7da40156676c7a990de",
+      "bytes": 10580
+    },
+    {
+      "path": "musetalk/whisper/whisper/utils.py",
+      "gitBlobSha1": "87c91f2e969c4d2ebfc311266bced76a52cb3ef3",
+      "bytes": 2660
+    },
+    {
+      "path": "scripts/inference.py",
+      "gitBlobSha1": "428afb99a8fbb3175598e18c096b12dbfdf943d5",
+      "bytes": 13461
+    }
+  ],
+  "metadataOrigin": "既有固定下载计划；大权重预期散列来自记录明确的镜像元数据，小配置及S3FD无独立已知完整SHA",
+  "officialMetadataIndependentlyVerified": false,
+  "sourceTreeSha": "35dcf7cdc89d21a72bdf56866545705edebb7989",
+  "sourceTreeMetadataSha256": "f0b64cd2092c9553e656d92d4f76855803a72d68855351fbc584f2adfc957afe"
+}

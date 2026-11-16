@@ -1,0 +1,219 @@
+[
+  {
+    "id": "title_yellow_ximai_stroke",
+    "name": "黄色喜脉体",
+    "description": "淡黄色喜脉体，黑色描边",
+    "style": {
+      "fontFamily": "喜脉体",
+      "fontSize": 70,
+      "color": "#F8F3C3",
+      "secondaryColor": "#F8F3C3",
+      "fontWeight": "900",
+      "position": "topCenter",
+      "offsetX": 0,
+      "offsetY": 100,
+      "enableStroke": true,
+      "strokeColor": "#000000",
+      "strokeWidth": 3,
+      "enableShadow": false,
+      "shadowDistance": 0,
+      "backgroundColor": "rgba(0,0,0,0)"
+    }
+  },
+  {
+    "id": "title_yellow_white_xingkai_shadow",
+    "name": "黄白行楷",
+    "description": "三极行楷，黄上白下带阴影",
+    "style": {
+      "fontFamily": "三极行楷简体",
+      "fontSize": 70,
+      "color": "#FDF084",
+      "secondaryColor": "#FFFFFF",
+      "fontWeight": "900",
+      "position": "topCenter",
+      "offsetX": 0,
+      "offsetY": 100,
+      "enableStroke": false,
+      "strokeWidth": 0,
+      "enableShadow": true,
+      "shadowDistance": 3,
+      "shadowColor": "#000000",
+      "backgroundColor": "rgba(0,0,0,0)"
+    }
+  },
+  {
+    "id": "title_yellow_white_serif",
+    "name": "黄白标题黑",
+    "description": "优设标题黑，黄上白下带阴影",
+    "style": {
+      "fontFamily": "优设标题黑",
+      "fontSize": 70,
+      "color": "#F6EE7C",
+      "secondaryColor": "#FFFFFF",
+      "fontWeight": "900",
+      "position": "topCenter",
+      "offsetX": 0,
+      "offsetY": 100,
+      "backgroundColor": "rgba(0,0,0,0)",
+      "shadowColor": "rgba(0,0,0,0.55)",
+      "shadowDistance": 3
+    }
+  },
+  {
+    "id": "title_yellow_white_dakai_shadow",
+    "name": "黄白大楷",
+    "description": "东方大楷，黄上白下带阴影",
+    "style": {
+      "fontFamily": "东方大楷",
+      "fontSize": 70,
+      "color": "#FFF58F",
+      "secondaryColor": "#FFFFFF",
+      "fontWeight": "900",
+      "position": "topCenter",
+      "offsetX": 0,
+      "offsetY": 100,
+      "enableStroke": false,
+      "strokeWidth": 0,
+      "enableShadow": true,
+      "shadowDistance": 3,
+      "shadowColor": "#000000",
+      "backgroundColor": "rgba(0,0,0,0)"
+    }
+  },
+  {
+    "id": "title_white_houzun_italic",
+    "name": "白色猴尊斜体",
+    "description": "猴尊宋体斜体，粉色背景遮罩",
+    "style": {
+      "fontFamily": "猴尊宋体",
+      "fontSize": 70,
+      "color": "#FFFFFF",
+      "secondaryColor": "#FFFFFF",
+      "fontWeight": "900",
+      "fontStyles": [
+        "italic"
+      ],
+      "position": "topCenter",
+      "offsetX": 0,
+      "offsetY": 80,
+      "enableStroke": false,
+      "strokeWidth": 0,
+      "enableShadow": true,
+      "shadowDistance": 2,
+      "shadowColor": "#000000",
+      "enableBackground": true,
+      "backgroundColor": "rgba(252,207,229,0.38)"
+    }
+  },
+  {
+    "id": "title_red_jiangcheng_stroke",
+    "name": "红色律动宋",
+    "description": "江城律动宋，红字白描边",
+    "style": {
+      "fontFamily": "江城律动宋",
+      "fontSize": 70,
+      "color": "#A30023",
+      "secondaryColor": "#A30023",
+      "fontWeight": "900",
+      "position": "topCenter",
+      "offsetX": 0,
+      "offsetY": 100,
+      "enableStroke": true,
+      "strokeColor": "#FFFFFF",
+      "strokeWidth": 3,
+      "enableShadow": false,
+      "shadowDistance": 0,
+      "backgroundColor": "rgba(0,0,0,0)"
+    }
+  },
+  {
+    "id": "title_orange_yellow_xiehei_stroke",
+    "name": "橙黄错位",
+    "description": "江城斜黑体，错位排版描边",
+    "style": {
+      "fontFamily": "江城斜黑体",
+      "fontSize": 70,
+      "color": "#FA8820",
+      "secondaryColor": "#FFE15A",
+      "fontWeight": "900",
+      "fontStyles": [
+        "italic"
+      ],
+      "position": "topCenter",
+      "offsetX": -120,
+      "offsetY": 100,
+      "enableStroke": true,
+      "strokeColor": "#000000",
+      "strokeWidth": 3,
+      "enableShadow": false,
+      "shadowDistance": 0,
+      "backgroundColor": "rgba(0,0,0,0)"
+    }
+  },
+  {
+    "id": "title_orange_white_stroke",
+    "name": "橙白粗黑宋",
+    "description": "方正粗黑宋，橙上白下描边",
+    "style": {
+      "fontFamily": "方正粗黑宋简体",
+      "fontSize": 68,
+      "color": "#EA8435",
+      "secondaryColor": "#FFFFFF",
+      "fontWeight": "900",
+      "position": "topCenter",
+      "offsetX": 0,
+      "offsetY": 112,
+      "backgroundColor": "rgba(0,0,0,0)",
+      "strokeColor": "#FFFFFF",
+      "strokeWidth": 2,
+      "shadowColor": "rgba(0,0,0,0.45)",
+      "shadowDistance": 3
+    }
+  },
+  {
+    "id": "title_orange_white_serif_shadow",
+    "name": "橙白思源宋",
+    "description": "思源宋体，橙上白下带背景遮罩",
+    "style": {
+      "fontFamily": "思源宋体",
+      "fontSize": 70,
+      "color": "#EA8439",
+      "secondaryColor": "#FFFFFF",
+      "fontWeight": "900",
+      "position": "topCenter",
+      "offsetX": 0,
+      "offsetY": 80,
+      "enableStroke": false,
+      "strokeWidth": 0,
+      "enableShadow": true,
+      "shadowDistance": 3,
+      "shadowColor": "#000000",
+      "enableBackground": true,
+      "backgroundColor": "rgba(0,0,0,0.24)"
+    }
+  },
+  {
+    "id": "title_blue_wendao_stroke",
+    "name": "蓝色文道潮黑",
+    "description": "文道潮黑体，蓝字白描边",
+    "style": {
+      "fontFamily": "文道潮黑体",
+      "fontSize": 64,
+      "color": "#3F509B",
+      "secondaryColor": "#3F509B",
+      "fontWeight": "900",
+      "fontStyles": [
+        "italic"
+      ],
+      "position": "topCenter",
+      "offsetX": 0,
+      "offsetY": 100,
+      "backgroundColor": "rgba(0,0,0,0)",
+      "strokeColor": "#FFFFFF",
+      "strokeWidth": 3,
+      "enableStroke": true,
+      "enableShadow": false,
+      "shadowDistance": 0
+    }
+  }
+]

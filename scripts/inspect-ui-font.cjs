@@ -1,0 +1,3 @@
+const {chromium}=require('C:/Users/DELL/AppData/Local/npm-cache/_npx/31e32ef8478fbf80/node_modules/playwright-core');
+// 临时样式只用于当前源码窗口的字形对照，不保存任务和设置。
+(async()=>{const browser=await chromium.connectOverCDP('http://127.0.0.1:9333');try{const page=browser.contexts()[0].pages()[0];await page.locator('.steps>button').nth(1).click();await page.addStyleTag({content:'body{font-family:Avenir,Helvetica,Arial,"Microsoft YaHei",sans-serif}'});await page.screenshot({path:'evidence/validation/refinement-font-candidate.png'});}finally{await browser.close();}})().catch(error=>{console.error(error);process.exitCode=1;});

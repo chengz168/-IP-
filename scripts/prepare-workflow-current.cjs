@@ -1,0 +1,9 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const root=path.resolve('evidence/validation/workflow-current'),workspace=path.join(root,'desktop-workspace');
+assert.ok(!fs.existsSync(path.join(workspace,'studio.json')),'已有验收工作区不能覆盖');
+const source=JSON.parse(fs.readFileSync('evidence/validation/workflow-jobs/desktop-workspace/studio.json')),functional=JSON.parse(fs.readFileSync('evidence/validation/workflow-jobs/functional-report.json')),job=source.workflowJobs.find(j=>j.id===functional.jobId);assert.equal(job.status,'awaiting_publish');
+fs.mkdirSync(path.join(workspace,'assets'),{recursive:true});
+// 将已生成的真实媒体复制到本批隔离目录，文件缺失试验不能影响原验收或用户素材。
+for(const asset of source.assets){const target=path.join(workspace,'assets',asset.id+path.extname(asset.path));fs.copyFileSync(asset.path,target);asset.path=target;}
+const draft={...job.input,...JSON.parse(job.expectedInput),step:4,title:'当前状态真实桌面验收'};source.drafts=[draft];source.currentId=draft.id;source.workflowJobs=[job];source.runs=source.runs.filter(r=>r.draftId===draft.id);source.settings.outputDir='';source.settings.fontSize='comfortable';source.settings.view='new';fs.writeFileSync(path.join(workspace,'studio.json'),JSON.stringify(source,null,2));
+fs.writeFileSync(path.join(root,'original-baseline.json'),fs.readFileSync('evidence/validation/pip-desktop-workspace/studio.json'));fs.writeFileSync(path.join(root,'initial-job.json'),JSON.stringify(job,null,2));fs.writeFileSync(path.join(root,'initial-draft.json'),JSON.stringify(draft,null,2));fs.writeFileSync(path.join(root,'fixture.json'),JSON.stringify({workspace,id:draft.id,jobId:job.id,videoId:draft.edit.resultId,coverId:draft.cover.assetId,originalWorkspace:path.resolve('evidence/validation/pip-desktop-workspace')},null,2));console.log(JSON.stringify({workspace,id:draft.id,assets:source.assets.length,reusedActualMedia:true}));

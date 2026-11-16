@@ -1,0 +1,82 @@
+/* 标题面板使用同排端点和独立正文滚动，窄面板再分行。 */
+.edit-controls:has(>.title-panel){overflow:hidden;scrollbar-gutter:auto}.title-panel{display:flex;flex-direction:column;min-height:0;min-width:0;height:100%;gap:16px}.title-panel>header{flex:none}.title-panel>header h3{margin:0;line-height:25px;font-size:var(--app-font-size-card-title)}.title-panel>header p{margin:4px 0 0;line-height:20px;color:var(--muted);font-size:var(--app-font-size-caption)}
+.title-panel-scroll{min-height:0;min-width:0;overflow:auto;scrollbar-gutter:stable;padding-right:5px;flex:1;display:flex;flex-direction:column;gap:12px}.title-inputs{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 32px;gap:10px;align-items:center}.title-inputs input{height:34px;min-height:34px;min-width:0;padding:6px 10px;font-size:var(--app-font-size-caption)}.title-inputs .icon-button{height:32px;min-height:32px;width:32px;padding:4px;border-radius:50%;background:#ffffff03;border:1px solid #ffffff05}
+.title-option{display:grid;grid-template-columns:72px minmax(0,1fr);align-items:center;gap:12px}.title-option>span{font-size:var(--app-font-size-caption);color:var(--muted);font-weight:900;white-space:nowrap}.title-option .segmented{justify-self:start;padding:3px;border:1px solid #5e3b6f;border-radius:8px;gap:2px;min-width:0;background:#292b37}.title-option .segmented button{white-space:nowrap;padding:2px 10px;line-height:22px;min-height:28px;font-size:var(--app-font-size-caption)}.title-panel-scroll>.hint{margin:0;line-height:24px;font-size:var(--app-font-size-caption)}
+.title-seconds{display:flex!important;gap:0!important;margin:0!important;align-items:stretch;width:min(100%,242px);height:32px;flex:none}.title-seconds input{width:100%;min-width:0;height:32px;min-height:32px;margin:0!important;padding:4px 11px;border-radius:6px 0 0 6px;border-color:#ffffff07;background:#242632;font-size:var(--app-font-size-body)}.title-seconds>span{display:grid;place-items:center;flex:none;padding:0 11px;border:1px solid #ffffff07;border-left:0;border-radius:0 6px 6px 0;background:#242632;font-size:var(--app-font-size-body)}
+.title-template-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.title-template-card{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:8px;min-width:0;border:1px solid #ffffff08;border-radius:14px;padding:10px 12px;background:#252732;text-align:left}.title-template-card.active{border-color:#008abb;background:#303856}.title-template-card strong{font-size:var(--app-font-size-body);line-height:24px;overflow-wrap:anywhere}.title-template-card .title-canvas-wrap{width:100%;background:#09090e;border-radius:8px;aspect-ratio:16/9;overflow:hidden}
+.title-canvas-wrap{position:relative;min-width:0}.title-canvas-wrap canvas{display:block;width:100%;height:100%;font-synthesis:weight style}.title-canvas-wrap.interactive canvas{pointer-events:none}.title-font-error{position:absolute;inset:0;display:grid;place-items:center;padding:6px;color:#ffc28b;background:#15151bcc;font-size:var(--app-font-size-micro);text-align:center;overflow:auto}.title-operation-error{margin:0;color:#ffc28b;font-size:var(--app-font-size-caption);overflow-wrap:anywhere}
+/* 分组卡片内字段对齐同一基线，数值独立占位，避免大字号挤压滑杆。 */
+.title-custom{display:flex;flex-direction:column;gap:10px;min-width:0}
+.title-style-group{min-width:0;padding:11px 12px 12px 14px;border:1px solid #ffffff06;border-radius:10px;background:#252732}
+.title-style-group.enabled{background:#203642;border-color:#1b667c}
+.title-style-group>header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.title-style-group>header>div{min-width:0}.title-style-group h4{margin:0;font-size:var(--app-font-size-meta);font-weight:900;line-height:20px}.title-style-group p{color:var(--muted);font-size:var(--app-font-size-micro);line-height:1.4;margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.title-group-summary{font-size:var(--app-font-size-micro);line-height:1.4;white-space:nowrap;background:#ffffff04;border-radius:999px;padding:2px 7px;color:var(--muted);flex:none}
+.title-group-fields{border-top:1px solid #ffffff05;margin-top:10px;padding-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-width:0}
+.title-group-fields>label{margin:0;font-size:var(--app-font-size-caption);line-height:22px;min-width:0}
+.title-custom .cover-range{display:grid;grid-template-columns:minmax(28px,1fr) 42px;gap:6px 8px;align-items:center;margin:0;min-width:0}
+.title-custom .cover-range>span:first-child{grid-column:1/-1;white-space:normal;line-height:20px;color:var(--muted);font-weight:900}
+.title-custom .cover-range input[type=range]{width:100%;min-width:0;margin:0;height:24px;min-height:24px;padding:10px 0;appearance:none;background:transparent;cursor:pointer}
+.title-custom .cover-range-value{display:flex;align-items:center;justify-content:flex-end;gap:0;min-width:0}
+.title-custom .cover-range-value input{width:100%;min-width:0;height:24px;min-height:24px;padding:2px 0;text-align:right;border-color:transparent;background:transparent;appearance:textfield}
+.title-custom .cover-range-value input::-webkit-inner-spin-button{appearance:none}.title-custom .cover-range-value input:hover,.title-custom .cover-range-value input:focus{border-color:#526881;background:#222a36}
+.title-custom .cover-range-value small{flex:none;font-size:var(--app-font-size-micro)}
+.title-custom .cover-color{display:flex;flex-direction:column;gap:4px;margin:0;min-width:0}
+.title-custom .cover-color>span:last-child{display:flex;align-items:center;gap:6px;min-width:0;height:24px}
+.title-custom .cover-color input[type=color]{width:34px;height:24px;min-height:24px;padding:0;flex:none;border-radius:0}
+.title-custom .cover-color input:not([type=color]){width:100%;min-width:0;height:24px;min-height:24px;padding:1px 7px;font-size:var(--app-font-size-caption)}
+.title-font-field{display:flex;flex-direction:column;gap:6px;color:var(--muted);font-weight:900}
+.title-style-toggles{grid-column:1/-1;min-width:0;font-size:var(--app-font-size-caption);line-height:22px}.title-style-toggles>span{color:var(--muted)}
+.title-preview{gap:10px;display:flex;flex-direction:column;min-width:0}.title-preview>h3,.title-preview>.hint{margin:0}.title-preview>.segmented{align-self:flex-start;flex:none}.title-preview>.hint{font-size:var(--app-font-size-meta)}.title-video-shell{display:flex;align-items:center;justify-content:center;flex:1;min-height:0;overflow:hidden;background:#000;border-radius:14px;padding:8px}.title-video-stage{position:relative;max-width:100%;height:100%;max-height:100%;min-height:0}.title-video-stage video{width:100%;height:100%;display:block;object-fit:contain}.title-video-stage>.title-canvas-wrap{position:absolute;inset:0;aspect-ratio:inherit;height:100%;pointer-events:none}.title-video-stage>.title-canvas-wrap canvas{pointer-events:none}.title-video-stage>.title-canvas-wrap:not(.interactive){pointer-events:none}
+@container edit-panel (max-width:280px){.title-option{grid-template-columns:1fr;gap:6px}.title-inputs{grid-template-columns:minmax(0,1fr) 32px;gap:8px}.title-inputs>input:first-child{grid-column:1/-1}.title-group-fields{grid-template-columns:1fr}.title-style-group{padding:10px}.title-template-card{padding:8px;gap:6px}.title-template-card strong{font-size:var(--app-font-size-caption)}}
+
+.title-drag-handle{position:absolute;pointer-events:auto;touch-action:none;cursor:ns-resize;border:0}.title-drag-handle:focus-visible{outline:1px dashed #c68cff;outline-offset:3px}
+.title-template-overlay{position:absolute;inset:0;pointer-events:none}.title-template-mask{position:absolute;left:0;right:0;pointer-events:none}.title-template-line{position:absolute;z-index:1;display:block;transform:translate(-50%,-50%);line-height:1;letter-spacing:0;text-align:center;white-space:nowrap;overflow:visible}
+.title-custom-overlay{pointer-events:auto;touch-action:none;cursor:ns-resize;user-select:none}.title-custom-overlay:focus-visible{outline:1px dashed #c68cff;outline-offset:3px}
+.title-template-card{padding-bottom:12px}.title-template-card strong{min-width:0;max-width:100%;font-weight:900;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.title-template-preview{width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:10px;background:rgba(0,0,0,.26);flex-shrink:0}.title-template-preview img{width:100%;height:100%;display:block;object-fit:contain}
+/* 标题滑杆按原版使用细轨道和白心描边圆点，其他面板不受影响。 */
+.title-panel>header h3{line-height:1.2}.title-panel>header p{line-height:1.2}
+.title-panel-scroll{padding-right:0}.title-inputs input{height:auto;min-height:32px;padding:4px 11px;font-size:var(--app-font-size-body);line-height:1.57142857}
+.title-style-group h4{line-height:1.4}.title-group-fields>label,.title-custom .cover-range>span:first-child,.title-custom .cover-color>span:first-child,.title-style-toggles{line-height:1.2}.title-style-toggles>div{margin-top:6px}.title-style-toggles label{line-height:22px}
+.title-custom .cover-range input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,#91caff var(--range-progress),#ffffff0a var(--range-progress))}
+.title-custom .cover-range input[type=range]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;margin-top:-5px;border:2px solid #91caff;border-radius:50%;background:white}
+.title-custom .cover-range input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 3px #91caff33}
+.title-custom .cover-color{gap:6px}.title-custom .cover-color>span:first-child{font-weight:900;color:var(--muted);line-height:20px}.title-style-toggles>span{font-weight:900}
+/* 标题自定义卡片沿用原版透明主题层、继承行高和只读端点数值。 */
+.title-custom .title-style-group{position:relative;overflow:hidden;padding:11px 12px 12px 14px;border-color:color-mix(in srgb,#ffffff0a 78%,transparent);background:color-mix(in srgb,#252834 50%,transparent)}
+.title-custom .title-style-group.effect{background:color-mix(in srgb,#252834 34%,transparent)}
+.title-custom .title-style-group.enabled{background:color-mix(in srgb,#06b6d4 9%,#252834);border-color:color-mix(in srgb,#06b6d4 34%,#ffffff0a)}
+.title-style-group>header>div{display:grid;gap:2px}.title-style-group h4{line-height:inherit}.title-style-group p{margin:0}
+.title-group-summary{background:color-mix(in srgb,#ffffff0a 74%,transparent);font-variant-numeric:tabular-nums}
+.title-group-fields{grid-template-columns:repeat(2,minmax(0,1fr));border-color:color-mix(in srgb,#ffffff0a 66%,transparent)}
+.title-group-fields>label,.title-custom .cover-range>span:first-child,.title-custom .cover-color>span:first-child,.title-style-toggles{line-height:inherit}
+.title-custom .cover-range input[type=range]{height:20px;min-height:20px;padding:8px 0}
+.title-custom .cover-range-value.readonly-value{height:20px;color:var(--muted);font-size:var(--app-font-size-caption);font-weight:900;font-variant-numeric:tabular-nums}
+.title-custom .cover-color input[type=color]{border:0;border-radius:6px;background:transparent}
+.title-custom .cover-color input:not([type=color]){font-size:var(--app-font-size-control);font-weight:400;line-height:22px;color:#e4e4e7}
+
+/* 只对标题控件复现原版覆盖，避免原生表单基础样式改变Ant内部结构。 */
+.title-font-picker{min-width:0;height:24px}
+.title-font-picker .ant-select{width:100%;font-size:var(--app-font-size-body);font-weight:400}
+.title-font-picker .ant-select-selector{color:#e4e4e7!important;background:#ffffff0a!important;border-color:#ffffff0a!important;font-size:var(--app-font-size-control)!important}
+.title-font-picker .ant-select-selection-item,.title-font-picker .ant-select-selection-placeholder{font-size:var(--app-font-size-control)!important;color:#e4e4e7}
+.title-font-picker .ant-select-arrow{color:#e4e4e7}
+.title-font-picker .title-font-label{font-size:var(--app-font-size-caption);font-weight:900;color:var(--muted)}
+.title-font-picker input.ant-select-selection-search-input{margin:0;padding:0;border:0;border-radius:0;background:transparent;min-height:0;color:inherit;outline:0;box-shadow:none;font:inherit}
+.title-style-toggles>span{display:block}
+.title-style-toggles>.ant-checkbox-group{display:inline-flex;flex-wrap:wrap;column-gap:8px;margin-top:6px}
+.title-style-toggles .ant-checkbox-wrapper{display:inline-flex;align-items:baseline;gap:0;margin:0;font-size:var(--app-font-size-body)!important;font-weight:400;color:#e4e4e7;line-height:1.57142857}
+.title-style-toggles input.ant-checkbox-input{appearance:none;width:100%;height:100%;margin:0;padding:0;border:0;border-radius:0;background:transparent;min-height:0;outline:0}
+.title-style-toggles input.ant-checkbox-input:after{display:none}
+.title-style-group>header>.ant-switch{display:inline-block;flex:none;min-width:28px;height:16px;min-height:16px;padding:0;border:0;border-radius:100px;line-height:16px}
+.title-style-group>header>.ant-switch:hover{border:0}
+.title-font-dropdown.ant-select-dropdown{background:#1a1a1a!important;border:1px solid #e071ff4d!important;border-radius:14px!important;box-shadow:0 18px 46px #0000004d!important}
+.title-font-dropdown.ant-select-dropdown .ant-select-item{min-height:64px!important;padding:8px 12px!important;font-size:var(--app-font-size-caption)!important;color:#e4e4e7!important;background:transparent!important}
+.title-font-dropdown .ant-select-item-option-content{color:#e4e4e7!important}
+.title-font-dropdown.ant-select-dropdown .ant-select-item-option-active{background:#2a2d3a!important}
+.title-font-dropdown.ant-select-dropdown .ant-select-item-option-selected{background:#3457fe!important;color:#fff!important}
+.title-font-dropdown .ant-empty-description{color:#9ca3af}
+/* 原版小号颜色输入按字号计算自然高度，色块居中而非压成固定24px。 */
+.title-custom .cover-color>span:last-child{display:grid;grid-template-columns:34px minmax(0,1fr);height:auto;gap:6px;align-items:center}
+.title-custom .cover-color input.ant-input{height:auto;min-height:0;padding:0 7px;font-size:var(--app-font-size-control)!important;line-height:1.57142857;border-color:#ffffff0a;background:#ffffff0a;border-radius:4px}

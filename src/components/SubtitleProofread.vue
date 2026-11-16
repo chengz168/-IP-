@@ -1,0 +1,27 @@
+<script setup>
+import {inject,ref} from 'vue';
+import Modal from './Modal.vue';
+import {call,mediaUrl} from '../api';
+const emit=defineEmits(['close']);
+const {draft,save,refresh,notify,busy}=inject('studio');
+const result=ref(null),selected=ref([]),error=ref(''),saving=ref(false),loading=ref(false),player=ref(null),playEnd=ref(null);
+const source=ref(draft.value.edit.sourceId||draft.value.video.assetId),draftId=draft.value.id;
+async function inspect(){error.value='';selected.value=[];result.value=null;loading.value=true;try{await save();result.value=await call('proofreadSubtitles',{id:draftId});await refresh();}catch(e){error.value=e.message;}finally{loading.value=false;}}
+async function apply(){error.value='';saving.value=true;try{await save();const savedInput=JSON.stringify(draft.value);await call('applySubtitleProofread',{id:draftId,runId:result.value.runId,selected:selected.value});if(draft.value.id===draftId&&JSON.stringify(draft.value)===savedInput)await refresh(true);else{await refresh();notify('校对已保存；期间的新编辑已保留，请核对当前字幕');emit('close');return;}notify('所选字幕已按文案保存，请在成片中核对','success');emit('close');}catch(e){error.value=e.message;}finally{saving.value=false;}}
+async function listen(row){const video=player.value;if(!video)return;try{playEnd.value=row.end;video.currentTime=row.start;await video.play();}catch(e){error.value='当前视频无法播放：'+e.message;}}
+function stopAtEnd(){if(playEnd.value!==null&&player.value.currentTime>=playEnd.value){player.value.pause();playEnd.value=null;}}
+</script>
+<template>
+ <Modal title="按文案校对字幕" variant="proofread" wide @close="emit('close')">
+  <p class="proofread-intro">依据第二步{{draft.finalText?.trim()?'最终文案':'改写文案'}}提出建议，保留现有时间轴。请回听后逐条选择，数字和否定变化需特别核对。</p>
+  <video v-if="source" ref="player" class="proofread-player" :src="mediaUrl(source)" controls preload="metadata" @timeupdate="stopAtEnd"/>
+  <p v-else class="hint">当前没有可播放的视频源，请先选择对应视频。</p>
+  <p v-if="error" class="proofread-error" role="alert">{{error}}</p>
+  <template v-if="result"><p class="proofread-summary">{{result.suggestions.length}} 条字幕 · 字符对齐相似度 {{(result.similarity*100).toFixed(1)}}% · 已选择 {{selected.length}} 条（相似度不代表读音准确率）</p><div class="proofread-rows"><article v-for="row in result.suggestions" :key="row.index" class="proofread-row"><div class="proofread-row-top"><label><input v-model="selected" type="checkbox" :value="row.index" :disabled="!row.changed||!row.eligible" :aria-label="'采用第'+(row.index+1)+'条建议'"/>第 {{row.index+1}} 条 · {{row.start.toFixed(2)}}—{{row.end.toFixed(2)}}s</label><button :disabled="!source" @click="listen(row)">回听第{{row.index+1}}条</button></div><div class="proofread-comparison"><div><small>当前字幕</small><p>{{row.original}}</p></div><div><small>{{row.changed?'文案建议':'与文案一致'}}</small><p>{{row.proposed||'无法可靠对齐，请手工核对'}}</p></div></div><p v-if="row.warnings.length" class="proofread-warning">{{row.warnings.join('；')}}</p></article></div></template>
+  <p v-else class="hint">校对建议不会自动写入字幕。原识别、参考稿和选择记录将保留在本地执行记录中。</p>
+  <template #footer><button :disabled="!!busy||saving||loading" @click="inspect">{{loading?'正在校对…':result?'重新校对':'生成校对建议'}}</button><span class="spacer"></span><button :disabled="saving||loading" @click="emit('close')">取消</button><button class="primary" :disabled="!selected.length||saving||!!busy||loading" @click="apply">{{saving?'正在保存…':'应用所选并保存'}}</button></template>
+ </Modal>
+</template>
+<style>
+.proofread-modal{width:min(1040px,calc(100vw - 48px))}.proofread-modal .modal-body{display:flex;flex-direction:column;gap:12px;min-height:0}.proofread-intro,.proofread-summary{margin:0;line-height:1.6}.proofread-player{width:100%;height:150px;flex-shrink:0;background:#10111a;object-fit:contain}.proofread-rows{display:flex;flex-direction:column;gap:12px}.proofread-row{border:1px solid var(--border);border-radius:8px;padding:12px;min-width:0}.proofread-row-top{display:flex;justify-content:space-between;gap:12px;align-items:center}.proofread-row-top label{display:flex;gap:8px;align-items:center;margin:0}.proofread-row-top input[type=checkbox]{appearance:auto;width:16px;height:16px;margin:0;accent-color:#a867ff}.proofread-comparison{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}.proofread-comparison>div{min-width:0}.proofread-comparison small{color:var(--muted)}.proofread-comparison p{line-height:1.7;overflow-wrap:anywhere;margin:4px 0 0}.proofread-warning{color:#ffd289;margin:8px 0 0;line-height:1.5}.proofread-error{color:#ffadad;margin:0;line-height:1.6}@media(max-width:800px){.proofread-comparison{grid-template-columns:1fr}.proofread-row-top{flex-wrap:wrap}}
+</style>

@@ -1,0 +1,1064 @@
+[
+  {
+    "id": "default",
+    "name": "V0-默认",
+    "description": "居中大字，白字黑边",
+    "mask": {
+      "enabled": false
+    },
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{title}",
+        "style": {
+          "fontFamily": "方正粗黑宋简体",
+          "fontSize": 110,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 540,
+          "y": 960,
+          "stroke": {
+            "enabled": true,
+            "color": "#000000",
+            "width": 8
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "v1",
+    "name": "V1-通屏黑底",
+    "description": "通屏半透明黑底，白色大字",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 0,
+      "y": 760,
+      "width": 1080,
+      "height": 400,
+      "color": "#000000",
+      "opacity": 0.6,
+      "radius": 0
+    },
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{title}",
+        "style": {
+          "fontFamily": "方正粗黑宋简体",
+          "fontSize": 110,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 540,
+          "y": 960
+        }
+      }
+    ]
+  },
+  {
+    "id": "v2",
+    "name": "V2-全屏遮罩",
+    "description": "全屏半透明遮罩，白色大字",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "color": "#000000",
+      "opacity": 0.5,
+      "radius": 0
+    },
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{title}",
+        "style": {
+          "fontFamily": "东方大楷",
+          "fontSize": 120,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 540,
+          "y": 960
+        }
+      }
+    ]
+  },
+  {
+    "id": "v3",
+    "name": "V3-黄字描黑",
+    "description": "全屏遮罩，黄色大字黑边",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "color": "#000000",
+      "opacity": 0.4,
+      "radius": 0
+    },
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{title}",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 130,
+          "color": "#FFEB3B",
+          "align": "center",
+          "x": 540,
+          "y": 960,
+          "stroke": {
+            "enabled": true,
+            "color": "#000000",
+            "width": 10
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "v4",
+    "name": "V4-卡片框",
+    "description": "黑底白边框，上下文字带青色分割线",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 90,
+      "y": 700,
+      "width": 900,
+      "height": 520,
+      "color": "#000000",
+      "opacity": 0.6,
+      "radius": 8,
+      "stroke": {
+        "enabled": true,
+        "color": "#FFFFFF",
+        "width": 10
+      }
+    },
+    "shapes": [
+      {
+        "id": "divider",
+        "type": "rect",
+        "x": 150,
+        "y": 956,
+        "width": 780,
+        "height": 6,
+        "fill": "#00FFFF",
+        "opacity": 1
+      }
+    ],
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{titleMain}",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 130,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 540,
+          "y": 840,
+          "italic": true
+        }
+      },
+      {
+        "id": "sub",
+        "text": "{titleSub}",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 70,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 540,
+          "y": 1070
+        }
+      }
+    ]
+  },
+  {
+    "id": "v5",
+    "name": "V5-圆角黑底",
+    "description": "居中圆角黑底，白字",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 80,
+      "y": 740,
+      "width": 920,
+      "height": 440,
+      "color": "#000000",
+      "opacity": 0.65,
+      "radius": 20
+    },
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{title}",
+        "style": {
+          "fontFamily": "江城斜黑体",
+          "fontSize": 110,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 540,
+          "y": 960
+        }
+      }
+    ]
+  },
+  {
+    "id": "v6",
+    "name": "V6-黄字居中",
+    "description": "居中文字，黄色大字",
+    "mask": {
+      "enabled": false
+    },
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{title}",
+        "style": {
+          "fontFamily": "文道潮黑体",
+          "fontSize": 130,
+          "color": "#FDE004",
+          "align": "center",
+          "x": 540,
+          "y": 960,
+          "stroke": {
+            "enabled": true,
+            "color": "#000000",
+            "width": 8
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "v8",
+    "name": "V8-霓虹冲击",
+    "description": "全屏弱遮罩，白字配青色霓虹描边",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "color": "#050814",
+      "opacity": 0.42,
+      "radius": 0
+    },
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{title}",
+        "style": {
+          "fontFamily": "江城斜黑体",
+          "fontSize": 118,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 540,
+          "y": 960,
+          "stroke": {
+            "enabled": true,
+            "color": "#00E5FF",
+            "width": 14
+          },
+          "lineHeight": 1.28
+        }
+      }
+    ]
+  },
+  {
+    "id": "v9",
+    "name": "V9-赛博电光",
+    "description": "深沉暗调，青色主字搭配亮粉色高光描边，充满科技感",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "color": "#090B10",
+      "opacity": 0.75,
+      "radius": 0
+    },
+    "shapes": [
+      {
+        "id": "cyberLine1",
+        "type": "rect",
+        "x": 0,
+        "y": 780,
+        "width": 150,
+        "height": 12,
+        "fill": "#FF007F",
+        "opacity": 0.9
+      },
+      {
+        "id": "cyberLine2",
+        "type": "rect",
+        "x": 880,
+        "y": 1140,
+        "width": 200,
+        "height": 12,
+        "fill": "#00FFFF",
+        "opacity": 0.9
+      }
+    ],
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{titleMain}",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 140,
+          "color": "#00FFFF",
+          "align": "center",
+          "x": 540,
+          "y": 900,
+          "italic": true,
+          "stroke": {
+            "enabled": true,
+            "color": "#FF007F",
+            "width": 6
+          },
+          "letterSpacing": 4
+        }
+      },
+      {
+        "id": "sub",
+        "text": "{titleSub}",
+        "style": {
+          "fontFamily": "方正粗黑宋简体",
+          "fontSize": 65,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 540,
+          "y": 1040,
+          "letterSpacing": 8
+        }
+      }
+    ]
+  },
+  {
+    "id": "v10",
+    "name": "V10-极简杂志",
+    "description": "白色半透遮罩，大面积留白，黑色优雅文字排版",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 60,
+      "y": 60,
+      "width": 960,
+      "height": 1800,
+      "color": "#FFFFFF",
+      "opacity": 0.88,
+      "radius": 0,
+      "stroke": {
+        "enabled": true,
+        "color": "#000000",
+        "width": 4
+      }
+    },
+    "shapes": [
+      {
+        "id": "magDivider",
+        "type": "rect",
+        "x": 480,
+        "y": 960,
+        "width": 120,
+        "height": 4,
+        "fill": "#000000",
+        "opacity": 1
+      }
+    ],
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{titleMain}",
+        "style": {
+          "fontFamily": "东方大楷",
+          "fontSize": 120,
+          "color": "#000000",
+          "align": "center",
+          "x": 540,
+          "y": 860,
+          "lineHeight": 1.4,
+          "letterSpacing": 6
+        }
+      },
+      {
+        "id": "sub",
+        "text": "{titleSub}",
+        "style": {
+          "fontFamily": "江城斜黑体",
+          "fontSize": 55,
+          "color": "#333333",
+          "align": "center",
+          "x": 540,
+          "y": 1060,
+          "letterSpacing": 10
+        }
+      }
+    ]
+  },
+  {
+    "id": "v12",
+    "name": "V12-渐变情绪",
+    "description": "底部高级黑场渐变，配合错落有致的文字，电影感拉满",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 0,
+      "y": 768,
+      "width": 1080,
+      "height": 1152,
+      "opacity": 1,
+      "radius": 0,
+      "fillLinearGradientStartPoint": {
+        "x": 0,
+        "y": 0
+      },
+      "fillLinearGradientEndPoint": {
+        "x": 0,
+        "y": 1152
+      },
+      "fillLinearGradientColorStops": [
+        0,
+        "rgba(0,0,0,0)",
+        0.5,
+        "rgba(0,0,0,0.8)",
+        1,
+        "rgba(0,0,0,1)"
+      ]
+    },
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{titleMain}",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 130,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 540,
+          "y": 1440,
+          "letterSpacing": 8,
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 15,
+            "distance": 0,
+            "opacity": 0.6
+          }
+        }
+      },
+      {
+        "id": "sub",
+        "text": "{titleSub}",
+        "style": {
+          "fontFamily": "方正粗黑宋简体",
+          "fontSize": 60,
+          "color": "#D4AF37",
+          "align": "center",
+          "x": 540,
+          "y": 1690,
+          "letterSpacing": 15,
+          "opacity": 0.9
+        }
+      }
+    ]
+  },
+  {
+    "id": "v13",
+    "name": "V13-斜角先锋",
+    "description": "倾斜文字排版，配合极具张力的渐变遮罩，适合Vlog与街拍",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "opacity": 1,
+      "radius": 0,
+      "fillLinearGradientStartPoint": {
+        "x": 0,
+        "y": 0
+      },
+      "fillLinearGradientEndPoint": {
+        "x": 1080,
+        "y": 1920
+      },
+      "fillLinearGradientColorStops": [
+        0,
+        "rgba(255,87,34,0.6)",
+        1,
+        "rgba(33,150,243,0.6)"
+      ]
+    },
+    "textLayers": [
+      {
+        "id": "main",
+        "text": "{titleMain}",
+        "style": {
+          "fontFamily": "文道潮黑体",
+          "fontSize": 160,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 500,
+          "y": 880,
+          "rotation": -8,
+          "letterSpacing": 2,
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 20,
+            "distance": 10,
+            "opacity": 0.4
+          }
+        }
+      },
+      {
+        "id": "sub",
+        "text": "{titleSub}",
+        "style": {
+          "fontFamily": "江城斜黑体",
+          "fontSize": 80,
+          "color": "#FFEB3B",
+          "align": "center",
+          "x": 600,
+          "y": 1060,
+          "rotation": -8,
+          "letterSpacing": 6,
+          "stroke": {
+            "enabled": true,
+            "color": "#000000",
+            "width": 4
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "v16",
+    "name": "V16-爆款结构",
+    "description": "四角白色巨字包围，中间标题副标题突出，适合真人口播与知识类爆款封面",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "opacity": 1,
+      "radius": 0,
+      "fillLinearGradientStartPoint": {
+        "x": 0,
+        "y": 0
+      },
+      "fillLinearGradientEndPoint": {
+        "x": 0,
+        "y": 1920
+      },
+      "fillLinearGradientColorStops": [
+        0,
+        "rgba(255,255,255,0.08)",
+        0.45,
+        "rgba(0,0,0,0.08)",
+        1,
+        "rgba(0,0,0,0.3)"
+      ]
+    },
+    "textLayers": [
+      {
+        "id": "cornerTopLeft",
+        "text": "爆",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 340,
+          "color": "#FFF8E6",
+          "align": "center",
+          "x": 245,
+          "y": 300,
+          "letterSpacing": 0,
+          "stroke": {
+            "enabled": true,
+            "color": "#F2E8D1",
+            "width": 4
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 10,
+            "distance": 10,
+            "opacity": 0.45
+          }
+        }
+      },
+      {
+        "id": "cornerTopRight",
+        "text": "款",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 340,
+          "color": "#FFF8E6",
+          "align": "center",
+          "x": 835,
+          "y": 300,
+          "letterSpacing": 0,
+          "stroke": {
+            "enabled": true,
+            "color": "#F2E8D1",
+            "width": 4
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 10,
+            "distance": 10,
+            "opacity": 0.45
+          }
+        }
+      },
+      {
+        "id": "cornerBottomLeft",
+        "text": "结",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 370,
+          "color": "#FFF8E6",
+          "align": "center",
+          "x": 260,
+          "y": 1590,
+          "letterSpacing": 0,
+          "stroke": {
+            "enabled": true,
+            "color": "#F2E8D1",
+            "width": 4
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 12,
+            "distance": 10,
+            "opacity": 0.5
+          }
+        }
+      },
+      {
+        "id": "cornerBottomRight",
+        "text": "构",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 370,
+          "color": "#FFF8E6",
+          "align": "center",
+          "x": 820,
+          "y": 1590,
+          "letterSpacing": 0,
+          "stroke": {
+            "enabled": true,
+            "color": "#F2E8D1",
+            "width": 4
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 12,
+            "distance": 10,
+            "opacity": 0.5
+          }
+        }
+      },
+      {
+        "id": "main",
+        "text": "{titleMain}",
+        "style": {
+          "fontFamily": "方正粗黑宋简体",
+          "fontSize": 78,
+          "color": "#FFFFFF",
+          "align": "left",
+          "x": 82,
+          "y": 1110,
+          "lineHeight": 1.18,
+          "letterSpacing": 1,
+          "stroke": {
+            "enabled": true,
+            "color": "#27313A",
+            "width": 5
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 8,
+            "distance": 4,
+            "opacity": 0.55
+          }
+        }
+      },
+      {
+        "id": "sub",
+        "text": "{titleSub}",
+        "style": {
+          "fontFamily": "方正粗黑宋简体",
+          "fontSize": 86,
+          "color": "#FFF4B8",
+          "align": "left",
+          "x": 82,
+          "y": 1220,
+          "lineHeight": 1.15,
+          "letterSpacing": 1,
+          "stroke": {
+            "enabled": true,
+            "color": "#3B3A2E",
+            "width": 6
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 8,
+            "distance": 4,
+            "opacity": 0.55
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "v17",
+    "name": "V17-左侧高级字",
+    "description": "左侧四个白色巨字竖排，中间副标题和黄色主标题突出，适合真人出镜封面",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "color": "#0C2B2E",
+      "opacity": 0.18,
+      "radius": 0
+    },
+    "shapes": [
+      {
+        "id": "bottomShade",
+        "type": "rect",
+        "x": 0,
+        "y": 1400,
+        "width": 1080,
+        "height": 520,
+        "fill": "#000000",
+        "opacity": 0.18
+      }
+    ],
+    "textLayers": [
+      {
+        "id": "leftChar1",
+        "text": "高",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 320,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 220,
+          "y": 235,
+          "stroke": {
+            "enabled": true,
+            "color": "#F7F7F7",
+            "width": 4
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 16,
+            "distance": 12,
+            "opacity": 0.65
+          }
+        }
+      },
+      {
+        "id": "leftChar2",
+        "text": "级",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 320,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 220,
+          "y": 590,
+          "stroke": {
+            "enabled": true,
+            "color": "#F7F7F7",
+            "width": 4
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 16,
+            "distance": 12,
+            "opacity": 0.65
+          }
+        }
+      },
+      {
+        "id": "leftChar3",
+        "text": "封",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 320,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 220,
+          "y": 1050,
+          "stroke": {
+            "enabled": true,
+            "color": "#F7F7F7",
+            "width": 4
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 16,
+            "distance": 12,
+            "opacity": 0.65
+          }
+        }
+      },
+      {
+        "id": "leftChar4",
+        "text": "面",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 320,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 220,
+          "y": 1405,
+          "stroke": {
+            "enabled": true,
+            "color": "#F7F7F7",
+            "width": 4
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 16,
+            "distance": 12,
+            "opacity": 0.65
+          }
+        }
+      },
+      {
+        "id": "sub",
+        "text": "{titleSub}",
+        "style": {
+          "fontFamily": "方正粗黑宋简体",
+          "fontSize": 62,
+          "color": "#FFE03B",
+          "align": "left",
+          "x": 220,
+          "y": 1794,
+          "lineHeight": 1.18,
+          "letterSpacing": 2,
+          "stroke": {
+            "enabled": true,
+            "color": "#3B3420",
+            "width": 5
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 8,
+            "distance": 5,
+            "opacity": 0.55
+          }
+        }
+      },
+      {
+        "id": "main",
+        "text": "{titleMain}",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 168,
+          "color": "#FFD900",
+          "align": "left",
+          "x": 220,
+          "y": 1612,
+          "lineHeight": 1,
+          "letterSpacing": 0,
+          "stroke": {
+            "enabled": true,
+            "color": "#2E2A18",
+            "width": 8
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 14,
+            "distance": 8,
+            "opacity": 0.65
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "v18",
+    "name": "V18-高级封面条幅",
+    "description": "顶部白色大字，中间黑色半透条幅蓝字，底部黄色大字，适合口播教程封面",
+    "mask": {
+      "enabled": true,
+      "type": "rect",
+      "x": 0,
+      "y": 0,
+      "width": 1080,
+      "height": 1920,
+      "color": "#000000",
+      "opacity": 0.12,
+      "radius": 0
+    },
+    "shapes": [
+      {
+        "id": "titleBand",
+        "type": "rect",
+        "x": 0,
+        "y": 805,
+        "width": 1080,
+        "height": 250,
+        "fill": "#000000",
+        "opacity": 0.58
+      }
+    ],
+    "textLayers": [
+      {
+        "id": "topLeft",
+        "text": "高",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 260,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 205,
+          "y": 190,
+          "stroke": {
+            "enabled": true,
+            "color": "#F8F8F8",
+            "width": 4
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 18,
+            "distance": 12,
+            "opacity": 0.6
+          }
+        }
+      },
+      {
+        "id": "topRight",
+        "text": "级",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 260,
+          "color": "#FFFFFF",
+          "align": "center",
+          "x": 875,
+          "y": 190,
+          "stroke": {
+            "enabled": true,
+            "color": "#F8F8F8",
+            "width": 4
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 18,
+            "distance": 12,
+            "opacity": 0.6
+          }
+        }
+      },
+      {
+        "id": "main",
+        "text": "{title}",
+        "style": {
+          "fontFamily": "方正粗黑宋简体",
+          "fontSize": 92,
+          "color": "#86C8FF",
+          "align": "center",
+          "x": 540,
+          "y": 930,
+          "lineHeight": 1.08,
+          "letterSpacing": 1,
+          "stroke": {
+            "enabled": true,
+            "color": "#173246",
+            "width": 5
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 8,
+            "distance": 4,
+            "opacity": 0.55
+          }
+        }
+      },
+      {
+        "id": "bottomLeft",
+        "text": "封",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 300,
+          "color": "#FFE100",
+          "align": "center",
+          "x": 190,
+          "y": 1650,
+          "stroke": {
+            "enabled": true,
+            "color": "#312A00",
+            "width": 6
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 14,
+            "distance": 8,
+            "opacity": 0.65
+          }
+        }
+      },
+      {
+        "id": "bottomRight",
+        "text": "面",
+        "style": {
+          "fontFamily": "优设标题黑",
+          "fontSize": 300,
+          "color": "#FFE100",
+          "align": "center",
+          "x": 890,
+          "y": 1650,
+          "stroke": {
+            "enabled": true,
+            "color": "#312A00",
+            "width": 6
+          },
+          "shadow": {
+            "enabled": true,
+            "color": "#000000",
+            "blur": 14,
+            "distance": 8,
+            "opacity": 0.65
+          }
+        }
+      }
+    ]
+  }
+]

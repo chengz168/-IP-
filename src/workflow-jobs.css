@@ -1,0 +1,23 @@
+/* 执行模式沿用原图居中胶囊，状态栏固定在生产输入之外。 */
+.workflow-mode-control{display:flex;align-items:center;justify-content:center;gap:7px;padding:8px 20px;border:2px solid #9856b7;border-radius:28px;background:#423b58;box-shadow:0 0 8px #a34ed455;min-height:52px;width:max-content;max-width:100%}
+.workflow-mode-control>button{min-height:32px;padding:3px 12px;line-height:24px;border-radius:0;background:#2e2e42;border-color:#a75acb;font-size:var(--app-font-size-body);font-weight:400}
+.workflow-mode-control>button.active{background:linear-gradient(100deg,#5559ff,#d35af0);border-color:#d578ff}
+.workflow-mode-control>.workflow-mode-help{margin-left:7px;padding:3px 7px;background:none;border:0}
+.legacy-toolbar>.workflow-mode-control{justify-self:center}
+.workflow-job-status{display:flex;align-items:center;gap:10px;min-width:0;margin:0 0 14px;padding:10px 14px;border:1px solid #4f5a80;border-radius:8px;background:#28324b}
+.workflow-job-status>div{flex:1;min-width:0}
+.workflow-job-status strong{display:block;font-size:var(--app-font-size-caption);font-weight:600;overflow-wrap:anywhere}
+.workflow-job-status small{display:block;line-height:1.6;margin-top:2px;overflow-wrap:anywhere}
+.workflow-job-status>button{font-size:var(--app-font-size-caption);padding:4px 10px;min-height:30px}
+.workflow-job-status.failed,.workflow-job-status.unknown{border-color:#a76264;background:#49333f}
+.workflow-job-status.awaiting_publish{border-color:#477c70;background:#273f3b}
+.workflow-job-status.stale{border-color:#98784b;background:#40392e}
+.workflow-current-note{color:#f0d39d}
+.workflow-auto-start{margin-top:12px}
+.workflow-auto-banner{margin-top:12px}
+.workflow-job-history{display:flex;flex-direction:column;gap:8px}
+.workflow-job-history article{padding:12px;border:1px solid #4c465d;border-radius:8px}
+.workflow-job-history h4{margin:0 0 8px;font-size:var(--app-font-size-caption)}
+.workflow-job-history ol{margin:8px 0;padding-left:20px;font-size:var(--app-font-size-caption);line-height:1.8}
+.workflow-job-history li>span{color:#a9c8e6;margin-left:8px}
+@media(max-width:1230px){.workflow-mode-control{padding:6px 10px;gap:5px}.workflow-mode-control>button{padding:3px 8px}.workflow-job-status{flex-wrap:wrap}.workflow-job-status>div{flex-basis:100%}.workflow-main>.workflow-mode-control{right:10px;top:10px;padding:2px 6px}.workflow-main>.workflow-mode-control>button{font-size:var(--app-font-size-micro);padding:2px 6px}}

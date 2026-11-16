@@ -1,0 +1,24 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+// 汇总已经完成的真实验证，不重复模型生成或已成功的构建命令。
+const root=path.resolve('evidence/validation/voice-panel'),read=name=>JSON.parse(fs.readFileSync(path.join(root,name),'utf8'));
+const output=path.join(root,'delivery-report.json');assert(!fs.existsSync(output),'本批已生成收据，避免重复追加');
+const functional=read('functional-report.json'),safety=read('safety-report.json'),layout=read('layout-report.json'),all=read('all-pages-layout-report.json'),desktop=read('final-desktop-report.json'),restore=read('restore-report.json'),commands=read('commands-final.json'),pack=JSON.parse(fs.readFileSync('evidence/validation/package-report.json','utf8'));
+assert(functional.accepted&&safety.accepted&&layout.accepted&&pack.sourceMatchesPackage&&restore.completeBusinessJsonUnchanged);
+assert.deepEqual(JSON.parse(fs.readFileSync(path.join(restore.workspace,'studio.json'),'utf8')),read('original-baseline.json'));
+assert(commands.every(command=>command.exitCode===0));
+for(const item of [functional,safety,layout,desktop])assert.deepEqual(item.pageErrors,[]);
+assert(all.reports.every(report=>!report.issues.length&&!report.pageErrors.length));
+const testLog=fs.readFileSync(path.join(root,'tests-final.log'),'utf8'),buildLog=fs.readFileSync(path.join(root,'build-final.log'),'utf8');
+const total=Number(testLog.match(/tests (\d+)/)[1]),passed=Number(testLog.match(/pass (\d+)/)[1]);assert.equal(total,passed);
+const report={checkedAt:new Date().toISOString(),classification:'progress',overallGoalCompleted:false,scope:'声音主面板、样本上传、本地系统配音及真实语速',functionalChecks:functional.checks,safetyChecks:safety.checks,realAudio:{normal:functional.normal,fast:functional.fast,speedRatio:functional.speedRatio,preview:functional.preview,sample:functional.sample,samplePlayback:functional.samplePlayback},desktopPlayback:desktop.playback,taskSwitchTestMethod:safety.taskSwitch.method,tests:{total,passed,durationMs:Number(testLog.match(/duration_ms ([\d.]+)/)[1]),exitCode:0},build:{modules:Number(buildLog.match(/(\d+) modules transformed/)[1]),durationSeconds:Number(buildLog.match(/built in ([\d.]+)s/)[1]),exitCode:0},commands,layout:{voiceStates:layout.states.length,allPageStates:all.reports.reduce((sum,item)=>sum+item.pages,0),pixelEqualityAccepted:false,scope:'392全页列举检查在最后声音上传局部CSS修正前，新弹窗由最终72声音状态专项补验'},package:{matchedFiles:pack.files.length,sourceMatchesPackage:true,startupVerified:pack.startupVerified},restore,reference:{navigationRestored:true,newVoiceTrainingCalled:false,priorTitleResidualResolved:false},limitations:['Windows系统配音不是声音克隆，音色相似度和原厂音质尚未验收','真实兼容TTS服务、情绪及独立口型生成尚未验收；模拟服务只验证协议路由','取消上传不创建声音资源，但已经导入的原素材保留在素材库','早期Zira中文零帧WAV曾被旧判断误收入库，失败记录保留；修复后真实拒绝且不入库，不将旧succeeded当通过','字体、图标、颜色及全原厂状态仍未逐像素一致','独立EXE历史审批拒绝后未启动，未改变启动路径绕过','全部教程、生成内容质量及全产品复刻仍未完成']};
+fs.writeFileSync(path.join(root,'package-report.json'),JSON.stringify(pack,null,2));fs.writeFileSync(output,JSON.stringify(report,null,2));
+const receipt=`2026-11-14声音批：6项真实声音操作、5项失败/并发保护通过；Huihui同62字1倍16.339955秒、1.5倍10.894875秒，时长比${functional.speedRatio}，最终file构建内实际选择并播放已有音频。19.179708秒视频提音样本与Zira英文试听通过；未生成克隆声音或新口型视频。\n\n${passed}/${total}测试${report.tests.durationMs}ms、构建${report.build.modules}模块/${report.build.durationSeconds}秒、目录包命令退出0；${pack.files.length}个源码/构建文件与包哈希一致，startupVerified=false。最终${layout.states.length}声音状态和${report.layout.allPageStates}全页列举检查无所列问题/pageErrors；全页检查先于最后上传局部CSS修正，由最终声音专项补验，不冒认原厂逐像素一致。\n\n完整原工作区JSON含updatedAt严格恢复并只读复核，源码PID${restore.pid}。原厂回IP大脑，本批未训练或云端生成，历史标题恢复残差仍开放。已停止本批Vite进程34332。系统配音音质、克隆相似度、真实兼容TTS/口型服务仍未达到原厂效果验收；取消样本保留已导入原素材。正常任务按钮在busy时禁用，切任务边界通过内部selectTask入口主动制造。收据evidence/validation/voice-panel/delivery-report.json，整体goal保持active。`;
+for(const name of ['task_plan.md','findings.md','progress.md','docs/声音页面与本地配音实现验收.md'])fs.appendFileSync(name,'\n\n## 2026-11-14 声音批最终收据\n\n'+receipt+'\n');
+const status='> 当前状态（2026-11-14）：声音面板、样本上传、系统配音与语速已补；6项真实操作、5项保护、72声音状态及392全页列举检查通过，159测试/构建/54文件包哈希通过。原厂音质、克隆/口型、原厂全部状态及像素一致仍未完成；嵌入服务后补。最新收据：evidence/validation/voice-panel/delivery-report.json；下方旧批次“最新”仅指当时。';
+for(const name of ['docs/逐页视觉验收.md','docs/功能差距矩阵.md']){
+ let source=fs.readFileSync(name,'utf8');assert(/^> 当前状态（2026-11-14）：.*$/m.test(source));source=source.replace(/^> 当前状态（2026-11-14）：.*$/m,status);
+ if(name.includes('功能差距'))source=source.replace(/^\| 声音生成 \|.*$/m,'| 声音生成 | 任务系统音色/真实试听、1倍及1.5倍本地生成播放、输入过期/停止/并发保护通过；兼容服务可选经典/快速真实ID路由 | 真实兼容TTS服务未验收；Windows不同于克隆，不支持情绪，原厂音质和相似度未验收 |');
+ else source=source.replace(/^\| 声音 \|.*$/m,'| 声音 | voice-panel原厂实时对照及最终截图 | 两尺寸四字号72专项检查通过，双栏上传底边已校正；字体图标颜色仍不同，不标逐像素一致 |');
+ fs.writeFileSync(name,source+'\n\n## 2026-11-14 声音批最终收据\n\n'+receipt+'\n');
+}
+console.log(JSON.stringify({output,passed,voiceStates:layout.states.length,allPageStates:report.layout.allPageStates,packageFiles:pack.files.length,overallGoalCompleted:false}));

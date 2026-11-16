@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),path=require('node:path'),{spawnSync}=require('node:child_process');
+// 持久会话统一通过同一个容器引用页面，避免重连后闭包仍指向旧窗口。
+module.exports=function(app,root,report,pid){
+ const windows=JSON.parse(spawnSync('python',['-X','utf8','scripts/list-source-windows.py','--pid',String(pid)],{encoding:'utf8'}).stdout),main=windows.find(w=>w.visible&&w.title==='超级IP智能体');assert.ok(main,'未找到带标题的源码主窗口');
+ return {
+  async menu(name){await app.page.getByRole('button',{name:'菜单',exact:true}).click();await app.page.getByRole('navigation',{name:'主菜单'}).getByRole('button',{name,exact:true}).click();},
+  async resize(width,height){const r=spawnSync('python',['scripts/resize-desktop.py','--handle',String(main.handle),'--width',String(width),'--height',String(height)],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);await app.page.waitForFunction(({width,height})=>innerWidth===width&&innerHeight===height,{width,height});},
+  async font(id,label){await this.menu('设置');await app.page.locator('.settings-nav').getByRole('button',{name:'常规设置',exact:true}).click();await app.page.getByRole('group',{name:'界面字号',exact:true}).getByRole('button',{name:label,exact:true}).click();await app.page.waitForFunction(v=>document.documentElement.dataset.fontSize===v,id);await this.menu('新工作流');await app.page.locator('.edit-nav-select').filter({hasText:/^标题/}).click();},
+  async measure(width,height,font,mode){
+   await app.page.locator('.edit-first-frame img').waitFor();await app.page.waitForFunction(()=>{const image=document.querySelector('.edit-first-frame img');return image?.complete&&image.naturalWidth>0;});
+   await app.page.locator(mode==='custom'?'.title-custom-overlay':'.title-template-overlay').waitFor();await app.page.getByRole('button',{name:'关闭提示',exact:true}).waitFor({state:'hidden',timeout:15000});
+   const record=await app.page.evaluate(()=>{const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};},panel=document.querySelector('.title-panel'),scroll=panel.querySelector('.title-panel-scroll'),duration=panel.querySelector('.title-duration-option');return {w:innerWidth,h:innerHeight,font:document.documentElement.dataset.fontSize,documentOverflow:document.documentElement.scrollWidth-innerWidth,panel:rect(panel),scrollOverflow:scroll.scrollWidth-scroll.clientWidth,inputs:[...panel.querySelectorAll('.title-inputs input')].map(rect),columns:[...document.querySelector('.edit-columns').children].map(rect),duration:rect(duration),durationChildren:[...duration.children].map(rect),cards:[...panel.querySelectorAll('.title-style-group,.title-template-card')].map(rect)};});
+   assert.equal(record.w,width);assert.equal(record.h,height);assert.equal(record.font,font);assert.ok(record.documentOverflow<=1);assert.ok(record.scrollOverflow<=1);assert.ok(Math.max(...record.columns.map(r=>r.y))-Math.min(...record.columns.map(r=>r.y))<1);assert.ok(Math.abs(record.inputs[0].y-record.inputs[1].y)<1);assert.ok(Math.abs(record.inputs[1].x-record.inputs[0].right-10)<1);for(const child of record.durationChildren)assert.ok(child.x>=record.duration.x-1&&child.right<=record.duration.right+1);for(const card of record.cards)assert.ok(card.x>=record.panel.x-1&&card.right<=record.panel.right+1);
+   const image=width+'-'+font+'-'+mode+'.png';await app.page.screenshot({path:path.join(root,image)});report.layouts.push({mode,...record,image});return record;
+  }
+ };
+};

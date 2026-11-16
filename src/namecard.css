@@ -1,0 +1,34 @@
+/* 名片按原版分组卡片、双列表单和独立滚动排列。 */
+.edit-controls:has(>.namecard-panel){overflow:hidden;scrollbar-gutter:auto}
+.namecard-panel{height:100%;min-height:0;min-width:0;display:flex;flex-direction:column;gap:12px}
+.namecard-panel>header{flex:none}.namecard-panel h3{margin:0;font-size:var(--app-font-size-card-title);line-height:25px}
+.namecard-panel>header>p{font-size:var(--app-font-size-meta);color:var(--muted);line-height:20px}
+.namecard-panel-scroll{flex:1;min-height:0;overflow:auto;padding-right:10px;scrollbar-gutter:stable}
+.namecard-text-grid{display:grid;gap:8px}.namecard-panel label{margin:0;min-width:0;font-size:var(--app-font-size-caption);color:var(--muted);line-height:22px}
+.namecard-panel label>input,.namecard-panel label>textarea{margin-top:4px;font-size:var(--app-font-size-body);padding:5px 10px}
+.namecard-text-grid textarea{min-height:60px;resize:vertical;line-height:22px}
+.namecard-option-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;font-size:var(--app-font-size-caption);color:var(--muted)}
+.namecard-option-row>.segmented{border:1px solid #654372;padding:3px;border-radius:8px;flex-shrink:0;background:#292b37}
+.namecard-option-row button{font-size:var(--app-font-size-body);padding:3px 10px;min-height:28px}
+.namecard-panel .namecard-duration{display:flex;margin-top:10px;background:#292b37;border:1px solid #373946;border-radius:6px;align-items:center}
+.namecard-duration>input{flex:1;min-width:0;border:0;background:transparent;margin:0!important}.namecard-duration>span{flex:none;padding:0 12px;color:var(--muted);font-size:var(--app-font-size-caption)}
+.namecard-style-card{margin-top:12px;padding:10px 14px;border:1px solid #ffffff05;border-radius:12px;background:#ffffff01;display:flex;flex-direction:column;gap:10px;min-width:0}
+.namecard-style-card>header{padding-bottom:8px;border-bottom:1px solid #ffffff04;display:flex;flex-direction:column;gap:0;font-size:var(--app-font-size-caption);line-height:20px}
+.namecard-style-card>header small{font-size:var(--app-font-size-micro);line-height:20px}
+.namecard-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;min-width:0}
+.namecard-field-grid select{font-size:var(--app-font-size-meta);height:32px;padding:3px 6px;margin-top:4px}
+.namecard-slider-row{display:flex;align-items:center;gap:8px;min-width:0}.namecard-slider-row input{flex:1;min-width:0;margin:0;padding:5px 0;accent-color:#1677ff}
+.namecard-slider-row>output{flex:none;min-width:30px;text-align:right;font-size:var(--app-font-size-caption);font-weight:600;color:var(--muted)}
+.namecard-slider-row>input[type=range]{appearance:none;height:16px;padding:0;background:transparent;cursor:pointer}
+.namecard-slider-row>input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:3px;background:#ffffff14}
+.namecard-slider-row>input[type=range]::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border:2px solid #91caff;border-radius:50%;background:white;margin-top:-5px;box-shadow:0 0 0 1px #0001}
+.namecard-style-card>.namecard-bold{display:flex;align-items:center;gap:8px}.namecard-bold input{margin:0!important;appearance:auto;width:16px;height:16px}.namecard-bold input:after{display:none}
+.namecard-style-card>.namecard-color{display:flex;align-items:center;justify-content:space-between;gap:12px}.namecard-color>span{white-space:nowrap}.namecard-color>input{width:48px;height:28px;padding:2px!important;margin:0!important}
+.namecard-color-inputs{display:grid;grid-template-columns:34px minmax(0,1fr);gap:6px;align-items:center;min-width:0;width:64%}
+.namecard-color-inputs>input[type=color]{width:34px;height:24px;padding:0;border:0;background:transparent;margin:0}
+.namecard-color-inputs>input:not([type=color]){height:28px;padding:2px 6px;font-size:var(--app-font-size-meta)}
+.edit-preview-overlays>.namecard-canvas-wrap{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.namecard-canvas-wrap>canvas{display:block;width:100%;height:100%;font-synthesis:weight style}.namecard-drag-handle{position:absolute;pointer-events:auto;cursor:move;touch-action:none;outline:none}
+.namecard-drag-handle:focus-visible,.namecard-drag-handle:hover{outline:1px dashed #70c9ff;outline-offset:2px}
+.shared-subtitle-overlay{position:absolute;z-index:0;max-width:88%;padding:.18em .42em;border-radius:.26em;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:clip;transform:translate(-50%,-50%);pointer-events:none}
+@container edit-panel (max-width:280px){.namecard-option-row{flex-wrap:wrap;gap:6px}.namecard-option-row button{padding:3px 7px}.namecard-field-grid{grid-template-columns:1fr}.namecard-style-card{padding:10px}.namecard-style-card>.namecard-color{flex-wrap:wrap;gap:6px}.namecard-color-inputs{width:100%}}

@@ -1,0 +1,30 @@
+/* 背景音乐使用原版分段、分类和独立滚动区域；试听不触发选曲。 */
+.edit-controls:has(>.bgm-editor){overflow:hidden;scrollbar-gutter:auto}
+.bgm-editor{display:flex;flex-direction:column;gap:16px;height:100%;min-height:0;min-width:0}
+.bgm-editor>header{flex:none}.bgm-editor h3{margin:0;font-size:var(--app-font-size-card-title);font-weight:900;line-height:inherit}.bgm-editor>header p{margin:4px 0 0;font-size:var(--app-font-size-caption);color:var(--muted);line-height:1.2}
+.bgm-editor-scroll{overflow:auto;min-height:0;min-width:0;flex:1;scrollbar-gutter:stable}
+.bgm-panel{display:grid;gap:12px;min-width:0}.bgm-panel .seg-row,.bgm-panel .upload-row{display:flex;align-items:center;gap:10px;min-width:0}.bgm-panel .seg-row{justify-content:space-between}
+.bgm-panel .seg-row>span{color:var(--muted);font-size:var(--app-font-size-caption);font-weight:900;flex-shrink:0}
+.bgm-panel .ant-segmented{background:color-mix(in srgb,#303240 80%,transparent);border:1px solid color-mix(in srgb,#e071ff 25%,transparent);border-radius:8px;padding:3px;color:var(--muted);font-size:var(--app-font-size-control)}
+.bgm-panel .ant-segmented-item{border-radius:6px;color:var(--muted)}.bgm-panel .ant-segmented-item-label{color:inherit;line-height:28px;min-height:28px;padding:0 11px}.bgm-panel .ant-segmented-item-selected,.bgm-panel .ant-segmented-thumb{color:#fff;background:linear-gradient(135deg,#3457fe,#e071ff);border-radius:6px;box-shadow:0 2px 8px #e071ff59}
+.bgm-panel .upload-row>.ant-input{flex:1;min-width:0;height:auto;min-height:32px;padding:4px 11px;font-size:var(--app-font-size-control);font-weight:400;line-height:1.57142857;color:#e4e4e7;background:#ffffff05;border-color:#ffffff0a}
+.bgm-panel .ant-input::placeholder{color:#e4e4e7;opacity:.45}.bgm-panel .upload-row>.ant-btn{flex:none;height:32px;min-height:32px;padding:4px 15px;color:#fff;background:linear-gradient(135deg,#3457fe,#e071ff);border:0;border-radius:8px;font-size:var(--app-font-size-control);font-weight:600;line-height:1.57142857;box-shadow:0 2px 8px #e071ff59}
+.bgm-panel .library{height:100%;overflow:auto;min-width:0;border-radius:12px;background:color-mix(in srgb,#252834 42%,transparent)}
+.bgm-panel .bgm-item{width:100%;padding:8px 6px;display:flex;align-items:center;justify-content:space-between;gap:10px;color:#e4e4e7;background:transparent;border:0;border-radius:10px;cursor:pointer;text-align:left;min-width:0}
+.bgm-panel .bgm-item.active{color:#fff;background:color-mix(in srgb,#3457fe 24%,transparent)}
+.bgm-panel .bgm-track-select{display:block;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0;border:0;background:transparent;text-align:left;font-size:var(--app-font-size-body);font-weight:400;color:inherit;min-height:24px;border-radius:0}
+.bgm-panel .bgm-item>.ant-btn{flex:none;min-height:24px;height:24px;padding:0 7px;border:0;background:transparent;color:#e4e4e7;font-size:var(--app-font-size-control);font-weight:400;line-height:22px}
+.bgm-panel .ai-bgm-item{margin:8px;width:calc(100% - 16px);min-height:36px;border:1px solid color-mix(in srgb,#3457fe 24%,transparent);background:color-mix(in srgb,#3457fe 10%,transparent);font-size:var(--app-font-size-control);font-weight:400;line-height:1.15}
+.bgm-panel .ai-bgm-item>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.bgm-panel .ai-bgm-item small{flex-shrink:0;color:var(--muted);font-size:var(--app-font-size-micro);font-weight:800}
+.bgm-panel .ant-collapse{border:0;border-radius:0;background:transparent;color:#e4e4e7;font-size:var(--app-font-size-body)}.bgm-panel .ant-collapse>.ant-collapse-item{border:0}.bgm-panel .ant-collapse .ant-collapse-header{padding:12px 16px;align-items:center;color:#e4e4e7;font-size:var(--app-font-size-body);line-height:1.57142857}.bgm-panel .ant-collapse .ant-collapse-content{background:transparent;color:#e4e4e7;border:0}.bgm-panel .ant-collapse .ant-collapse-content-box{padding:4px 16px 16px}
+.bgm-panel .ant-empty-description{color:var(--muted)}.bgm-error{font-size:var(--app-font-size-caption);color:#ffc28b;overflow-wrap:anywhere}
+/* 清除通用label的14px上边距；分类保留原版Ant默认14px字号。 */
+.bgm-panel label.ant-segmented-item{margin:0;display:block;line-height:inherit;font-size:var(--app-font-size-control);font-weight:400}
+.bgm-panel .ant-segmented-item-input{width:100%;height:100%;min-height:0;margin:0;padding:0;border:0;appearance:none;background:transparent}
+.bgm-panel .ant-collapse,.bgm-panel .ant-collapse .ant-collapse-header{font-size:14px}
+.bgm-panel .bgm-track-select{font-size:inherit}
+.bgm-panel .bgm-item>.ant-btn-text{color:rgba(0,0,0,.88)}
+/* 原版全局小号按钮随字号增加高度，曲目行也须保留相同间距。 */
+.bgm-panel .bgm-item>.ant-btn.ant-btn-sm{min-height:calc(var(--app-font-size-control) + 12px);height:auto;padding:3px 10px;line-height:1.25}
+.bgm-panel .ant-segmented-item:hover:not(.ant-segmented-item-selected){color:#e4e4e7;background:color-mix(in srgb,#ffffff14 60%,transparent)}
+.bgm-panel .upload-row>.ant-btn:hover{opacity:.88;box-shadow:0 4px 14px #e071ff80}

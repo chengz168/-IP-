@@ -1,0 +1,17 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {chromium}=require('C:/Users/DELL/AppData/Local/npm-cache/_npx/31e32ef8478fbf80/node_modules/playwright-core');
+const root=path.resolve('evidence/validation/edit-title'),read=file=>JSON.parse(fs.readFileSync(file)),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function main(){
+ const browser=await chromium.connectOverCDP('http://127.0.0.1:9333'),page=browser.contexts()[0].pages()[0],fixture=read(path.join(root,'fixture.json')),report={checkedAt:new Date().toISOString()};
+ const invoke=(action,payload={})=>page.evaluate(({action,payload})=>window.studio.invoke(action,payload),{action,payload});
+ async function until(fn){for(let i=0;i<120;i++){if(await fn())return;await sleep(100);}throw new Error('等待真实渲染状态超时');}
+ const current=async()=>(await invoke('state')).drafts.find(d=>d.id===fixture.draftId);
+ try{
+  let d=await current();d.edit.titleDesign.mode='custom';d.edit.cutSilence=false;d.edit.titleDesign.custom.fontId='missing-font';await invoke('saveDraft',d);const initial=(await invoke('state')).assets.length;const failure=await invoke('render',{id:d.id}).then(()=>null,error=>error.message);assert.match(failure,/字体.*缺失/);assert.equal((await invoke('state')).assets.length,initial);report.missingFont={error:failure,noNewAsset:true};
+  d=await current();d.edit.titleDesign.custom.fontId='';d.edit.titleDesign.custom.fontFamily='Microsoft YaHei';d.edit.title='快照生成标题';await invoke('saveDraft',d);let active;
+  const running=invoke('render',{id:d.id});await until(async()=>{active=(await invoke('state')).runs.find(r=>r.type==='render'&&r.draftId===d.id&&r.status==='running');return !!active;});const changed=await current();changed.edit.title='期间手工修改';await invoke('saveDraft',changed);const output=await running;assert.equal(output.stale,true);assert.equal((await current()).edit.resultId,'');assert.equal((await current()).edit.title,'期间手工修改');assert.equal(output.renderedTitle.main,'快照生成标题');report.stale={outputId:output.id,stale:true,oldMain:output.renderedTitle.main,currentMain:(await current()).edit.title,noStaleAttachment:true};
+  const state=await invoke('state'),visual=state.assets.find(a=>a.type==='image'),audioSource=state.assets.find(a=>a.id===fixture.sourceId);assert.ok(visual&&audioSource);d=await current();Object.assign(d.edit,{title:'组合合成标题',subtitle:'字幕与画中画',subtitlesEnabled:true,subtitleMode:'custom',subtitleCustom:undefined,captions:[{start:0,end:1.4,text:'字幕组合验证'}],pipEnabled:true,pipMode:'continuous',pipId:visual.id,pipSize:.25,pipPosition:'bottom-right',bgmEnabled:true,bgmId:audioSource.id,bgmVolume:.1,sfxEnabled:true,sfxId:audioSource.id});await invoke('saveDraft',d);const combined=await invoke('render',{id:d.id});assert.ok(combined.renderedTitle&&combined.renderedPip.length===1&&combined.renderedCaptions.length===1);report.combined={id:combined.id,title:combined.renderedTitle.main,pipCount:combined.renderedPip.length,subtitleCount:combined.renderedCaptions.length,bgmAndSfx:true};
+  fs.writeFileSync(path.join(root,'render-protection-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+ }catch(error){report.error=error.stack;fs.writeFileSync(path.join(root,'render-protection-failure.json'),JSON.stringify(report,null,2));throw error;}finally{await browser.close();}
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

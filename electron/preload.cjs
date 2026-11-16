@@ -1,0 +1,27 @@
+const {contextBridge,ipcRenderer}=require('electron');
+// 动态缩略图与字幕辅助文本同样经过主进程动作白名单。
+const actions=new Set(['state','saveDraft','saveAppearance','listSubtitleFonts','subtitleSourceSize','previewSubtitle','generateEditTitle','saveSubtitleStyle','newDraft','selectDraft','deleteDraft','saveSettings','testConnection','checkLocalAsr','checkLocalSpeech','checkMedia','importFile','assetText','updateAsset','deleteAsset','saveResource','deleteResource','addCategory','text','extract','speech','testSpeech','trainVoice','avatar','render','transcribe','frame','imageData','coverVideo','importCaptions','exportCaptions','saveCover','exportPackage','publish','cancelRun','backup','restoreBackup','systemVoices','analyzeSilence']);
+actions.add('materialDetail');actions.add('analyzeMaterial');actions.add('applyMaterialAnalysis');
+actions.add('openExtractBrowser');actions.add('closeExtractBrowser');actions.add('extractBrowserStatus');
+for(const action of ['openAccountLogin','checkAccountConnection','closeAccountLogin','preparePublish','reviewPublish','publishStatus'])actions.add(action);
+actions.add('videoAudioInfo');actions.add('saveVideoShots');
+actions.add('checkLocalLipSync');
+actions.add('discoverModels');actions.add('cancelModelDiscovery');
+actions.add('checkVoiceDesign');actions.add('designVoice');actions.add('saveDesignedVoice');
+actions.add('importVoiceSample');
+actions.add('prepareVoiceSample');actions.add('trimVoiceSample');
+actions.add('queryAvatarResult');
+actions.add('continueAvatarSegments');
+actions.add('confirmCopy');actions.add('checkLinkExtractor');
+actions.add('importRecording');
+actions.add('previewEditFrame');
+actions.add('subtitlePreviewSource');
+actions.add('activatePrompt');
+actions.add('previewSubtitleTemplate');actions.add('subtitleAuxiliary');
+actions.add('proofreadSubtitles');actions.add('applySubtitleProofread');
+actions.add('restoreCaptionHistory');
+for(const action of ['copyTopics','copyCandidates','useCopyCandidate'])actions.add(action);
+actions.add('coverFontData');actions.add('saveCoverDefault');
+actions.add('listBgmResources');actions.add('previewBgmResource');actions.add('selectBgmResource');
+actions.add('planWorkflow');actions.add('startWorkflow');actions.add('stopWorkflow');for(const action of ['brainStudy','brainReview','brainTopics','brainCopies','selectBrain','useBrainCopy','deleteBrain'])actions.add(action);
+contextBridge.exposeInMainWorld('studio',{invoke:(action,payload)=>{if(!actions.has(action))return Promise.reject(new Error('不支持的操作'));return ipcRenderer.invoke('studio:invoke',action,payload);},revealAsset:id=>ipcRenderer.invoke('studio:revealAsset',id),exportAsset:(id,options)=>ipcRenderer.invoke('studio:exportAsset',id,options),pickFiles:(kind,options)=>ipcRenderer.invoke('studio:pickFiles',kind,options),chooseDirectory:()=>ipcRenderer.invoke('studio:directory'),window:action=>ipcRenderer.send('studio:window',action),media:id=>'media://asset/'+encodeURIComponent(id),openOutput:()=>ipcRenderer.invoke('studio:output'),openPlatformHome:platform=>ipcRenderer.invoke('studio:open-platform-home',platform)});

@@ -1,0 +1,335 @@
+[
+  {
+    "name": "情感",
+    "files": [
+      {
+        "id": "music-3642f080fa5a1206",
+        "name": "伤感-You.mp3",
+        "relative": "情感/伤感-You.mp3",
+        "bytes": 1448204,
+        "sha256": "3fe1c531e916310cb446dd1dc14c931756a1b08fa56462bd19828e6504366643"
+      },
+      {
+        "id": "music-c5497bdb0bfa0731",
+        "name": "伤感-夜色.mp3",
+        "relative": "情感/伤感-夜色.mp3",
+        "bytes": 3201428,
+        "sha256": "b631b4de47bf278a99eaec9ef9f31f6eb043348663b8f5bb720a260caa4426c3"
+      },
+      {
+        "id": "music-bc744b2c7a93c158",
+        "name": "伤感-安和桥.mp3",
+        "relative": "情感/伤感-安和桥.mp3",
+        "bytes": 2246828,
+        "sha256": "0357bf47cfe7f1067d3cf70ed15d5c0b89fbcb633065648e99aebd556a1abb74"
+      },
+      {
+        "id": "music-27cb7094e216d7b2",
+        "name": "倩女幽魂吟唱版.MP3",
+        "relative": "情感/倩女幽魂吟唱版.MP3",
+        "bytes": 1025094,
+        "sha256": "8af8c442a94574bfe4ce523c4bf2de07c61401de95b4f82ea8a478abfc5fad88"
+      },
+      {
+        "id": "music-1c96e904a0861f8b",
+        "name": "励志-My soul.mp3",
+        "relative": "情感/励志-My soul.mp3",
+        "bytes": 2940572,
+        "sha256": "2d1980cc3f6bd057864b360505408382bdef16afe12964adcbae3785816ae3fc"
+      },
+      {
+        "id": "music-73d43a4ae9f023a1",
+        "name": "夏焰 vol.2.mp3",
+        "relative": "情感/夏焰 vol.2.mp3",
+        "bytes": 1531574,
+        "sha256": "a24629000c4bb4e4e17b9b0bede5a3b211677574ef770f6ad3466fe4c0c36245"
+      },
+      {
+        "id": "music-277011e157cb668c",
+        "name": "怀念-晴空.mp3",
+        "relative": "情感/怀念-晴空.mp3",
+        "bytes": 2073884,
+        "sha256": "ff4b73fd8d868cd873fad168c86a1250f1e6e86266cd70392be8b9657206ac80"
+      },
+      {
+        "id": "music-6a41eb51764df63f",
+        "name": "欢快-所念皆星河.mp3",
+        "relative": "情感/欢快-所念皆星河.mp3",
+        "bytes": 2759324,
+        "sha256": "911ece2dfc5e26e89239f4e09c924c604ce8255c7d54bb94e35380d7fad77132"
+      },
+      {
+        "id": "music-4fdc6f7480672571",
+        "name": "欢快-晴.mp3",
+        "relative": "情感/欢快-晴.mp3",
+        "bytes": 2509004,
+        "sha256": "33a1151472845fc3dc39f177c3169610da4326397f31a7c9bc052f5d36c0c2ce"
+      },
+      {
+        "id": "music-61b277117a941c0d",
+        "name": "治愈-潇湘子.mp3",
+        "relative": "情感/治愈-潇湘子.mp3",
+        "bytes": 1711820,
+        "sha256": "11a7e9a48e3a314da62b2f0ba5fae19eeccc423bf945c290a84f39a757be6ce0"
+      },
+      {
+        "id": "music-b2239b3a5c0b1081",
+        "name": "治愈-萤火虫.mp3",
+        "relative": "情感/治愈-萤火虫.mp3",
+        "bytes": 2700668,
+        "sha256": "0430603c131904b30fed0fb742bdaa1c8994c98f754123346d14eec02c63ab10"
+      },
+      {
+        "id": "music-b2e2a19ca408d779",
+        "name": "舒缓-城南花已开.mp3",
+        "relative": "情感/舒缓-城南花已开.mp3",
+        "bytes": 2627468,
+        "sha256": "dcefdd071ebef19e8e1b11766d69022f2a0fdd5d9b973c6a38b7eae5ba8cb0c8"
+      }
+    ]
+  },
+  {
+    "name": "通用",
+    "files": [
+      {
+        "id": "music-7ed0cbfe1ea9b764",
+        "name": "动感-Void.mp3",
+        "relative": "通用/动感-Void.mp3",
+        "bytes": 2701844,
+        "sha256": "68d305156e46c2890786d76bed420ba6cbb318bab5a33808081562be1c2c1be7"
+      },
+      {
+        "id": "music-306069890b70f04e",
+        "name": "舒缓-城南花已开.mp3",
+        "relative": "通用/舒缓-城南花已开.mp3",
+        "bytes": 2627468,
+        "sha256": "dcefdd071ebef19e8e1b11766d69022f2a0fdd5d9b973c6a38b7eae5ba8cb0c8"
+      }
+    ]
+  },
+  {
+    "name": "新闻",
+    "files": [
+      {
+        "id": "music-db97af597831d2d6",
+        "name": "希望-Last Reunion.mp3",
+        "relative": "新闻/希望-Last Reunion.mp3",
+        "bytes": 1626308,
+        "sha256": "a9c463851c893e6f65de1b2b48b75dbde6f3b89233d61b93630c2f3c44449a4b"
+      },
+      {
+        "id": "music-167b7a8ba68805fe",
+        "name": "希望-Star Over.mp3",
+        "relative": "新闻/希望-Star Over.mp3",
+        "bytes": 1385780,
+        "sha256": "e3b1ac3461ebff88aa230da650d2c97411300fbcaa311dd2f56f27c9faf432bc"
+      },
+      {
+        "id": "music-d820b39cca89319b",
+        "name": "希望-Star Sky.mp3",
+        "relative": "新闻/希望-Star Sky.mp3",
+        "bytes": 1798772,
+        "sha256": "a42c5cb6eb4e36225558aa67f90c92b776398424f0686525d628f9f940576b2c"
+      },
+      {
+        "id": "music-79a3ac2a2bea5529",
+        "name": "悬疑-Paris.mp3",
+        "relative": "新闻/悬疑-Paris.mp3",
+        "bytes": 3463388,
+        "sha256": "862ffc528f0ddf97ccb1a430599669f7231471672c16c31254d36b36f87f0b67"
+      },
+      {
+        "id": "music-2604648337052c9d",
+        "name": "悬疑-月光光心慌慌.mp3",
+        "relative": "新闻/悬疑-月光光心慌慌.mp3",
+        "bytes": 1839788,
+        "sha256": "3ed940881cbd71dc47505f7c1e0f54fead15d4133fa53098ab6e9aab1ace2b8a"
+      },
+      {
+        "id": "music-305d4c63e27d904b",
+        "name": "紧迫-String Tek.mp3",
+        "relative": "新闻/紧迫-String Tek.mp3",
+        "bytes": 1682108,
+        "sha256": "b5d25250b7b52bce55b24adc12c59faafcfb57ac4b6d9da7156b1a8f5a5ecbcd"
+      },
+      {
+        "id": "music-6e38aa571e9913d1",
+        "name": "紧迫-七剑战歌.mp3",
+        "relative": "新闻/紧迫-七剑战歌.mp3",
+        "bytes": 3431876,
+        "sha256": "24d4457882e3a2ffa829c7bac43393282846faf3c638dee2cd50f05d8c73d01b"
+      },
+      {
+        "id": "music-5ee8d4429273c7df",
+        "name": "震撼-Mind Heist.mp3",
+        "relative": "新闻/震撼-Mind Heist.mp3",
+        "bytes": 1053908,
+        "sha256": "36e175eaaf9eb1e949571de6a8fc30413460701b5bfdeb486c8dc90d3848b97c"
+      },
+      {
+        "id": "music-416930f33fe3aeb9",
+        "name": "高燃-Victory.mp3",
+        "relative": "新闻/高燃-Victory.mp3",
+        "bytes": 2019210,
+        "sha256": "374db3c4d6146e1f86d9c559b6680628c631e3ff3c8ef4e9c0cb29c0273f72c0"
+      },
+      {
+        "id": "music-f29240d9a71f6c30",
+        "name": "高燃-觉醒.mp3",
+        "relative": "新闻/高燃-觉醒.mp3",
+        "bytes": 1150028,
+        "sha256": "e66154b37200e680a547ce47373f5940a04f406dd5c9c396104bd943f376349a"
+      }
+    ]
+  },
+  {
+    "name": "营销",
+    "files": [
+      {
+        "id": "music-d7248cbb2f8e29d4",
+        "name": "力-在你的身边.mp3",
+        "relative": "营销/力-在你的身边.mp3",
+        "bytes": 4353908,
+        "sha256": "022ee56f202c5e5f027263e0defe521c5154786dcccfc1a0db50b1bc8a4ee50e"
+      },
+      {
+        "id": "music-c907cbe9c37a641a",
+        "name": "动感-Lll do it.mp3",
+        "relative": "营销/动感-Lll do it.mp3",
+        "bytes": 1265612,
+        "sha256": "da10b681b2db8c03e4c079f5ee47fbabfdf6998fce0ce6678cbc94cb890db930"
+      },
+      {
+        "id": "music-949ceb615a909526",
+        "name": "动感-Void.mp3",
+        "relative": "营销/动感-Void.mp3",
+        "bytes": 2701844,
+        "sha256": "68d305156e46c2890786d76bed420ba6cbb318bab5a33808081562be1c2c1be7"
+      },
+      {
+        "id": "music-f52368fcb1ad1a02",
+        "name": "喜悦-有何不可.mp3",
+        "relative": "营销/喜悦-有何不可.mp3",
+        "bytes": 4271036,
+        "sha256": "877f39b76a531cb466dfb3444c02302ea2781332e49c5c1da21ec8b0b399c7fb"
+      },
+      {
+        "id": "music-f3cf8c4cb3c4ea8e",
+        "name": "喜悦-蜜桃物语.mp3",
+        "relative": "营销/喜悦-蜜桃物语.mp3",
+        "bytes": 2432396,
+        "sha256": "db8e09db879ca81a8fe85b177072d4e848844d208352de0477aeeb56e95536eb"
+      },
+      {
+        "id": "music-ed68f4229c9324fb",
+        "name": "欢快-New Face.mp3",
+        "relative": "营销/欢快-New Face.mp3",
+        "bytes": 4448564,
+        "sha256": "22be2db9d03f824505a0cfd593675e943ba4f22a940b9956942a707f647707d6"
+      },
+      {
+        "id": "music-3ad7654b392e93da",
+        "name": "欢快-Oops.mp3",
+        "relative": "营销/欢快-Oops.mp3",
+        "bytes": 2790908,
+        "sha256": "8f3aba9a129578897960aba1cc4006cc9c33ea2a02fe4398c9c178246d9e8069"
+      },
+      {
+        "id": "music-90d0f6821c6fd279",
+        "name": "活力-Bygone Bumps.mp3",
+        "relative": "营销/活力-Bygone Bumps.mp3",
+        "bytes": 2859020,
+        "sha256": "13171a4a11572d02a2cf0b5d5eb8c0cd19d34a06cf66aafde6ccfcb2f5e4deb4"
+      },
+      {
+        "id": "music-3ffa1d06b0529de2",
+        "name": "舒缓-忙碌的生活人山人海.mp3",
+        "relative": "营销/舒缓-忙碌的生活人山人海.mp3",
+        "bytes": 2440676,
+        "sha256": "f9a7d1f57124ca037e9e64eccf18b26ae45488bbc2b43a74a60e95924811019e"
+      },
+      {
+        "id": "music-4766ae95c6eb803d",
+        "name": "高燃-Intro.mp3",
+        "relative": "营销/高燃-Intro.mp3",
+        "bytes": 2563100,
+        "sha256": "379a644de1e2ffdf99242827e59105f2dec4fb425098d7672f226be36f0919e8"
+      }
+    ]
+  },
+  {
+    "name": "知识科普",
+    "files": [
+      {
+        "id": "music-0bdb9cabe26cf66f",
+        "name": "动感-Despair.mp3",
+        "relative": "知识科普/动感-Despair.mp3",
+        "bytes": 5024900,
+        "sha256": "bc673cf8ba3ae7290fc1c8c657f3989a6d379f675ab7b068c61bf56c259872be"
+      },
+      {
+        "id": "music-2df864540319514f",
+        "name": "动感-Visions.mp3",
+        "relative": "知识科普/动感-Visions.mp3",
+        "bytes": 4516796,
+        "sha256": "312d0900da021b5198094d1deed3fdbc2baa7039a9bd6427c9f12ea84cf2a45f"
+      },
+      {
+        "id": "music-a23952e9e6fd2988",
+        "name": "大气-Nothing to fear.mp3",
+        "relative": "知识科普/大气-Nothing to fear.mp3",
+        "bytes": 2078396,
+        "sha256": "59655f70fc9789b1844df0e05773af071b0587f84c0cb4374a29f6a3bb5e127d"
+      },
+      {
+        "id": "music-1ccfc7a85319060e",
+        "name": "欢快-Spoons for Loons.mp3",
+        "relative": "知识科普/欢快-Spoons for Loons.mp3",
+        "bytes": 3218060,
+        "sha256": "bf91538d4492ad75fc5e788a8a298fd0d92cfa437d4c180c1ef4a44faa0c64fa"
+      },
+      {
+        "id": "music-f511cf0fe90f1480",
+        "name": "欢快-夏夜与暗恋.mp3",
+        "relative": "知识科普/欢快-夏夜与暗恋.mp3",
+        "bytes": 3750452,
+        "sha256": "09d140208bbb94b86c9e3831fd6b39a076989d3efdf122bf219673d8b3321102"
+      },
+      {
+        "id": "music-da8074a1404fae65",
+        "name": "紧急-timeback.mp3",
+        "relative": "知识科普/紧急-timeback.mp3",
+        "bytes": 3759740,
+        "sha256": "20db72c9d32507ec247912d4028c65de6fecb56978af4e5f9489feb002bd219e"
+      },
+      {
+        "id": "music-9ca62b22826f85c8",
+        "name": "舒缓-Dragonfly Keeper.mp3",
+        "relative": "知识科普/舒缓-Dragonfly Keeper.mp3",
+        "bytes": 2374412,
+        "sha256": "1e72b589b998d8256765767da7528de0b7d83f4a494ae5ef55fc2e1c4dedb67b"
+      },
+      {
+        "id": "music-17a9195ed3dca981",
+        "name": "舒缓-IV.mp3",
+        "relative": "知识科普/舒缓-IV.mp3",
+        "bytes": 3670028,
+        "sha256": "565b1f0afda00e6c4c9f8ef0aef180e4ee39baf164a3a082a21713d6cc84f902"
+      },
+      {
+        "id": "music-7b7afc5e3bf9479d",
+        "name": "舒缓-Sunrise.mp3",
+        "relative": "知识科普/舒缓-Sunrise.mp3",
+        "bytes": 1816364,
+        "sha256": "c298d099fd98f6d3127c765bba15fe6d7c686af335dda64a4440e567b609b52a"
+      },
+      {
+        "id": "music-3a3d533e0a6e3e39",
+        "name": "高燃-Horizon.mp3",
+        "relative": "知识科普/高燃-Horizon.mp3",
+        "bytes": 4517612,
+        "sha256": "09a8090b8faa71c045f2e9009b40ea3e5cb31115e20a2be0d3da7c82c674476c"
+      }
+    ]
+  }
+]

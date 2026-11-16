@@ -1,0 +1,18 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {runProcess}=require('../server/media.cjs');
+// 核对本次桌面实际导出的媒体，不重新合成另一份样本代替验收。
+async function main(){
+ const root=path.resolve('evidence/validation/cover-editor'),native=JSON.parse(fs.readFileSync(path.join(root,'native-export-report.json'))),fixture=JSON.parse(fs.readFileSync(path.join(root,'desktop-fixture.json'))),state=JSON.parse(fs.readFileSync(path.join(fixture.workspace,'studio.json'))),{ffmpegPath:ffmpeg,ffprobePath:ffprobe}=state.settings;
+ const probe=async file=>JSON.parse(await runProcess(ffprobe,['-v','error','-show_streams','-show_format','-of','json',file]));
+ const before=await probe(native.video.source.path),after=await probe(native.video.path),v0=before.streams.find(s=>s.codec_type==='video'),v1=after.streams.find(s=>s.codec_type==='video'),frameSize=96*170*3;
+ async function pixels(file,label,image=false){const target=path.join(root,label+'.rgb');await runProcess(ffmpeg,['-v','error','-y','-i',file,'-vf',image?'scale=96:170,format=rgb24':'select=lte(n\\,2),scale=96:170,format=rgb24','-frames:v',image?'1':'3','-fps_mode','passthrough','-f','rawvideo',target]);return fs.readFileSync(target);}
+ const source=await pixels(native.video.source.path,'actual-source'),output=await pixels(native.video.path,'actual-output'),cover=await pixels(native.video.cover.path,'actual-cover',true);
+ const error=(a,b)=>{assert.equal(a.length,b.length);let sum=0;for(let i=0;i<a.length;i++)sum+=Math.abs(a[i]-b[i]);return sum/a.length;};
+ const report={checkedAt:new Date().toISOString(),source:native.video.source.path,output:native.video.path,cover:native.video.cover.path,sourceFrames:Number(v0.nb_frames),outputFrames:Number(v1.nb_frames),sourceDuration:Number(before.format.duration),outputDuration:Number(after.format.duration),sourceSize:[v0.width,v0.height],outputSize:[v1.width,v1.height],coverError:error(output.subarray(0,frameSize),cover),bodyFrameErrors:[1,2].map(i=>error(output.subarray(i*frameSize,(i+1)*frameSize),source.subarray(i*frameSize,(i+1)*frameSize)))};
+ assert.ok(report.coverError<5);assert.ok(report.bodyFrameErrors.every(v=>v<5));assert.equal(report.sourceFrames,report.outputFrames);assert.deepEqual(report.sourceSize,report.outputSize);assert.ok(Math.abs(report.sourceDuration-report.outputDuration)<.05);
+ const times=async file=>JSON.parse(await runProcess(ffprobe,['-v','error','-select_streams','v:0','-show_entries','frame=best_effort_timestamp_time','-of','json',file])).frames.map(f=>Number(f.best_effort_timestamp_time));const t0=await times(report.source),t1=await times(report.output);assert.equal(t0.length,t1.length);report.maxTimestampDifference=Math.max(...t0.map((v,i)=>Math.abs(v-t1[i])));assert.ok(report.maxTimestampDifference<.001);
+ report.audioPresent=before.streams.some(s=>s.codec_type==='audio');assert.equal(report.audioPresent,after.streams.some(s=>s.codec_type==='audio'));if(report.audioPresent){const hash=async file=>(await runProcess(ffmpeg,['-v','error','-i',file,'-map','0:a:0','-c','copy','-f','hash','-hash','sha256','-'])).trim();report.sourceAudioHash=await hash(report.source);report.outputAudioHash=await hash(report.output);assert.equal(report.sourceAudioHash,report.outputAudioHash);}
+ for(const [name,filter] of [['actual-first','select=eq(n\\,0)'],['actual-second','select=eq(n\\,1)']])await runProcess(ffmpeg,['-v','error','-y','-i',report.output,'-vf',filter,'-frames:v','1',path.join(root,name+'.png')]);
+ report.status='passed';fs.writeFileSync(path.join(root,'media-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

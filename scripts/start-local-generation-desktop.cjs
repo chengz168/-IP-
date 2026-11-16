@@ -1,0 +1,17 @@
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{spawn}=require('node:child_process');
+const {Store}=require('../server/store.cjs');
+const root=path.resolve('evidence/validation/local-generation'),workspace=path.join(root,'workspace');
+fs.mkdirSync(root,{recursive:true});
+if(fs.existsSync(path.join(root,'launch.json')))throw Error('已有本批窗口记录，先检查现有窗口，禁止重复启动');
+const original=path.resolve('evidence/validation/pip-desktop-workspace/studio.json');
+const hash=()=>crypto.createHash('sha256').update(fs.readFileSync(original)).digest('hex');
+const beforeSha256=hash();
+const saved=JSON.parse(fs.readFileSync(original,'utf8'));
+const store=new Store(workspace);
+store.data.settings={...store.data.settings,...structuredClone(saved.settings),outputDir:path.join(workspace,'outputs')};
+store.data.settings.provider={...store.data.settings.provider,ttsProtocol:'indextts-local',indexttsHome:'D:/AI-Runtimes/super-ip/indextts-2.5'};
+const d=store.draft();d.step=1;d.finalText='先把台灯放在左边，再把电源接好。';store.save();
+const env={...process.env};delete env.STUDIO_DEV_URL;delete env.ELECTRON_RUN_AS_NODE;
+const child=spawn(path.resolve('node_modules/electron/dist/electron.exe'),[path.resolve('scripts/local-generation-electron.cjs'),'--remote-debugging-port=9335','--studio-data-dir='+workspace],{cwd:process.cwd(),env,windowsHide:true,detached:true,stdio:'ignore'});child.unref();
+fs.writeFileSync(path.join(root,'launch.json'),JSON.stringify({startedAt:new Date().toISOString(),pid:child.pid,workspace,original,beforeSha256,afterLaunchSha256:hash(),draftId:d.id,port:9335},null,2));
+console.log(JSON.stringify({pid:child.pid,workspace,beforeSha256}));

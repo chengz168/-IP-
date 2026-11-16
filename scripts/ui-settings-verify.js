@@ -1,0 +1,37 @@
+async page => {
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const menu=async name=>{await page.getByRole('button',{name:'菜单',exact:true}).click();await page.getByRole('button',{name,exact:true}).click();};
+  await menu('设置');await page.getByRole('button',{name:'模型设置',exact:true}).click();
+  await page.getByRole('button',{name:'填写本机Ollama地址',exact:true}).click();
+  await page.getByLabel('文本模型',{exact:true}).fill('qwen3.5:9b-q4_K_M');
+  await page.getByRole('button',{name:'保存并测试连接',exact:true}).click();
+  await page.getByRole('heading',{name:'模型服务已连接',exact:true}).waitFor();
+  await page.getByRole('button',{name:'知道了',exact:true}).click();
+  await page.screenshot({path:'evidence/implementation/desktop-local-model-settings.png'});
+  await menu('新工作流');await page.getByRole('button',{name:'开始新任务',exact:true}).click();
+  await page.getByLabel('任务名称',{exact:true}).fill('本地模型界面验收');
+  await page.getByLabel('原文案',{exact:true}).fill('收纳盒可以分类放置文具和小物件。购买前先测量桌面空间，并检查分隔是否适合自己的物品，不要只看外观。');
+  await page.locator('.steps>button').nth(1).click();await page.getByRole('button',{name:'改写文案',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('textarea[aria-label="改写内容"]')?.value.length>10,{},{timeout:180000});
+  const text=await page.getByLabel('改写内容',{exact:true}).inputValue();await page.screenshot({path:'evidence/implementation/desktop-local-rewrite.png'});
+  await menu('设置');await page.getByRole('button',{name:'数据设置',exact:true}).click();
+  await page.getByRole('button',{name:'导出备份',exact:true}).click();await page.getByRole('heading',{name:'备份已导出',exact:true}).waitFor({timeout:60000});
+  const backupDirectory=(await page.locator('.dialog-message').innerText()).split('\n')[0];
+  await page.getByRole('button',{name:'知道了',exact:true}).click();
+  await menu('新工作流');await page.getByLabel('任务名称',{exact:true}).fill('备份之后的修改');
+  await menu('设置');await page.getByRole('button',{name:'数据设置',exact:true}).click();
+  await page.getByPlaceholder('包含manifest.json的备份文件夹绝对路径').fill(backupDirectory);
+  await page.getByRole('button',{name:'恢复任务与素材',exact:true}).click();
+  await page.getByRole('heading',{name:'确认恢复备份',exact:true}).waitFor();await page.getByRole('button',{name:'确认恢复',exact:true}).click();
+  await page.getByRole('heading',{name:'恢复完成',exact:true}).waitFor({timeout:60000});
+  const receipt=await page.locator('.dialog-message').innerText();await page.screenshot({path:'evidence/implementation/desktop-backup-restored.png'});
+  await page.getByRole('button',{name:'知道了',exact:true}).click();
+  await menu('新工作流');
+  if(await page.getByLabel('任务名称',{exact:true}).inputValue()!=='本地模型界面验收')throw new Error('界面未恢复备份任务');
+  const state=await page.evaluate(()=>window.studio.invoke('state'));
+  const run=state.runs.find(r=>r.type==='rewrite'&&r.status==='succeeded'&&r.output?.text===text);
+  if(!run||errors.length)throw new Error('界面验证失败：'+errors.join('\n'));
+  const report={checkedAt:new Date().toISOString(),runtime:'Electron',text,runId:run.id,backupDirectory,receipt,restoredTask:true,assetCount:state.assets.length,pageErrors:errors};
+  await page.evaluate(report=>window.studio.invoke('importFile',{name:'设置功能验证.json',base64:btoa(unescape(encodeURIComponent(JSON.stringify(report,null,2))))}),report);
+  return report;
+}

@@ -1,0 +1,201 @@
+{
+  "recognition": {
+    "text": "晚上出來走一走剛好路邊的燈都亮了忙了一天先給自己留幾分鐘慢慢走也慢慢聊",
+    "segments": [
+      {
+        "start": 0,
+        "end": 1.12,
+        "text": "晚上出來走一走",
+        "words": [
+          {
+            "start": 0,
+            "end": 0.22,
+            "word": "晚上"
+          },
+          {
+            "start": 0.22,
+            "end": 0.5,
+            "word": "出來"
+          },
+          {
+            "start": 0.5,
+            "end": 0.8,
+            "word": "走"
+          },
+          {
+            "start": 0.8,
+            "end": 0.94,
+            "word": "一"
+          },
+          {
+            "start": 0.94,
+            "end": 1.12,
+            "word": "走"
+          }
+        ]
+      },
+      {
+        "start": 1.12,
+        "end": 2.92,
+        "text": "剛好路邊的燈都亮了",
+        "words": [
+          {
+            "start": 1.12,
+            "end": 1.54,
+            "word": "剛"
+          },
+          {
+            "start": 1.54,
+            "end": 1.8,
+            "word": "好"
+          },
+          {
+            "start": 1.8,
+            "end": 1.96,
+            "word": "路"
+          },
+          {
+            "start": 1.96,
+            "end": 2.16,
+            "word": "邊"
+          },
+          {
+            "start": 2.16,
+            "end": 2.26,
+            "word": "的"
+          },
+          {
+            "start": 2.26,
+            "end": 2.46,
+            "word": "燈"
+          },
+          {
+            "start": 2.46,
+            "end": 2.56,
+            "word": "都"
+          },
+          {
+            "start": 2.56,
+            "end": 2.74,
+            "word": "亮"
+          },
+          {
+            "start": 2.74,
+            "end": 2.92,
+            "word": "了"
+          }
+        ]
+      },
+      {
+        "start": 2.92,
+        "end": 3.72,
+        "text": "忙了一天",
+        "words": [
+          {
+            "start": 2.92,
+            "end": 3.14,
+            "word": "忙"
+          },
+          {
+            "start": 3.14,
+            "end": 3.32,
+            "word": "了"
+          },
+          {
+            "start": 3.32,
+            "end": 3.46,
+            "word": "一"
+          },
+          {
+            "start": 3.46,
+            "end": 3.72,
+            "word": "天"
+          }
+        ]
+      },
+      {
+        "start": 3.72,
+        "end": 5.02,
+        "text": "先給自己留幾分鐘",
+        "words": [
+          {
+            "start": 3.72,
+            "end": 4.02,
+            "word": "先"
+          },
+          {
+            "start": 4.02,
+            "end": 4.16,
+            "word": "給"
+          },
+          {
+            "start": 4.16,
+            "end": 4.36,
+            "word": "自己"
+          },
+          {
+            "start": 4.36,
+            "end": 4.56,
+            "word": "留"
+          },
+          {
+            "start": 4.56,
+            "end": 4.72,
+            "word": "幾"
+          },
+          {
+            "start": 4.72,
+            "end": 5.02,
+            "word": "分鐘"
+          }
+        ]
+      },
+      {
+        "start": 5.02,
+        "end": 5.68,
+        "text": "慢慢走",
+        "words": [
+          {
+            "start": 5.02,
+            "end": 5.32,
+            "word": "慢慢"
+          },
+          {
+            "start": 5.32,
+            "end": 5.68,
+            "word": "走"
+          }
+        ]
+      },
+      {
+        "start": 5.68,
+        "end": 6.54,
+        "text": "也慢慢聊",
+        "words": [
+          {
+            "start": 5.68,
+            "end": 6.02,
+            "word": "也"
+          },
+          {
+            "start": 6.02,
+            "end": 6.24,
+            "word": "慢慢"
+          },
+          {
+            "start": 6.24,
+            "end": 6.54,
+            "word": "聊"
+          }
+        ]
+      }
+    ],
+    "language": "zh",
+    "engine": "faster-whisper",
+    "local": true,
+    "sourceAssetId": "655f7e87-02a8-44a7-ab8f-b12c1d5dd8af",
+    "duration": 6.666667
+  },
+  "duration": 6.666667,
+  "sourceRunId": "c7220fe7-ae3c-4d57-8f16-2cb4a8f13d18"
+}

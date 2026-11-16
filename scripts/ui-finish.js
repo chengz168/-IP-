@@ -1,0 +1,36 @@
+async page => {
+  await page.reload();await page.locator('.steps').waitFor();
+  await page.locator('.steps>button').nth(4).click();
+  await page.getByRole('button',{name:'剪辑视频',exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('.operation-status'),{},{timeout:120000});
+  const renderState=await page.evaluate(async()=>{const r=await fetch('/api/state',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});return (await r.json()).result;});
+  if(renderState.runs[0]?.status!=='succeeded')throw new Error('本次渲染失败：'+renderState.runs[0]?.error);
+  if(!(await page.locator('.step-status').innerText()).includes('已生成'))throw new Error(await page.locator('.toast').innerText());
+  await page.locator('.edit-preview video').evaluate(async v=>{v.muted=true;await v.play();});
+  await page.waitForTimeout(1100);await page.locator('.edit-preview video').evaluate(v=>v.pause());
+  await page.screenshot({path:'evidence/implementation/05-rendered-fixed.png'});
+  await page.locator('.steps>button').nth(5).click();
+  await page.getByRole('button',{name:'封面来源',exact:true}).last().click();
+  await page.getByLabel('视频截帧时间（秒）').fill('1');
+  await page.getByRole('button',{name:'截取当前时间画面',exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('.operation-status'),{},{timeout:60000});
+  await page.getByRole('button',{name:'文本图层',exact:true}).click();
+  await page.getByLabel('标题文字').fill('桌面收纳\n让小物各归其位');
+  await page.getByLabel('副标题',{exact:true}).fill('把日常整理成喜欢的样子');
+  await page.getByRole('button',{name:'生成并导出封面',exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('.operation-status'),{},{timeout:60000});
+  if(!(await page.locator('.step-status').innerText()).includes('已生成'))throw new Error('封面导出失败：'+await page.locator('.toast').innerText());
+  await page.screenshot({path:'evidence/implementation/06-cover-exported.png'});
+  await page.getByRole('button',{name:'生成封面视频',exact:true}).click();
+  await page.waitForFunction(()=>!document.querySelector('.operation-status'),{},{timeout:120000});
+  await page.locator('.steps>button').nth(6).click();
+  await page.getByLabel('作品标题',{exact:true}).fill('桌面收纳，让小物各归其位');
+  await page.getByLabel('作品描述',{exact:true}).fill('本地功能验收素材：已叠加标题和SRT字幕，包含1秒封面片头。未向平台发布。');
+  await page.getByLabel('话题标签',{exact:true}).fill('桌面收纳 整理日常');
+  await page.getByRole('button',{name:'导出发布包',exact:true}).click();
+  await page.getByRole('dialog').waitFor();
+  await page.screenshot({path:'evidence/implementation/07-package-exported.png'});
+  await page.getByRole('button',{name:'知道了',exact:true}).click();
+  await page.reload();await page.locator('.steps').waitFor();
+  if(await page.getByLabel('作品标题',{exact:true}).inputValue()!=='桌面收纳，让小物各归其位')throw new Error('刷新后发布标题丢失');
+}

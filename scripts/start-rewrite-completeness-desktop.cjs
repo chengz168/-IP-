@@ -1,0 +1,13 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{spawn}=require('node:child_process');
+const {createDraft}=require('../server/store.cjs'),fixtures=require('./copy-quality-fixtures.cjs'),{chromium}=require('C:/Users/DELL/AppData/Local/npm-cache/_npx/31e32ef8478fbf80/node_modules/playwright-core');
+const root=path.resolve('evidence/validation/rewrite-completeness'),original=path.resolve('evidence/validation/pip-desktop-workspace'),workspace=path.join(root,'desktop-workspace'),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+(async()=>{
+ assert(!fs.existsSync(workspace),'不覆盖已有桌面验收工作区');const baseline=JSON.parse(fs.readFileSync(path.join(root,'original-baseline.json'),'utf8'));assert.deepEqual(JSON.parse(fs.readFileSync(path.join(original,'studio.json'),'utf8')),baseline);
+ const data=structuredClone(baseline),draft=createDraft();Object.assign(draft,{title:'逐句段改写真实桌面验收（虚构素材）',step:1,sourceText:fixtures.rewrites[1].text,wordLimit:String(fixtures.rewrites[1].text.length),template:'reference-copy-v840',rewrite:'保留的手工改写稿'});data.drafts=[draft];data.runs=[];delete data.workflowJobs;data.currentId=draft.id;data.settings.provider.model='qwen3.8:27b';data.settings.outputDir=path.join(workspace,'outputs');data.settings.view='new';data.settings.fontSize='comfortable';
+ const browser=await chromium.connectOverCDP('http://127.0.0.1:9333'),page=browser.contexts()[0].pages()[0],state=await page.evaluate(()=>window.studio.invoke('state'));assert.equal(state.currentId,baseline.currentId);assert(!state.runs.some(run=>run.status==='running'));await page.evaluate(()=>window.studio.window('close'));await browser.close().catch(()=>{});
+ for(let i=0;i<120;i++){try{await fetch('http://127.0.0.1:9333/json/version');await sleep(100);}catch{break;}}
+ fs.mkdirSync(workspace);fs.writeFileSync(path.join(workspace,'studio.json'),JSON.stringify(data,null,2));const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;delete env.STUDIO_DEV_URL;
+ const child=spawn(path.resolve('node_modules/electron/dist/electron.exe'),['.','--remote-debugging-port=9333','--studio-data-dir='+workspace],{cwd:process.cwd(),env,detached:true,stdio:'ignore',windowsHide:true});child.unref();
+ const report={checkedAt:new Date().toISOString(),pid:child.pid,workspace,original,draftId:draft.id,model:data.settings.provider.model,packagedExeStarted:false};fs.writeFileSync(path.join(root,'launch-report.json'),JSON.stringify(report,null,2));
+ for(let i=0;i<150;i++){try{await fetch('http://127.0.0.1:9333/json/version');console.log(JSON.stringify(report));return;}catch{await sleep(100);}}throw Error('源码桌面未就绪');
+})().catch(error=>{console.error(error);process.exitCode=1;});

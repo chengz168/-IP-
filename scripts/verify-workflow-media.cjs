@@ -1,0 +1,14 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {Media,runProcess}=require('../server/media.cjs');
+// 仅核验已有真实产物，不重新调用模型或改写工作区。
+async function main(){
+ const root=path.resolve('evidence/validation/workflow-jobs'),fixture=JSON.parse(fs.readFileSync(path.join(root,'desktop-fixture.json'))),functional=JSON.parse(fs.readFileSync(path.join(root,'functional-report.json'))),state=JSON.parse(fs.readFileSync(path.join(fixture.workspace,'studio.json'))),job=state.workflowJobs.find(j=>j.id===functional.jobId),media=new Media({data:{settings:state.settings}});
+ // 布局巡检会修改隔离任务的制作选项，使当前引用按规则失效；核验应绑定功能验收当次记录的不可变产物。
+ const video=state.assets.find(a=>a.id===functional.video.id),cover=state.assets.find(a=>a.id===functional.cover.id),source=state.assets.find(a=>a.id===fixture.sourceId),baseline=JSON.parse(fs.readFileSync(path.join(root,'original-desktop-baseline.json')));assert.ok(video&&cover&&source);assert.equal(job.status,'awaiting_publish');assert.equal(functional.metadata.recordId,'');assert.deepEqual(state.publishRecords,baseline.publishRecords);
+ const [probe,coverProbe,sourceProbe]=await Promise.all([media.probe(video.path),media.probe(cover.path),media.probe(source.path)]),stream=probe.streams.find(s=>s.codec_type==='video'),image=coverProbe.streams.find(s=>s.codec_type==='video');
+ assert.equal(stream.width,360);assert.equal(stream.height,640);assert.equal(Number(probe.format.duration),8);assert.ok(probe.streams.some(s=>s.codec_type==='audio'));assert.equal(image.width,1080);assert.equal(image.height,1920);assert.ok(functional.captionCount>0);assert.ok(video.renderedCaptions.length>0);
+ const frames=[];for(const time of [.8,4.2]){const actual=path.join(root,`actual-${time}s.png`),original=path.join(root,`source-${time}s.png`);await runProcess(media.binaries().ffmpeg,['-v','error','-y','-ss',String(time),'-i',video.path,'-frames:v','1',actual]);await runProcess(media.binaries().ffmpeg,['-v','error','-y','-ss',String(time),'-i',source.path,'-frames:v','1',original]);frames.push({time,actual,source:original});}
+ const report={checkedAt:new Date().toISOString(),jobId:job.id,status:job.status,publishRecordsUnchanged:true,existingExportRecordCount:state.publishRecords.length,newPublishRecordCount:0,video:{path:video.path,width:stream.width,height:stream.height,duration:Number(probe.format.duration),codec:stream.codec_name,audioCodec:probe.streams.find(s=>s.codec_type==='audio').codec_name},cover:{path:cover.path,width:image.width,height:image.height},source:{path:source.path,duration:Number(sourceProbe.format.duration)},renderedCaptions:video.renderedCaptions,frames,scope:'真实媒体流、时长、尺寸、字幕记录与两处实际解码画面；识别文字和内容质量另行核对，不代表已发布'};
+ fs.writeFileSync(path.join(root,'media-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});

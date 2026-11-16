@@ -1,0 +1,28 @@
+{
+  "upstreamLicense": "UPSTREAM-LICENSE",
+  "changed": [
+    "参数数组FFmpeg与完整媒体核验",
+    "无循环无跳帧且人脸检测失败立即退出",
+    "中文路径字节PNG读写",
+    "人脸框外编码前逐像素保持核验",
+    "独立失败回执与取消"
+  ],
+  "realInferenceVerified": true,
+  "realInferenceReceipt": "evidence/validation/musetalk-sample-20261115/delivery-report.json",
+  "qualityAccepted": false,
+  "basis": [
+    "scripts/inference.py",
+    "musetalk/utils/audio_processor.py",
+    "musetalk/utils/preprocessing.py",
+    "musetalk/utils/blending.py"
+  ],
+  "productIntegrationComplete": false,
+  "localAdapter": "model_backend.py",
+  "candidate": "MuseTalk 1.5",
+  "upstream": "https://github.com/TMElyralab/MuseTalk",
+  "originalProductHiddenPromptKnown": false,
+  "sourceReceipt": "D:/AI-Runtimes/super-ip/musetalk-1.5/source-receipt.json",
+  "sourceCommit": "0a89dec45a0192b824e3cf4daf96c239440c5ed8",
+  "verifiedPythonFiles": 48,
+  "originalProductInternalModelKnown": false
+}

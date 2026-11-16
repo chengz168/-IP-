@@ -1,0 +1,24 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {chromium}=require('C:/Users/DELL/AppData/Local/npm-cache/_npx/31e32ef8478fbf80/node_modules/playwright-core');
+const {Media,runProcess}=require('../server/media.cjs');
+const root=path.resolve('evidence/validation/edit-title'),workspace=path.join(root,'desktop-workspace'),read=file=>JSON.parse(fs.readFileSync(file));
+async function main(){
+ const {titleDesign,titleTemplates,titleStyle}=await import('../server/title-model.mjs'),browser=await chromium.connectOverCDP('http://127.0.0.1:9333'),page=browser.contexts()[0].pages()[0],report={checkedAt:new Date().toISOString(),renders:[],pageErrors:[]};page.on('pageerror',e=>report.pageErrors.push(e.message));
+ const invoke=(action,payload={})=>page.evaluate(({action,payload})=>window.studio.invoke(action,payload),{action,payload});
+ try{
+  const asset=await invoke('importFile',{name:'标题验收无字源.mp4',base64:fs.readFileSync(path.join(root,'clean-source.mp4')).toString('base64')});let d=await invoke('newDraft');d.step=4;d.title='主副标题真实合成验收';Object.assign(d.edit,{sourceId:asset.id,subtitlesEnabled:false,titleEnabled:true,title:'收纳让桌面整洁',subtitle:'每件物品都有位置',speed:1});d.edit.titleDesign=titleDesign(d.edit);await invoke('saveDraft',d);fs.writeFileSync(path.join(root,'fixture.json'),JSON.stringify({draftId:d.id,sourceId:asset.id}));
+  const state=read(path.join(workspace,'studio.json')),media=new Media({data:{settings:state.settings}});await page.reload();await page.locator('.steps>button').nth(4).click();await page.locator('.edit-nav>button').filter({has:page.locator('strong',{hasText:/^标题$/})}).click();
+  for(const template of titleTemplates){
+   d=(await invoke('state')).drafts.find(item=>item.id===d.id);Object.assign(d.edit.titleDesign,{mode:'template',templateId:template.id,displayMode:'seconds',duration:1.2});await invoke('saveDraft',d);
+   const result=await invoke('render',{id:d.id}),assetState=read(path.join(workspace,'studio.json')).assets.find(a=>a.id===result.id),probe=await media.probe(assetState.path),stream=probe.streams.find(s=>s.codec_type==='video');assert.equal(stream.width,360);assert.equal(stream.height,640);assert.ok(Math.abs(Number(probe.format.duration)-4)<.12);assert.equal(result.renderedTitle.end,1.2);assert.equal(result.stale,undefined);
+   const frames=[];for(const time of [.4,1.6]){const file=path.join(root,template.id+'-'+time+'.png');await runProcess(media.binaries().ffmpeg,['-v','error','-y','-ss',String(time),'-i',assetState.path,'-frames:v','1',file]);frames.push({time,file});}
+   report.renders.push({templateId:template.id,path:assetState.path,width:stream.width,height:stream.height,duration:Number(probe.format.duration),frames,bounds:result.renderedTitle.bounds});console.log(template.name+'已生成');
+  }
+  d=(await invoke('state')).drafts.find(item=>item.id===d.id);d.edit.titleDesign={...d.edit.titleDesign,mode:'custom',displayMode:'seconds',duration:.8,offsetX:30,offsetY:40,custom:titleStyle({fontSize:90,color:'#FFDC44',secondaryColor:'#FFFFFF',italic:true,underline:true,letterSpacing:3,top:240,stroke:{enabled:true,width:2,color:'#162030'},shadow:{enabled:true,color:'#FF5566',opacity:.65,distance:8},background:{enabled:true,color:'#000000',opacity:.65,radius:16,paddingX:30,paddingY:16}})};d.edit.speed=1.25;d.edit.cutSilence=true;d.edit.silenceThreshold=-35;d.edit.silenceMinimum=.3;d.edit.silencePadding=.05;await invoke('saveDraft',d);
+  const custom=await invoke('render',{id:d.id}),customAsset=read(path.join(workspace,'studio.json')).assets.find(a=>a.id===custom.id),probe=await media.probe(customAsset.path);assert.ok(custom.timeline.removedDuration>.7);assert.ok(Math.abs(Number(probe.format.duration)-custom.timeline.duration/1.25)<.12);assert.equal(custom.renderedTitle.end,.8);assert.equal(custom.renderedTitle.sub,'每件物品都有位置');
+  const frames=[];for(const time of [.4,1.2]){const file=path.join(root,'custom-'+time+'.png');await runProcess(media.binaries().ffmpeg,['-v','error','-y','-ss',String(time),'-i',customAsset.path,'-frames:v','1',file]);frames.push({time,file});}
+  report.custom={path:customAsset.path,duration:Number(probe.format.duration),timeline:custom.timeline,title:custom.renderedTitle,frames};assert.deepEqual(report.pageErrors,[]);assert.deepEqual(read(path.resolve('evidence/validation/pip-desktop-workspace/studio.json')),read(path.join(root,'original-baseline.json')));
+  fs.writeFileSync(path.join(root,'media-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({renders:report.renders.length,customDuration:report.custom.duration,removed:custom.timeline.removedDuration,pageErrors:report.pageErrors}));
+ }catch(e){report.error=e.stack;fs.writeFileSync(path.join(root,'media-failure.json'),JSON.stringify(report,null,2));throw e;}finally{await browser.close();}
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

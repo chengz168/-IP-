@@ -1,0 +1,19 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto'),{spawn}=require('node:child_process');
+const {createDraft}=require('../server/store.cjs'),{Media}=require('../server/media.cjs');
+const {chromium}=require('C:/Users/DELL/AppData/Local/npm-cache/_npx/31e32ef8478fbf80/node_modules/playwright-core');
+const root=path.resolve('evidence/validation/avatar-boundaries'),workspace=path.join(root,'desktop-workspace'),original=path.resolve('evidence/validation/pip-desktop-workspace'),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+(async()=>{
+ assert(!fs.existsSync(workspace),'不覆盖已存在隔离工作区');assert((await fetch('http://127.0.0.1:18769/status')).ok,'需先运行本地协议夹具');
+ const bytes=fs.readFileSync(path.join(original,'studio.json')),baseline=JSON.parse(bytes),data=structuredClone(baseline),media=new Media({data:baseline}),d=createDraft(),other=createDraft();
+ fs.writeFileSync(path.join(root,'original-baseline.json'),bytes);fs.mkdirSync(path.join(workspace,'assets'),{recursive:true});data.assets=[];data.drafts=[d,other];data.currentId=d.id;data.runs=[];data.voices=[];data.avatars=[];data.brains=[];delete data.workflowJobs;
+ data.settings.view='new';data.settings.fontSize='comfortable';data.settings.outputDir=path.join(workspace,'outputs');data.settings.provider.avatarUrl='';
+ for(const [name,file]of [['既有产品视频_协议夹具非口型.mp4',path.resolve('evidence/validation/caption-entry/五张原图与既有音轨_无旧字幕源.mp4')],['系统朗读驱动音频.wav',path.resolve('evidence/validation/legacy-voice/系统朗读验收样本.wav')]]){
+  assert(fs.existsSync(file));const id=crypto.randomUUID(),target=path.join(workspace,'assets',id+path.extname(file));fs.copyFileSync(file,target);const info=await media.probe(target);data.assets.push({id,name,path:target,type:path.extname(file)==='.wav'?'audio':'video',size:fs.statSync(target).size,duration:Number(info.format.duration),category:'全部素材',tags:[],createdAt:new Date().toISOString()});
+ }
+ data.avatars=[{id:'validation-shape',name:'既有视频协议验证素材',assetId:data.assets[0].id}];Object.assign(d,{title:'视频生成边界与真实剪辑验收',step:3});Object.assign(d.video,{avatarId:'validation-shape',audioId:data.assets[1].id});Object.assign(d.edit,{subtitlesEnabled:false,volume:.8,speed:1.25});other.title='切换任务不得被旧结果覆盖';other.step=3;other.video.avatarId='validation-shape';other.video.audioId=data.assets[1].id;
+ const browser=await chromium.connectOverCDP('http://127.0.0.1:9333'),p=browser.contexts()[0].pages()[0],current=await p.evaluate(()=>window.studio.invoke('state'));assert.equal(current.currentId,baseline.currentId);assert(!current.runs.some(r=>r.status==='running'));assert.deepEqual(JSON.parse(fs.readFileSync(path.join(original,'studio.json'),'utf8')),baseline);await p.evaluate(()=>window.studio.window('close'));await browser.close().catch(()=>{});
+ for(let i=0;i<120;i++){try{await fetch('http://127.0.0.1:9333/json/version');await sleep(100);}catch{break;}}
+ fs.writeFileSync(path.join(workspace,'studio.json'),JSON.stringify(data,null,2));const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;delete env.STUDIO_DEV_URL;const child=spawn(path.resolve('node_modules/electron/dist/electron.exe'),['.','--remote-debugging-port=9333','--studio-data-dir='+workspace],{cwd:process.cwd(),env,detached:true,stdio:'ignore',windowsHide:true});child.unref();
+ const report={checkedAt:new Date().toISOString(),pid:child.pid,workspace,original,draftId:d.id,otherDraftId:other.id,sourceId:data.assets[0].id,audioId:data.assets[1].id,controlledProtocolFixture:true,driverApplied:false,packagedExeStarted:false};fs.writeFileSync(path.join(root,'launch-report.json'),JSON.stringify(report,null,2));
+ for(let i=0;i<150;i++){try{await fetch('http://127.0.0.1:9333/json/version');console.log(JSON.stringify(report));return;}catch{await sleep(100);}}throw Error('源码桌面未就绪');
+})().catch(error=>{console.error(error);process.exitCode=1;});

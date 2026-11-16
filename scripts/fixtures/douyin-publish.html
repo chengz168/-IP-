@@ -1,0 +1,19 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>本地发布浏览器夹具</title>
+<style>body{font:16px "Microsoft YaHei";margin:32px;background:#fafafa;color:#222}button,input{margin:12px;padding:10px}input[type=file]{display:block}.zone-container{border:1px solid #aaa;min-height:80px;padding:12px;white-space:pre-wrap}#fixture-banner{background:#fff1b8;padding:16px}#editor{max-width:700px}#cover-modal{position:fixed;inset:80px;background:white;border:3px solid #888;padding:32px;z-index:10}img{max-width:90px;max-height:160px}[hidden]{display:none!important}.semi-toast-content{position:fixed;top:20px;right:20px;background:#d9f7be;padding:24px}</style>
+<div id="fixture-banner">本地隔离浏览器夹具：没有连接抖音服务，成功提示仅用于验证适配器。</div>
+<button>发布视频</button><div class="container-fixture"><input type="file" accept="video/*" class="upload-btn-input"></div>
+<section id="editor" hidden><div class="long-card-fixture">重新上传</div><input placeholder="填写作品标题" maxlength="100"><div class="zone-container" contenteditable="true"></div><button id="open-cover">编辑封面</button><button id="save">保存草稿</button><button id="publish">发布</button></section>
+<div id="cover-modal" class="dy-creator-content-modal" hidden><button>设置竖封面</button><div class="semi-upload"><span>生成参考图</span><input type="file" accept="image/*" class="semi-upload-hidden-input" id="wrong-image-slot"></div><div class="semi-upload"><span class="semi-upload-drag-area-main-text">点击上传文件或拖拽</span><input type="file" accept="image/*" class="semi-upload-hidden-input" id="cover-file"></div><img id="cover-preview" alt="夹具封面"><button id="cover-finish" disabled>完成</button></div>
+<script>
+if(location.pathname==='/')history.replaceState({},'', '/creator-micro/home');
+// 仅有浏览器File API，不接入工作台preload；真实文件大小和SHA用于核对CDP上传。
+window.__fixture={syntheticPlatform:true,scenario:'__SCENARIO__',video:null,cover:null,wrongSlotChanged:false,commits:0,coverCompleted:false,submitted:null};
+async function describe(file){return{name:file.name,size:file.size,type:file.type,sha256:[...new Uint8Array(await crypto.subtle.digest('SHA-256',await file.arrayBuffer()))].map(v=>v.toString(16).padStart(2,'0')).join('')};}
+document.querySelector('.upload-btn-input').addEventListener('change',async event=>{window.__fixture.video=await describe(event.target.files[0]);setTimeout(()=>{history.pushState({},'', '/creator-micro/content/post/video?enter_from=publish_page');document.querySelector('#editor').hidden=false;},650);});
+document.querySelector('#open-cover').onclick=()=>document.querySelector('#cover-modal').hidden=false;
+document.querySelector('#wrong-image-slot').onchange=()=>window.__fixture.wrongSlotChanged=true;
+document.querySelector('#cover-file').addEventListener('change',async event=>{window.__fixture.cover=await describe(event.target.files[0]);document.querySelector('#cover-preview').src=URL.createObjectURL(event.target.files[0]);setTimeout(()=>document.querySelector('#cover-finish').disabled=false,180);});
+document.querySelector('#cover-finish').onclick=()=>{window.__fixture.coverCompleted=true;document.querySelector('#cover-modal').hidden=true;};
+function commit(mode){window.__fixture.commits++;window.__fixture.submitted={mode,title:document.querySelector('input[placeholder*="填写作品标题"]').value,description:document.querySelector('.zone-container').innerText};setTimeout(()=>{history.pushState({},'', '/creator-micro/content/manage');const message=document.createElement('div');message.className='semi-toast-content';message.setAttribute('role','status');message.textContent=window.__fixture.scenario==='unconfirmed'?'上传成功':mode==='draft'?'草稿保存成功':'发布成功';document.body.appendChild(message);},250);}
+document.querySelector('#save').onclick=()=>commit('draft');document.querySelector('#publish').onclick=()=>commit('direct');
+</script></html>

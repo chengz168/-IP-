@@ -1,0 +1,11 @@
+// 对旧紧凑源文件作唯一锚点替换；找不到或重复时停止，不猜测覆盖位置。
+const fs=require('node:fs'),assert=require('node:assert/strict');
+function replace(file,before,after){const text=fs.readFileSync(file,'utf8');assert.equal(text.split(before).length,2,file+'锚点不唯一');fs.writeFileSync(file,text.replace(before,after));}
+replace('server/service.cjs','const handlers={',"const accounts=new (require('./account-connections.cjs').AccountConnections)(store,options.accountBrowser,media);\n  const handlers={");
+replace('server/service.cjs','state:async()=>({...store.state(),',"openAccountLogin:async({accountId})=>accounts.open(accountId),\n    checkAccountConnection:async({accountId})=>accounts.check(accountId),\n    closeAccountLogin:async({accountId})=>accounts.close(accountId),\n    preparePublish:async({id})=>accounts.prepare(id),\n    state:async()=>({...store.state(),accounts:accounts.publicState(),");
+replace('server/service.cjs',"saveResource:async({type,item})=>{if(type==='prompt')", "saveResource:async({type,item})=>{if(type==='account')return accounts.save(item);if(type==='prompt')");
+replace('server/service.cjs',"store.data[key]=store.data[key].filter(r=>r.id!==id);store.save();return true;},", "const before=store.data[key];store.data[key]=before.filter(r=>r.id!==id);try{store.save();}catch(error){store.data[key]=before;throw error;}if(type==='account')accounts.close(id);return true;},");
+replace('electron/main.cjs','service=createService(root,secrets,{builtinAvatars:true});',"service=createService(root,secrets,{builtinAvatars:true,accountBrowser:new (require('./account-browser.cjs').AccountBrowser)({BrowserWindow,parent:()=>win})});");
+replace('electron/preload.cjs',"actions.add('videoAudioInfo');", "for(const action of ['openAccountLogin','checkAccountConnection','closeAccountLogin','preparePublish'])actions.add(action);\nactions.add('videoAudioInfo');");
+replace('src/views/Resources.vue',"import MaterialLibrary from '../components/MaterialLibrary.vue';", "import MaterialLibrary from '../components/MaterialLibrary.vue';\nimport AccountLibrary from '../components/AccountLibrary.vue';");
+replace('src/views/Resources.vue','<MaterialLibrary v-if="page===\'assets\'"/><section v-else', '<MaterialLibrary v-if="page===\'assets\'"/><AccountLibrary v-else-if="page===\'accounts\'"/><section v-else');

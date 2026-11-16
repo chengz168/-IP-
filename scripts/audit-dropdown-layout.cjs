@@ -1,0 +1,42 @@
+const fs=require('fs'),path=require('path'),assert=require('assert/strict'),{spawnSync}=require('child_process');
+const {chromium}=require('C:/Users/DELL/AppData/Local/npm-cache/_npx/31e32ef8478fbf80/node_modules/playwright-core');
+const {selectOption}=require('./ui-select.cjs');
+const root=path.resolve(process.env.STUDIO_VALIDATION_ROOT||'evidence/validation/dropdown-select'),launch=JSON.parse(fs.readFileSync(path.join(root,'launch-report.json'),'utf8'));
+(async()=>{
+ const b=await chromium.connectOverCDP('http://127.0.0.1:9333'),p=b.contexts()[0].pages()[0],report={checkedAt:new Date().toISOString(),states:[],pageErrors:[],resizeClosures:0,scope:'两尺寸四字号真实菜单截图、视口边界、内部滚动、选项命中、文字和表单对齐；不代表原厂逐像素一致'};p.on('pageerror',e=>report.pageErrors.push(e.message));p.setDefaultTimeout(15000);
+ const hwnd=Number(spawnSync('python',['scripts/desktop-handle.py','--pid',String(launch.pid)],{encoding:'utf8'}).stdout.trim());assert(hwnd>0);
+ const initial=(await p.evaluate(()=>window.studio.invoke('state'))).drafts.find(d=>d.id===launch.draftId),brainData=JSON.parse(fs.readFileSync('evidence/validation/brain-study/desktop-workspace/studio.json','utf8')).brains.find(b=>b.analysis&&b.topics);
+ assert.ok(brainData,'需要既有真实学习结果验证IP弹窗');const longName='用于检查长模板名称自动换行与完整展示的创作提示词'.repeat(5);let addedPrompt;
+ async function menu(name){await p.getByRole('button',{name:'菜单',exact:true}).click();await p.getByRole('navigation',{name:'主菜单'}).getByRole('button',{name,exact:true}).click();}
+ async function resize(width,height){const r=spawnSync('python',['scripts/resize-desktop.py','--handle',String(hwnd),'--width',String(width),'--height',String(height)],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);await p.waitForFunction(w=>innerWidth===w,width);}
+ async function capture(width,height,size,name){
+  await p.evaluate(async()=>{await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));});
+  const metrics=await p.evaluate(()=>{
+   const box=e=>e.getBoundingClientRect().toJSON(),list=document.querySelector('.studio-select-menu'),trigger=document.querySelector('.studio-select-trigger[aria-expanded=true]'),issues=[];if(!list||!trigger)return {issues:['菜单未展开']};
+   const r=box(list),t=box(trigger),style=getComputedStyle(list),options=[...list.querySelectorAll('[role=option]')],active=options.find(e=>e.dataset.active==='true');
+   if(r.left<0||r.top<0||r.right>innerWidth+1||r.bottom>innerHeight+1)issues.push('浮层越出视口');
+   if(Math.abs(r.left-t.left)>1||Math.abs(r.width-t.width)>1)issues.push('浮层边缘未对齐控件');
+   if(list.scrollWidth>list.clientWidth+1)issues.push('浮层横向溢出');
+   const expected=Math.min(list.scrollHeight+2,parseFloat(getComputedStyle(options[0]).minHeight)*(Number(style.getPropertyValue('--select-visible-rows'))||4)+parseFloat(style.paddingTop)+parseFloat(style.paddingBottom)+2,Math.max(t.top-12,innerHeight-t.bottom-12));if(r.height<expected-1)issues.push('浮层未按真实换行内容计算高度');
+   const buttonText=trigger.querySelector('span');if(buttonText&&box(buttonText).right>t.right-15)issues.push('文字侵入箭头');
+   const visibleOptions=options.filter(e=>{const o=box(e);return o.top>=r.top+1&&o.bottom<=r.bottom-1;});
+   for(const option of visibleOptions){const o=box(option),hit=document.elementFromPoint(o.left+8,o.top+8);if(!option.contains(hit))issues.push('可见选项无法命中');const line=getComputedStyle(option);if(parseFloat(line.minHeight)<50)issues.push('选项行高不足');}
+   if(document.querySelectorAll('.studio-select-menu').length!==1)issues.push('同时存在多个菜单');
+   return {issues,menu:r,trigger:t,active:active?.textContent,visibleOptions:visibleOptions.length,scrollTop:list.scrollTop,scrollHeight:list.scrollHeight,font:style.fontSize,borderRadius:style.borderRadius,background:style.backgroundColor,optionHeights:options.map(o=>box(o).height)};
+  });assert.deepEqual(metrics.issues,[],name+JSON.stringify(metrics));await p.screenshot({path:path.join(root,`menu-${width}-${size}-${name}.png`)});report.states.push({width,height,size,name,...metrics});fs.writeFileSync(path.join(root,'menu-layout-report.json'),JSON.stringify(report,null,2));
+ }
+ try{
+  await p.evaluate(item=>window.studio.invoke('saveResource',{type:'brain',item}),brainData);addedPrompt=await p.evaluate(name=>window.studio.invoke('saveResource',{type:'prompt',item:{name,content:'仅用于隔离界面的长名称显示检查。'}}),longName);await p.reload();
+  for(const [width,height]of [[1400,1000],[1100,760]])for(const [size,label]of Object.entries({compact:'紧凑',standard:'标准',comfortable:'舒适',large:'大'})){
+   await resize(width,height);await menu('设置');await p.locator('.settings-nav').getByRole('button',{name:'常规设置',exact:true}).click();await p.getByRole('group',{name:'界面字号',exact:true}).getByRole('button',{name:label,exact:true}).click();await p.waitForFunction(s=>document.querySelector('.app')?.dataset.size===s&&document.documentElement.dataset.fontSize===s,size);
+   await menu('新工作流');await p.locator('.steps>button').first().click();await p.getByRole('button',{name:'爆款选题',exact:true}).click();const persona=p.getByRole('combobox',{name:'人设方向',exact:true});await persona.click();await p.keyboard.press('Home');await capture(width,height,size,'persona-top');await p.keyboard.press('End');await capture(width,height,size,'persona-bottom');await resize(width+1,height);assert.equal(await p.locator('.studio-select-menu').count(),0);report.resizeClosures++;await resize(width,height);
+   await p.getByRole('button',{name:'营销文案',exact:true}).click();const template=p.getByRole('combobox',{name:'营销写作模板',exact:true}),words=p.getByRole('combobox',{name:'字数限制',exact:true});await template.click();await capture(width,height,size,'template-default');await p.keyboard.press('End');await capture(width,height,size,'template-long');await p.keyboard.press('Escape');
+   await selectOption(p,words,'200');await words.click();await capture(width,height,size,'word-preset');await p.keyboard.press('Escape');await selectOption(p,words,'custom');await words.click();await capture(width,height,size,'word-custom');await p.keyboard.press('Escape');await selectOption(p,words,'200');
+   await p.getByRole('button',{name:'爆款选题',exact:true}).click();await p.getByRole('button',{name:'查看上次选题',exact:true}).click();await p.getByRole('combobox',{name:'字数限制',exact:true}).click();await capture(width,height,size,'topic-footer');await p.keyboard.press('Escape');assert.equal(await p.locator('.copy-topics-modal').count(),1);await p.keyboard.press('Escape');
+   await p.locator('.steps>button').nth(1).click();await p.getByRole('combobox',{name:'字数限制',exact:true}).click();await capture(width,height,size,'rewrite-word');await p.keyboard.press('Escape');
+   const alignment=await p.locator('.rewrite-controls').evaluate(e=>{const prompt=e.querySelector('[aria-label="写作提示词"]').getBoundingClientRect(),words=e.querySelector('[aria-label="字数限制"]').getBoundingClientRect();return {prompt:prompt.toJSON(),words:words.toJSON(),topDelta:words.top-prompt.top,heightDelta:words.height-prompt.height};});report.states.at(-1).rewriteAlignment=alignment;assert(Math.abs(alignment.topDelta)<=1&&Math.abs(alignment.heightDelta)<=1,'改写同排控件未对齐：'+JSON.stringify(alignment));
+   await p.locator('.steps>button').first().click();await p.getByRole('button',{name:'IP大脑',exact:true}).click();await p.getByRole('button',{name:'选题创作',exact:true}).click();await p.getByRole('combobox',{name:'字数限制',exact:true}).click();await capture(width,height,size,'brain-footer');await p.keyboard.press('Escape');assert.equal(await p.locator('.brain-topics-modal').count(),1);await p.keyboard.press('Escape');console.log(JSON.stringify({width,size,states:9}));
+  }
+  assert.deepEqual(report.pageErrors,[]);await p.evaluate(d=>window.studio.invoke('saveDraft',d),initial);await p.evaluate(id=>window.studio.invoke('deleteResource',{type:'prompt',id}),addedPrompt.id);await p.evaluate(id=>window.studio.invoke('deleteResource',{type:'brain',id}),brainData.id);await p.reload();report.restoredIsolationDraftAndRemovedTestResources=true;report.accepted=true;fs.writeFileSync(path.join(root,'menu-layout-report.json'),JSON.stringify(report,null,2));console.log(JSON.stringify({states:report.states.length,resizeClosures:report.resizeClosures,pageErrors:report.pageErrors}));
+ }catch(error){report.error=error.stack;fs.writeFileSync(path.join(root,'menu-layout-failure.json'),JSON.stringify(report,null,2));await p.screenshot({path:path.join(root,'menu-layout-failure.png')}).catch(()=>{});throw error;}finally{await b.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

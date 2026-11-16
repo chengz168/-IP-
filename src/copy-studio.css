@@ -1,0 +1,58 @@
+/* 原厂主表单按控件边界校正；保留两列同基线与标签到控件8px。 */
+.copy-studio .creation-form{flex:none;min-height:544px}
+.copy-studio .creation-form input,.copy-studio .creation-form select,.copy-studio .creation-form .studio-select-trigger{height:45px;min-height:45px}
+.copy-studio .creation-form>.two-fields{margin-top:21px}
+.copy-studio .creation-form>.two-fields:first-child{margin-top:0}
+.copy-studio .marketing-form>.two-fields:nth-child(3){margin-top:22px}
+.copy-studio .topic-form>label:not(:first-child){margin-top:22px}
+.copy-studio .marketing-form>label{margin-top:21px}
+.copy-studio .creation-form>label,.copy-studio .two-fields>label{display:flex;flex-direction:column;gap:8px;font-weight:400}
+.copy-studio .creation-form>label>input,.copy-studio .creation-form>label>textarea{margin-top:0}
+.copy-studio .creation-form>label>span,.copy-studio .two-fields>label>span{line-height:24px;min-height:24px}
+.copy-studio .creation-field-count{margin-top:-4px;line-height:17px}
+.copy-studio .creation-actions{gap:16px;flex-wrap:wrap}
+.copy-studio .creation-actions>.copy-reopen{margin-right:auto}
+.copy-studio .marketing-form .marketing-short-row input{height:36px;min-height:36px;padding:5px 11px}
+.copy-studio .marketing-form .creation-actions>.primary{min-width:168px}
+.copy-error{color:#f6b49e;line-height:1.65;font-size:var(--app-font-size-caption);overflow-wrap:anywhere;margin:12px 0 0}
+
+/* 候选的卡片外框等高；长正文在卡片内滚动，页脚操作始终可见。 */
+.copy-topics-backdrop,.copy-candidates-backdrop{padding-left:calc(clamp(240px,calc(218px * var(--app-font-scale)),292px) + 46px);padding-right:30px}
+.copy-topics-modal,.copy-candidates-modal{width:800px!important;max-width:calc(100vw - 64px);border-radius:10px;background:#191d29;border:1px solid #3d344b;max-height:86vh}
+.copy-topics-modal,.copy-candidates-modal{min-width:0}
+.copy-topics-modal>header,.copy-candidates-modal>header{padding:20px 22px 16px;border-bottom:0;gap:16px;flex:none}
+.copy-topics-modal>header h2,.copy-candidates-modal>header h2{font-size:var(--app-font-size-body);line-height:1.5}
+.copy-topics-modal>.modal-body,.copy-candidates-modal>.modal-body{padding:0 22px 20px}
+.copy-topics-modal>footer,.copy-candidates-modal>footer{padding:16px 22px 22px;gap:12px;flex:none;align-items:flex-end;flex-wrap:wrap;margin:0 22px;border-top:1px solid #ffffff08;padding-left:0;padding-right:0}
+.copy-topics-modal>footer>button,.copy-candidates-modal>footer>button{flex:none;min-height:38px;font-weight:400;font-size:var(--app-font-size-caption)}
+.copy-opportunity{padding:16px;border:1px solid #ffffff05;border-radius:10px;margin-bottom:20px;background:#ffffff01}
+.copy-opportunity h3{display:flex;align-items:center;gap:8px;font-size:var(--app-font-size-caption);margin:0 0 10px}
+.copy-opportunity p{font-size:var(--app-font-size-caption);line-height:1.8;color:#b2b5c4;white-space:pre-wrap;overflow-wrap:anywhere}
+.copy-topic-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:12px}
+.copy-topic-heading h3{margin:0;font-size:var(--app-font-size-caption)}
+.copy-topic-heading>button{min-height:32px;gap:8px;font-size:var(--app-font-size-caption)}
+.copy-topic-list{display:flex;flex-direction:column;gap:10px;max-height:30vh;overflow-y:auto;padding:2px 5px 2px 2px}
+.copy-topic-list>button{flex:none;width:100%;display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;text-align:left;white-space:normal;padding:14px 12px;border:1px solid #ffffff05;background:#ffffff01;border-radius:12px}
+.copy-topic-list>button.selected,.copy-candidate-card.selected{border-color:#826498;background:#a272c72b}
+.copy-topic-number{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:linear-gradient(125deg,#cf72e9,#6860fe);color:white;font-size:var(--app-font-size-caption);font-weight:600}
+.copy-topic-content{display:flex;flex-direction:column;gap:6px;min-width:0;overflow-wrap:anywhere}
+.copy-topic-content strong{font-size:var(--app-font-size-caption);line-height:1.5}
+.copy-topic-content small{font-size:var(--app-font-size-micro);line-height:1.65;color:#aaaabd}
+.copy-topic-select{align-self:center;font-size:var(--app-font-size-micro);white-space:nowrap;font-weight:400;color:#c6b1e2}
+.copy-selected-topic{display:flex;gap:10px;align-items:center;flex:1 1 160px;min-width:0;line-height:1.6;font-size:var(--app-font-size-micro);margin:0 0 8px}
+.copy-selected-topic>span{white-space:nowrap;color:#949cad}
+.copy-selected-topic>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.copy-topics-modal>footer>.word-limit-control{width:126px;flex:none;gap:6px}
+.copy-topics-modal>footer .word-limit-control>label{font-size:var(--app-font-size-micro);line-height:1.4;font-weight:400}
+.copy-topics-modal>footer .word-limit-inputs{flex-wrap:wrap;gap:8px}
+.copy-topics-modal>footer .word-limit-inputs>.studio-select{width:100%;flex-basis:100%}
+.copy-topics-modal>footer .studio-select-trigger{height:38px;font-size:var(--app-font-size-caption);padding:6px 10px}
+.copy-topics-modal>footer .word-limit-inputs>input{min-width:0;width:78px;flex:1;padding:6px;height:36px}
+.copy-placeholder{padding:65px 12px;text-align:center;color:#9da6bc;line-height:1.7}
+.copy-candidate-grid{display:grid;grid-template-columns:repeat(var(--copy-count),minmax(0,1fr));gap:16px;padding:2px}
+.copy-candidate-card{display:flex;flex-direction:column;gap:14px;align-items:stretch;justify-content:flex-start;min-width:0;height:min(380px,46vh);min-height:190px;padding:16px;border-radius:12px;background:#191d29;border:1px solid #ffffff07;text-align:left;white-space:normal;color:#b7b5c7;font-weight:400}
+.copy-candidate-card>strong{flex:none;color:#f0edf5;font-size:var(--app-font-size-caption);line-height:1.5}
+.copy-candidate-text{display:block;overflow:auto;min-height:0;line-height:1.8;font-size:var(--app-font-size-caption);white-space:pre-wrap;overflow-wrap:anywhere;padding-right:5px}
+.copy-run-control{position:fixed;bottom:48px;left:50%;transform:translateX(-50%);z-index:800;display:flex;align-items:center;gap:12px;padding:10px 16px;background:#2e293c;border:1px solid #76548e;border-radius:10px;font-size:var(--app-font-size-caption)}
+.copy-run-control>button{min-height:34px;flex:none}
+@media(max-width:1230px){.copy-studio .creation-form{padding:22px 18px}.copy-candidate-grid{gap:12px}.copy-candidate-card{padding:14px}.copy-topics-modal>footer{row-gap:16px}.copy-selected-topic{flex-basis:100%;margin:0}}

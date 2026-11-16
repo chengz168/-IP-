@@ -1,0 +1,37 @@
+{
+  "repo": "Bandukids/indextts-local",
+  "commit": "85655dc9719198d00370879620eb26949010ef57",
+  "preparedAt": "2026-11-15T02:02:18.093Z",
+  "files": [
+    {
+      "path": "scripts/tts.py",
+      "sha256": "4938c672af89ec7828f389a5d495d26b7b1febec9220c644a8cc7df3a2e55220",
+      "bytes": 14017
+    },
+    {
+      "path": "scripts/common.py",
+      "sha256": "3417313f0d03278fab994b945b58c907a48dae5add0226426c5b3409782e8bc9",
+      "bytes": 4367
+    },
+    {
+      "path": "scripts/worker.py",
+      "sha256": "93fc09a15d301adaf31548d6e8f102ca1c4a66b32d619d8440ff0f30e843cab8",
+      "bytes": 11155
+    },
+    {
+      "path": "scripts/download_models.py",
+      "sha256": "80cd7aa5815969041feb08e3d6a1113122f8f3ed2fa96779a679145efbb8d189",
+      "bytes": 3797
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "c5761669720a3b784320f81f55532426c9e81c594343b940b154d6379e19b2e3",
+      "bytes": 1066
+    }
+  ],
+  "upstreamCommit": "d9e41aac89fd00b3d71497fddb287b7f24613712",
+  "localModifications": [],
+  "runtimeHome": "D:/AI-Runtimes/super-ip/indextts-2.5",
+  "installed": false,
+  "inferenceVerified": false
+}

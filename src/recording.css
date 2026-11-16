@@ -1,0 +1,9 @@
+.microphone-recorder{min-height:310px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:22px;padding:30px 12px;text-align:center}
+.recording-clock{color:#7b8191;font-size:26px;font-weight:700;letter-spacing:3px;font-variant-numeric:tabular-nums;line-height:36px}
+.recording-microphone{display:flex;align-items:center;justify-content:center;width:80px;height:80px;flex:0 0 80px;border:0;border-radius:50%;background:linear-gradient(105deg,#4655ff,#cf66f8);color:#fff;box-shadow:0 0 22px #a14fff66;padding:0}
+.recording-microphone.recording{background:linear-gradient(105deg,#d94770,#fb6964)}
+.recording-status{color:#b8b5fa;line-height:24px;margin:0;overflow-wrap:anywhere;max-width:100%}
+.microphone-recorder>small{color:#9fb5d5;line-height:22px;font-size:var(--app-font-size-caption)}
+.microphone-recorder .recording-error{max-width:100%;margin:0;text-align:left;overflow-wrap:anywhere}
+.recording-cancel{min-height:32px;margin:-10px 0}
+.microphone-recorder[data-phase=recording] .recording-clock{color:#f092ad}

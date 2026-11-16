@@ -1,0 +1,21 @@
+# 固定官方推理依赖；训练与网页演示依赖不在此候选中安装。
+torch==2.0.1
+torchvision==0.15.2
+torchaudio==2.0.2
+diffusers==0.30.2
+accelerate==0.28.0
+numpy==1.23.5
+opencv-python==4.9.0.80
+soundfile==0.12.1
+transformers==4.39.2
+huggingface_hub==0.30.2
+librosa==0.11.0
+einops==0.8.1
+mmengine==0.10.7
+mmdet==3.1.0
+mmpose==1.1.0
+omegaconf==2.3.0
+Pillow
+tqdm
+# mmpose 1.1.0仍导入pkg_resources，固定保留该模块的setuptools版本。
+setuptools==80.9.0
