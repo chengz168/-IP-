@@ -1,6 +1,6 @@
 const crypto=require('node:crypto');
 const hash=value=>crypto.createHash('sha256').update(value).digest('hex');
-const reference=d=>({kind:d.finalText?.trim()?'finalText':'rewrite',text:d.finalText?.trim()?d.finalText:d.rewrite||''});
+const reference=d=>{const episode=require('./story-source.mjs').activeStoryEpisode(d);return episode?{kind:'story-episode',episodeId:episode.id,text:episode.text}:{kind:d.finalText?.trim()?'finalText':'rewrite',text:d.finalText?.trim()?d.finalText:d.rewrite||''};};
 function signature(d){return hash(JSON.stringify({id:d.id,source:d.edit.sourceId||d.video.assetId,reference:reference(d),captions:d.edit.captions}));}
 function units(text){const result=[];let offset=0;for(const value of text){if(/[\p{L}\p{N}]/u.test(value))result.push({value:value.normalize('NFKC').toLowerCase(),start:offset,end:offset+value.length});offset+=value.length;}return result;}
 // 只对齐原有字符；回溯边界用于切分参考稿，不生成或移动字幕时间。

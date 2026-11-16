@@ -6,11 +6,13 @@ import AvatarSelect from './AvatarSelect.vue';
 import DropdownSelect from './DropdownSelect.vue';
 import VideoShotsEditor from './VideoShotsEditor.vue';
 import VideoDriverAudio from './VideoDriverAudio.vue';
+import StoryStudio from './StoryStudio.vue';
+import '../story-studio.css';
 import {shotInputSignature,shotTotal} from '../../server/video-shots.mjs';
 const emit=defineEmits(['choose','generate']);
 const {state,draft:d,busy,navigate,save,workflowLocked,notify}=inject('studio');
 const shotEditor=ref(false),shotSignature=ref('');
-const activeVideo=computed(()=>state.value.runs.some(run=>run.draftId===d.value.id&&run.type==='avatar'&&['running','queued','unknown'].includes(run.status)));
+const activeVideo=computed(()=>state.value.runs.some(run=>run.draftId===d.value.id&&(run.type==='avatar'||String(run.type).startsWith('story-'))&&['running','queued','unknown'].includes(run.status)));
 const locked=computed(()=>!!busy.value||workflowLocked.value||activeVideo.value);
 const localH3=computed(()=>state.value.settings.provider.avatarProtocol==='comfy-h3');
 const localMuse=computed(()=>state.value.settings.provider.avatarProtocol==='musetalk-local');
@@ -24,10 +26,12 @@ function mode(value){if(locked.value)return;d.value.video.mode=value;if(value===
 async function editShots(){if(locked.value)return;try{await save();shotSignature.value=shotInputSignature(d.value);shotEditor.value=true;}catch(e){notify(e.message,'error');}}
 </script>
 <template>
+  <div class="video-mode-toolbar"><div class="segmented" role="tablist" aria-label="视频创作方式"><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='single'" :class="{active:d.video.mode==='single'}" @click="mode('single')">单形象</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='multi'" :class="{active:d.video.mode==='multi'}" @click="mode('multi')">多镜头口播</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='story'" :class="{active:d.video.mode==='story'}" @click="mode('story')">非口播创作</button></div><p v-if="d.video.mode==='story'">文案 → 分集分镜 → 资产图片 → 镜头视频 → 后续剪辑</p></div>
+  <StoryStudio v-if="d.video.mode==='story'" :key="d.id"/>
+  <template v-else>
   <div class="two-columns video-columns">
     <article class="card video-config">
       <div class="card-heading"><h3>视频配置</h3><button class="pill" @click="navigate('avatars')">上传形象</button></div>
-      <div class="segmented"><button :disabled="locked" :class="{active:d.video.mode==='single'}" @click="mode('single')">单形象</button><button :disabled="locked" :class="{active:d.video.mode==='multi'}" @click="mode('multi')">多镜头</button></div>
       <div class="video-config-fields">
       <div v-if="d.video.mode==='single'" class="video-field"><label>选择形象<AvatarSelect v-model="d.video.avatarId" aria-label="选择形象" :disabled="locked"/></label></div>
       <div v-else class="video-field video-shot-summary"><div><span>多镜头配置</span><p>总时长约 {{total}} 秒，可配置不同形象的出场顺序。</p></div><strong>{{d.video.shots.length}} 个镜头</strong><button class="pill" :disabled="locked" @click="editShots">编辑镜头</button></div>
@@ -42,4 +46,5 @@ async function editShots(){if(locked.value)return;try{await save();shotSignature
   </div>
   <details class="video-local-entry"><summary>使用已有视频</summary><button class="text-button video-import" :disabled="locked" @click="emit('choose','video',a=>d.video.assetId=a.id,'导入已有视频进入后续制作')">导入已有视频</button><p>口型生成需要实际服务。已有视频可进入后续剪辑。</p></details>
   <VideoShotsEditor v-if="shotEditor" :signature="shotSignature" @close="shotEditor=false"/>
+  </template>
 </template>

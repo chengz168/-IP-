@@ -2,6 +2,7 @@ const crypto=require('node:crypto');
 const fs=require('node:fs');
 const {capabilityBaseUrl}=require('./provider-endpoints.mjs');
 const {workflowActive,workflowInput}=require('./workflow-state.cjs');
+const {activeStoryEpisode,downstreamDraft}=require('./story-links.cjs');
 const names={speech:'声音生成',avatar:'数字人视频',transcribe:'识别字幕',render:'剪辑视频',title:'封面标题',frame:'封面背景',cover:'封面图片',metadata:'发布信息',publish:'视频发布'};
 const stamp=()=>new Date().toISOString();
 
@@ -11,8 +12,9 @@ class WorkflowJobs{
  available(id,type){try{const a=this.store.asset(id);return a.type===type&&fs.statSync(a.path).size>0;}catch{return false;}}
  plan(id){
   const d=this.store.draft(id),p=this.store.data.settings.provider,stages=[],issues=[];
+  if(d.video.mode==='story'&&!this.available(d.edit.sourceId||d.video.assetId,'video'))issues.push('请先在第四步非口播创作中完成当前集并选用，再自动执行剪辑、封面与发布信息');
   const add=(key,action,reason='')=>stages.push({key,name:names[key],action,reason,status:'pending',runId:'',assetId:'',error:''});
-  if(!d.confirmed||!d.finalText.trim())issues.push('请先确认最终文案');
+  if(!activeStoryEpisode(d)&&(!d.confirmed||!d.finalText.trim()))issues.push('请先确认最终文案');
   const editAsset=this.store.data.assets.find(a=>a.id===d.edit.resultId),hasEdit=this.available(d.edit.resultId,'video')&&require('./title-output.mjs').titleOutputCurrent(d,editAsset)&&require('./subtitle-output.mjs').subtitleOutputCurrent(d,editAsset)&&require('./pip-matching.cjs').pipResultCurrent(this.store.data,d,editAsset),imported=!!d.edit.sourceId,videoId=d.edit.sourceId||d.video.assetId||d.edit.resultId,hasVideo=this.available(videoId,'video');
   if(imported&&!hasVideo)issues.push('手选剪辑视频不存在或不是有效视频，请重新选择');
   if(hasVideo){add('speech',this.available(d.voice.audioId,'audio')?'reuse':'skip','已有视频源，不重新生成配音');add('avatar','reuse',imported?'使用明确手选的剪辑视频，不代表生成了数字人':'复用已有数字人视频');}
@@ -71,7 +73,7 @@ else if(stage.action==='reuse'){const d=current();stage.assetId={speech:d.voice.
        output=await op('transcribe',async ctx=>{
         const result=await this.service.providers.transcribe(sourceId,ctx),info=await this.service.media.probe(this.store.asset(sourceId).path),duration=Number(info.format?.duration);
         if(!Number.isFinite(duration)||duration<=0)throw Error('无法核对字幕源视频时长，请检查素材后重试');
-        const {recognitionRows,recognitionOptions}=await import('./caption-recognition.mjs'),{alignRowsToReference}=await import('../src/caption-script.mjs'),segments=alignRowsToReference(recognitionRows(result,duration,recognitionOptions(d.edit)),d.finalText||d.rewrite||d.sourceText);
+        const {recognitionRows,recognitionOptions}=await import('./caption-recognition.mjs'),{alignRowsToReference}=await import('../src/caption-script.mjs'),segments=alignRowsToReference(recognitionRows(result,duration,recognitionOptions(d.edit)),downstreamDraft(d).finalText||d.rewrite||d.sourceText);
         if(!asrCurrent(this.store,input))throw Error('识别配置或视频文件已变化，本次字幕未写入');
         // 分组字幕供剪辑使用，原始词级结果单独留存，便于核对真实断句边界。
         return {...result,segments,input,rawRecognition:result};
@@ -81,7 +83,7 @@ else if(stage.action==='reuse'){const d=current();stage.assetId={speech:d.voice.
       case'title':output=await op('title',ctx=>require('./title-copy.cjs').generateCoverTitle(this.service.providers,d,this.store.data,ctx));this.check(job,signal);if(output.quality?.status==='rejected')throw Error('标题未通过内容检查：'+output.quality.issues.join('；'));if(!(await import('./text-input.mjs')).textInputMatches(output.input,this.store.draft(job.draftId),'title',this.store.data))throw Error('标题提示词或输入已变化，原标题保留');this.commit(job,next=>{next.cover.title=output.text.trim();if(next.cover.scene){const main=next.cover.scene.layers.find(l=>l.id==='main');if(main){main.text=next.cover.title;main.binding='title';}}});break;
       case'frame':{const source=d.edit.resultId||d.edit.sourceId||d.video.assetId;output=await op('frame',ctx=>this.service.media.frame(source,0,ctx));this.check(job,signal);this.commit(job,next=>{next.cover.backgroundId=output.id;next.cover.frameTime=0;});break;}
       case'cover':output=await op('cover',async ctx=>{const cover=structuredClone(d.cover),signature=JSON.stringify({...cover,assetId:undefined,videoId:undefined}),base64=await this.service.renderCover(cover,ctx);this.check(job,signal);return this.service.handlers.saveCover({id:job.draftId,base64,signature},{workflowJobId:job.id});});job.expectedInput=workflowInput(this.store.draft(job.draftId));this.check(job,signal);break;
-      case'metadata':{const schema={type:'object',properties:{title:{type:'string'},description:{type:'string'},tags:{type:'array',items:{type:'string'}}},required:['title','description','tags'],additionalProperties:false};output=await op('publish-metadata',ctx=>this.service.providers.text('请根据实际文案生成中文发布标题、描述和话题标签。不得虚构事实。仅输出符合JSON格式的对象。','文案：\n'+d.finalText,ctx,{schema}));let value;try{value=JSON.parse(output.text);}catch{throw new Error('发布信息模型返回无效JSON，请重试或手动填写');}if(typeof value.title!=='string'||!value.title.trim()||typeof value.description!=='string'||!value.description.trim()||!Array.isArray(value.tags)||value.tags.some(v=>typeof v!=='string'||!v.trim()))throw new Error('发布信息模型返回格式不完整');this.check(job,signal);this.commit(job,next=>{if(!next.publish.title.trim())next.publish.title=value.title.trim();if(!next.publish.description.trim())next.publish.description=value.description.trim();if(!next.publish.tags.length)next.publish.tags=value.tags;next.publish.videoId=next.edit.resultId||next.video.assetId;next.publish.coverId=next.cover.assetId;});break;}
+      case'metadata':{const schema={type:'object',properties:{title:{type:'string'},description:{type:'string'},tags:{type:'array',items:{type:'string'}}},required:['title','description','tags'],additionalProperties:false};output=await op('publish-metadata',ctx=>this.service.providers.text('请根据实际文案生成中文发布标题、描述和话题标签。不得虚构事实。仅输出符合JSON格式的对象。','文案：\n'+downstreamDraft(d).finalText,ctx,{schema}));let value;try{value=JSON.parse(output.text);}catch{throw new Error('发布信息模型返回无效JSON，请重试或手动填写');}if(typeof value.title!=='string'||!value.title.trim()||typeof value.description!=='string'||!value.description.trim()||!Array.isArray(value.tags)||value.tags.some(v=>typeof v!=='string'||!v.trim()))throw new Error('发布信息模型返回格式不完整');this.check(job,signal);this.commit(job,next=>{if(!next.publish.title.trim())next.publish.title=value.title.trim();if(!next.publish.description.trim())next.publish.description=value.description.trim();if(!next.publish.tags.length)next.publish.tags=value.tags;next.publish.videoId=next.edit.resultId||next.video.assetId;next.publish.coverId=next.cover.assetId;});break;}
       default:throw new Error('自动流程遇到未知阶段');
      }
      if(output?.id)stage.assetId=output.id;stage.status='succeeded';

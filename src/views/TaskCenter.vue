@@ -14,7 +14,7 @@ const querying=id=>queryingRun.value===id||state.value.avatarQueryRunIds?.includ
 const anyQuerying=computed(()=>!!queryingRun.value||!!state.value.avatarQueryRunIds?.length);
 const taskLabels={pending:'待处理',running:'处理中',succeeded:'已完成',failed:'失败',unknown:'待确认',interrupted:'已中断',cancelled:'已取消'};
 const labels={running:'运行中',queued:'排队中',succeeded:'已完成',failed:'失败',cancelled:'已取消',interrupted:'已中断',unknown:'远程状态待确认'};
-const types={rewrite:'文案改写',legal:'文案检查',topic:'选题生成',marketing:'营销文案',speech:'声音生成','speech-test':'配音测试','voice-import':'保存声音样本','voice-preview':'读取声音波形','voice-trim':'裁剪声音样本','voice-training':'声音训练',avatar:'视频生成',render:'视频剪辑',frame:'截取封面',extract:'提取文案',transcribe:'语音识别',title:'标题生成',translate:'翻译','cover-video':'生成封面视频','silence-analysis':'检测静音',publish:'视频发布',cover:'封面图片','publish-metadata':'发布信息','material-analysis':'素材视觉标记'};
+const types={rewrite:'文案改写',legal:'文案检查',topic:'选题生成',marketing:'营销文案',speech:'声音生成','speech-test':'配音测试','voice-import':'保存声音样本','voice-preview':'读取声音波形','voice-trim':'裁剪声音样本','voice-training':'声音训练',avatar:'视频生成',render:'视频剪辑',frame:'截取封面',extract:'提取文案',transcribe:'语音识别',title:'标题生成',translate:'翻译','cover-video':'生成封面视频','silence-analysis':'检测静音',publish:'视频发布',cover:'封面图片','publish-metadata':'发布信息','material-analysis':'素材视觉标记','story-split-episodes':'非口播拆集','story-split-shots':'非口播分镜','story-extract-assets':'分镜资产提取','story-image':'资产与镜头图片','story-video':'非口播动态视频','story-compose':'非口播单集合成'};
 const summaries=computed(()=>state.value.taskSummaries||[]);
 const records=computed(()=>state.value.runs.filter(run=>(appliedFilter.value==='all'||run.status===appliedFilter.value)&&((types[run.type]||run.type)+' '+run.id+' '+(summaries.value.find(task=>task.id===run.draftId)?.title||'')).toLowerCase().includes(search.value.trim().toLowerCase())));
 const tasks=computed(()=>summaries.value.filter(task=>(appliedFilter.value==='all'||task.status===appliedFilter.value)&&(appliedMode.value==='all'||task.mode===appliedMode.value)&&(task.title+' '+task.id).toLowerCase().includes(search.value.trim().toLowerCase())));
@@ -52,6 +52,16 @@ async function queryRemote(run,continueSequence=false){
     const message=result.status==='awaiting_continue'?'已保留完成片段；点击“继续分段生成”提交后续片段或重试已确认失败段。'+(result.error||''):result.status==='pending'?'远程任务仍在处理，'+(h3ActivityText(state.value.runs.find(item=>item.id===id)?.activity)||'等待原任务返回状态')+'，可稍后再次查询。':result.status==='succeeded'?(result.attached?'视频已取回并绑定原任务，请检查口型和音画同步。':'视频已取回素材库；原输入或当前产物已变化，未替换任务视频。'):result.status==='failed'?'远程服务已确认生成失败，可在核对原因后重新生成。':'远程服务已确认任务取消。';
     if(detailRunId.value===id)queryMessage.value=message;notify(message,result.status==='failed'?'error':'success');
   }catch(error){if(detailRunId.value===id)queryError.value=error.message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/,'');await refresh().catch(()=>{});}
+  finally{if(queryingRun.value===id)queryingRun.value='';}
+}
+async function queryStory(run){
+  if(anyQuerying.value||busy.value)return;
+  const id=run.id;queryingRun.value=id;queryError.value='';queryMessage.value='';
+  try{
+    await save();const result=await call('queryStoryResult',{runId:id});await refresh();
+    const message=result.stale?'已查回原任务产物，输入已变化，保留为历史候选；未替换当前选用。':'已查回原任务产物，保留为待确认候选；请回到非口播创作预览并选用。';
+    if(detailRunId.value===id)queryMessage.value=message;notify(message,'success');
+  }catch(error){if(detailRunId.value===id)queryError.value=error.message;await refresh().catch(()=>{});}
   finally{if(queryingRun.value===id)queryingRun.value='';}
 }
 async function remove(){
@@ -132,6 +142,12 @@ async function remove(){
       <p v-if="detailRun.remote?.kind==='comfy-h3-sequence-v1'">查询只取回已提交片段；继续分段生成会沿原计划提交后续片段，已完成片段不重交。停止本地等待不会取消已提交的片段。</p><p v-else-if="detailRun.remote?.kind==='comfy-h3-v1'&&!detailRun.remoteId&&detailRun.remote?.clientId">先按提交标识和生成图查找本机原任务，再取回结果；没有唯一匹配时继续保留待确认。</p><p v-else-if="detailRun.remote?.statusUrl">查询已提交的远程任务；停止本地查询不会取消远程生成。</p><p v-else>该历史记录未保存完整查询凭据，结果仍待确认，不能直接重交。</p>
       <p v-if="detailRun.remote?.clientId||detailRun.failureOutput?.clientId">本地提交标识：<code>{{detailRun.remote?.clientId||detailRun.failureOutput?.clientId}}</code></p>
       <div class="remote-recovery-actions"><button class="primary" :disabled="anyQuerying||!!busy||!detailRun.remote?.statusUrl" @click="queryRemote(detailRun)">{{querying(detailRun.id)?'正在处理…':'查询远程结果'}}</button><button v-if="detailRun.remote?.kind==='comfy-h3-sequence-v1'" :disabled="anyQuerying||!!busy" @click="queryRemote(detailRun,true)">继续分段生成</button><button v-if="querying(detailRun.id)" @click="stopRun(detailRun)">停止等待</button></div>
+    </section>
+    <section v-if="['story-image','story-video'].includes(detailRun.type)&&detailRun.status==='unknown'" class="remote-recovery" :aria-busy="querying(detailRun.id)">
+      <p>只查询已提交的非口播原任务，不重新发起生成。查回的产物加入候选历史，需要回到资产图片或镜头视频中预览、确认；原输入变化时会标记为过期。</p>
+      <p v-if="detailRun.remote?.clientId">本地提交标识：<code>{{detailRun.remote.clientId}}</code></p>
+      <p v-if="!detailRun.remote?.kind?.startsWith('story-')" class="hint">原记录没有完整的非口播查询凭据，不能直接重交。</p>
+      <div class="remote-recovery-actions"><button class="primary" :disabled="anyQuerying||!!busy||!detailRun.remote?.kind?.startsWith('story-')" @click="queryStory(detailRun)">{{querying(detailRun.id)?'正在查询原任务…':'查询非口播原任务结果'}}</button></div>
     </section>
     <ol v-if="detailRun.remote?.kind==='comfy-h3-sequence-v1'" class="task-stage-list"><li v-for="segment in detailRun.remote.segments" :key="segment.index" class="task-stage-card"><div class="task-stage-heading"><strong><template v-if="detailRun.remote.plan.mode==='multi'">镜头 {{detailRun.remote.plan.segments[segment.index].shotIndex+1}} · </template>第 {{segment.index+1}} 段</strong><span>{{({planned:'待生成',submitting:'提交待确认',accepted:'已提交',succeeded:'已取回，质量待检查',failed:'已确认失败，可继续重试'})[segment.status]||segment.status}}</span></div><p>{{(detailRun.remote.plan.segments[segment.index].startSample/32000).toFixed(3)}} ～ {{(detailRun.remote.plan.segments[segment.index].endSample/32000).toFixed(3)}} 秒</p><p v-if="segment.remoteId">模型任务：{{segment.remoteId}}</p><p v-if="segment.error" class="error-panel">{{segment.error}}</p></li></ol>
     <p v-else-if="detailRun.status==='unknown'" class="hint">远程结果尚未确认，请保留任务ID查询，重复提交可能产生重复任务。</p>

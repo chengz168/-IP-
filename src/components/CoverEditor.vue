@@ -9,6 +9,7 @@ import {call,mediaUrl} from '../api';
 import {coverTemplates,coverScene,templateScene,textStyle,templateId,coverSignature,hitLayer,localPoint,validScene} from '../cover-model.mjs';
 import {drawCover} from '../cover-render.mjs';
 import {prepareCoverFonts} from '../cover-fonts.mjs';
+import {downstreamText} from '../../server/story-source.mjs';
 const emit=defineEmits(['choose']);
 const {draft:d,state,busy,act,notify}=inject('studio');
 const canvas=ref(),stack=ref(),canvasViewport=ref(),inlineEditor=ref(),video=ref(),tab=ref('templates'),sourceMode=ref('auto'),selectedId=ref(''),layouts=ref([]),fonts=ref([]),error=ref(''),editing=ref(false),editText=ref(''),duration=ref(0),seekTime=ref(0),exportFormat=ref('jpeg'),thumbnails=ref({}),painting=ref(false);
@@ -64,7 +65,7 @@ async function frame(time){if(!sourceVideo.value){notify('请先选择视频源'
 function randomFrame(){return frame(Math.random()*Math.min(5,Number(sourceAsset.value?.duration)||duration.value||5));}
 function loadedVideo(){duration.value=Number.isFinite(video.value?.duration)?video.value.duration:0;seekTime.value=Math.min(d.value.cover.frameTime||0,Math.max(0,duration.value-.05));seek();}
 function seek(){if(video.value&&duration.value)video.value.currentTime=Math.min(seekTime.value,Math.max(0,duration.value-.05));}
-async function generateTitle(){const id=d.value.id,text=d.value.finalText||d.value.rewrite||d.value.sourceText,signature=coverSignature(d.value.cover);if(!text.trim()){notify('请先填写用于生成标题的文案');return;}const result=await act('生成封面标题',()=>call('text',{id,kind:'title'}));if(result){if(result.quality?.status==='rejected'){notify('标题未通过内容检查：'+result.quality.issues.join('；')+'；完整结果已保存在执行记录','error');return;}if(result.stale||id!==d.value.id||text!==(d.value.finalText||d.value.rewrite||d.value.sourceText)||signature!==coverSignature(d.value.cover)){notify('文案或封面已变化，本次标题未覆盖当前内容');return;}d.value.cover.title=result.text;chooseTemplate(sceneId.value);if(sourceVideo.value&&!d.value.cover.backgroundId)await randomFrame();}}
+async function generateTitle(){const id=d.value.id,text=downstreamText(d.value),signature=coverSignature(d.value.cover);if(!text.trim()){notify('请先填写用于生成标题的文案');return;}const result=await act('生成封面标题',()=>call('text',{id,kind:'title'}));if(result){if(result.quality?.status==='rejected'){notify('标题未通过内容检查：'+result.quality.issues.join('；')+'；完整结果已保存在执行记录','error');return;}if(result.stale||id!==d.value.id||text!==downstreamText(d.value)||signature!==coverSignature(d.value.cover)){notify('文案或封面已变化，本次标题未覆盖当前内容');return;}d.value.cover.title=result.text;chooseTemplate(sceneId.value);if(sourceVideo.value&&!d.value.cover.backgroundId)await randomFrame();}}
 async function exportCover(){
   finishInline();const id=d.value.id;let acceptedSignature='';
   const result=await act('生成封面',async()=>{const cover=JSON.parse(JSON.stringify(d.value.cover)),signature=coverSignature(cover);acceptedSignature=signature;const [prepared,image]=await Promise.all([withFonts(validScene(coverScene(cover))),loadBackground(cover.backgroundId)]);if(d.value.id!==id||coverSignature(d.value.cover)!==signature)throw new Error('封面内容已变化，请重新生成');const output=document.createElement('canvas');output.width=1080;output.height=1920;drawCover(output,prepared,image,Number(cover.blur)||0);return call('saveCover',{id,base64:output.toDataURL('image/'+exportFormat.value,.95),signature});});

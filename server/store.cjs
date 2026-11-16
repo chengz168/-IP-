@@ -9,7 +9,7 @@ const defaults=()=>({version:1,currentId:'',drafts:[],assets:[],voices:[],avatar
 class Store{
   constructor(root){this.root=root;fs.mkdirSync(root,{recursive:true});this.file=path.join(root,'studio.json');this.assetDir=path.join(root,'assets');fs.mkdirSync(this.assetDir,{recursive:true});this.data=this.load();if(!['compact','standard','comfortable','large'].includes(this.data.settings.fontSize))this.data.settings.fontSize='comfortable';for(const d of this.data.drafts){const base=createDraft();for(const key of ['brain','voice','video','edit','cover','publish'])d[key]={...base[key],...d[key]};}if(!this.data.drafts.length){const d=createDraft();d.template=selectDefaultCopyId(this.data);this.data.drafts.push(d);this.data.currentId=d.id;}this.recover();this.save();}
   load(){if(!fs.existsSync(this.file))return defaults();try{const base=defaults(),saved=JSON.parse(fs.readFileSync(this.file,'utf8'));return {...base,...saved,settings:{...base.settings,...saved.settings,provider:{...base.settings.provider,...saved.settings?.provider}}};}catch(e){throw new Error('本地数据无法读取，请从备份恢复。原文件已保留：'+e.message);}}
-  recover(){for(const run of this.data.runs){require('./publish-jobs.cjs').recoverPublish(run);if(run.status==='running'||run.status==='queued'){run.status=run.remoteId||(run.remote?.kind==='comfy-h3-v1'&&run.remote?.submissionState==='submitting'&&run.remote?.clientId)?'unknown':'interrupted';run.error='程序在任务完成前退出，请查看详情后恢复。';run.endedAt=new Date().toISOString();}}for(const job of this.data.workflowJobs||[])if(['running','queued','stopping'].includes(job.status)){const unknown=this.data.runs.find(r=>r.parameters?.workflowJobId===job.id&&r.status==='unknown');job.status=unknown?'unknown':'interrupted';job.remoteId=unknown?.remoteId||'';job.error=unknown?'远程结果仍待确认，未自动重交任务。':'程序在自动流程完成前退出，未自动重跑。';job.endedAt=new Date().toISOString();for(const stage of job.stages||[])if(stage.status==='running')stage.status=unknown?'unknown':'interrupted';}}
+  recover(){for(const run of this.data.runs){require('./publish-jobs.cjs').recoverPublish(run);if(run.status==='running'||run.status==='queued'){run.status=run.remoteId||(run.remote?.kind?.startsWith('story-')&&run.remote.submissionState==='submitting'&&run.remote.clientId)||(run.remote?.kind==='comfy-h3-v1'&&run.remote?.submissionState==='submitting'&&run.remote?.clientId)?'unknown':'interrupted';run.error='程序在任务完成前退出，请查看详情后恢复。';run.endedAt=new Date().toISOString();}}for(const job of this.data.workflowJobs||[])if(['running','queued','stopping'].includes(job.status)){const unknown=this.data.runs.find(r=>r.parameters?.workflowJobId===job.id&&r.status==='unknown');job.status=unknown?'unknown':'interrupted';job.remoteId=unknown?.remoteId||'';job.error=unknown?'远程结果仍待确认，未自动重交任务。':'程序在自动流程完成前退出，未自动重跑。';job.endedAt=new Date().toISOString();for(const stage of job.stages||[])if(stage.status==='running')stage.status=unknown?'unknown':'interrupted';}}
   save(){
     const temp=this.file+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(temp,JSON.stringify(this.data,null,2));
     // Windows上的扫描器或只读程序可能短暂占用目标文件，保留原文件并有限重试原子替换。
@@ -20,6 +20,8 @@ class Store{
   updateDraft(input,options={}){
     const index=this.data.drafts.findIndex(d=>d.id===input.id);if(index<0)throw new Error('任务不存在');
     const before=this.data.drafts[index],next=structuredClone(input);
+    // 分集资产由带版本校验的专用服务写入，普通草稿保存不得覆盖异步产物。
+    if(before.story)next.story=structuredClone(before.story);else delete next.story;
     if(this.data.runs.some(r=>r.draftId===input.id&&r.type==='publish'&&['running','queued'].includes(r.status))&&require('./publish-jobs.cjs').signature(before)!==require('./publish-jobs.cjs').signature(next))throw Error('发布正在执行，请先停止并核对平台结果后修改发布内容');
     const {workflowActive,workflowInput}=require('./workflow-state.cjs'),active=workflowActive(this.data,input.id);
     if(active&&options.workflowJobId!==active.id&&workflowInput(before)!==workflowInput(next))throw new Error('此任务的自动流程正在执行，请先停止后修改生产输入');
@@ -29,14 +31,17 @@ class Store{
     if((before.sourceText!==next.sourceText||before.rewrite!==next.rewrite)&&!confirmedCopy)next.confirmed=false;
     // 辅助文本仅属于生成时的原文，改字后不能沿用旧译文或旧关键词。
     for(const row of next.edit.captions||[])if(row.auxiliary&&row.auxiliary.sourceText!==row.text)delete row.auxiliary;
-    if(next.edit.subtitleProofread){const proof=next.edit.subtitleProofread,{hash}=require('./subtitle-proofread.cjs');if(hash(JSON.stringify(next.edit.captions))!==proof.captionsSha256||hash(next.finalText?.trim()?next.finalText:next.rewrite||'')!==proof.referenceSha256||(next.edit.sourceId||next.video.assetId)!==proof.sourceId)delete next.edit.subtitleProofread;}
+    if(next.edit.subtitleProofread){const proof=next.edit.subtitleProofread,{hash}=require('./subtitle-proofread.cjs');if(hash(JSON.stringify(next.edit.captions))!==proof.captionsSha256||hash(require('./story-source.mjs').downstreamText(next))!==proof.referenceSha256||(next.edit.sourceId||next.video.assetId)!==proof.sourceId)delete next.edit.subtitleProofread;}
     next.createdAt=before.createdAt;next.updatedAt=new Date().toISOString();
     const without=(value,keys)=>JSON.stringify(Object.fromEntries(Object.entries(value).filter(([k])=>!keys.includes(k))));
     // 上游参数变化会使下游产物失效；素材库中的实际文件仍予以保留。
     const voiceChanged=before.finalText!==next.finalText||without(before.voice,['audioId'])!==without(next.voice,['audioId']);
     if(voiceChanged)next.voice.audioId='';
-    const videoChanged=voiceChanged||before.voice.audioId!==next.voice.audioId||without(before.video,['assetId'])!==without(next.video,['assetId']);
+    const independentStory=before.video.mode==='story'&&next.video.mode==='story'&&!require('./story-links.cjs').usesUpstreamNarration(next);
+    const storyVideoFields=['assetId','avatarId','audioId','model','shots'];
+    const videoChanged=(!independentStory&&(voiceChanged||before.voice.audioId!==next.voice.audioId))||without(before.video,independentStory?storyVideoFields:['assetId'])!==without(next.video,independentStory?storyVideoFields:['assetId']);
     if(videoChanged)next.video.assetId='';
+    require('./story-links.cjs').invalidateStoryHandoff(before,next);
     // 历史由服务端归档，较早的界面快照不能把已经保存的历史丢掉。
     if(before.artifacts?.captionHistory?.length){next.artifacts??={};const prior=before.artifacts.captionHistory;next.artifacts.captionHistory=[...(next.artifacts.captionHistory||[]).filter(e=>!prior.some(p=>p.id===e.id)),...structuredClone(prior)];}
     require('./caption-history.cjs').archiveOnSourceChange(before,next);

@@ -36,6 +36,7 @@ import {alignRowsToReference} from '../caption-script.mjs';
 import {changeCaptionSource} from '../caption-source.mjs';
 import {openCaptionSession} from '../caption-edit-session.mjs';
 import {getSubtitleTemplate} from '../../server/subtitle-templates.mjs';
+import {downstreamText} from '../../server/story-source.mjs';
 const props=defineProps({view:String});
 const {state,draft:d,busy,notify,act,refresh,save,importAssets,showDialog,newTask,navigate,stepNames,startWorkflow,workflowLocked}=inject('studio');
 const icons=['BulbOutlined','EditOutlined','SoundOutlined','VideoCameraOutlined','ScissorOutlined','PictureOutlined','RocketOutlined'];
@@ -78,7 +79,7 @@ async function transcribe(){
  const r=await act('生成字幕',()=>call('transcribe',{id:snapshot.id,assetId}));
  if(!r)return;
  if(r.stale||!canApplyRecognition(snapshot,d.value)){notify('视频源、字幕、识别配置或任务已变化，本次识别结果保留在执行记录中，未覆盖当前字幕');return;}
-  try{const rows=alignRowsToReference(recognitionRows(r,Number.isFinite(duration)&&duration>0?duration:Number(r.duration),recognitionOptions(d.value.edit)),d.value.finalText||d.value.rewrite||d.value.sourceText);if(r.sourceAssetId&&r.sourceAssetId!==assetId)throw Error('识别结果的视频源不符，当前字幕已保留');d.value.edit.captions=rows;d.value.edit.subtitlesEnabled=true;await save();if(d.value.id===snapshot.id&&sourceVideo.value===assetId&&activeStep.value===4)showCaptionEditor();}
+  try{const rows=alignRowsToReference(recognitionRows(r,Number.isFinite(duration)&&duration>0?duration:Number(r.duration),recognitionOptions(d.value.edit)),downstreamText(d.value));if(r.sourceAssetId&&r.sourceAssetId!==assetId)throw Error('识别结果的视频源不符，当前字幕已保留');d.value.edit.captions=rows;d.value.edit.subtitlesEnabled=true;await save();if(d.value.id===snapshot.id&&sourceVideo.value===assetId&&activeStep.value===4)showCaptionEditor();}
  catch(error){notify(error.message,'error');}
 }
 async function openSubtitleEditor(){if(busy.value||workflowLocked.value)return;try{await save();}catch(error){notify(error.message,'error');return;}if(!sourceVideo.value){notify('请先选择包含音轨的视频');return;}if(d.value.edit.captions.length){showCaptionEditor();return;}await transcribe();}

@@ -20,6 +20,15 @@ test('空任务待处理，点击第七页不制造业务进度或完成状态',
   const item=summarizeTasks(store.data)[0];
   assert.equal(item.status,'pending');assert.equal(item.progress,0);assert.equal(item.currentStep,0);assert.equal(item.viewedStep,6);assert.equal(item.mode,'manual');
 });
+
+test('非口播无旁白明确显示跳过配音原因且不伪造声音产物',t=>{
+  const store=new Store(fixture(t));const draft=store.draft();
+  draft.video.mode='story';draft.story={narrationMode:'none'};
+  const stage=summarizeTasks(store.data)[0].stages[2];
+  assert.equal(stage.status,'skipped');assert.equal(stage.completed,true);
+  assert.equal(stage.available,false);assert.equal(stage.artifact,null);
+  assert.equal(stage.message,'当前非口播选择无旁白，未生成配音。');
+});
 test('历史改写成功和已导出发布包不等于已确认文案或真实发布',t=>{
   const store=new Store(fixture(t));const draft=store.draft();draft.sourceText='原文';draft.rewrite='历史返回';draft.finalText='未确认';
   store.data.runs.push(run(draft,'rewrite','succeeded','2026-11-14T00:00:00Z'));

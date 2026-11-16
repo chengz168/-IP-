@@ -5,7 +5,7 @@ const definitions = [
   {key:'source', name:'提取文案', types:['extract','topic','marketing']},
   {key:'copy', name:'改写文案', types:['rewrite','translate']},
   {key:'voice', name:'声音生成', types:['speech']},
-  {key:'video', name:'视频生成', types:['avatar']},
+  {key:'video', name:'视频生成', types:['avatar',...require('./story-links.cjs').storyRunTypes]},
   {key:'edit', name:'视频剪辑', types:['render','transcribe','silence-analysis']},
   {key:'cover', name:'封面生成', types:['frame','cover-video','title']},
   {key:'publish', name:'视频发布', types:['publish']},
@@ -50,7 +50,7 @@ function summarizeTasks(data) {
     if(edited.available&&!require('./pip-matching.cjs').pipResultCurrent(data,draft,assets.get(draft.edit.resultId))){edited.available=false;edited.reason='画中画匹配依据或源文件已变化，请重新剪辑';}
     const cover = assetState(draft.cover.assetId,'image');
     const workflowState=workflowView(workflow,draft,{available:(id,type)=>id===draft.edit.resultId&&type==='video'?edited.available:assetState(id,type).available,unsettled:runs.some(run=>run.status==='unknown')?'unknown':runs.some(run=>['running','queued'].includes(run.status))?'running':''});
-    const voiceSkipped=skippedVoice(workflow,draft,video.available)&&!voice.available;
+    const voiceSkipped=(skippedVoice(workflow,draft,video.available)||draft.video.mode==='story'&&draft.story?.narrationMode==='none')&&!voice.available;
     const exported = data.publishRecords.find(record => record.id === draft.publish.recordId && record.draftId === draft.id && record.status === 'exported');
     const publication=data.publishRecords.find(record=>record.id===draft.publish.recordId&&record.draftId===draft.id&&['published','draft_saved'].includes(record.status)&&record.signature===require('./publish-jobs.cjs').signature(draft)&&Array.isArray(record.accounts)&&record.accounts.length===draft.publish.accountIds.length&&record.accounts.length>0&&draft.publish.accountIds.every(id=>record.accounts.filter(a=>a.id===id&&a.status==='succeeded'&&require('./publish-jobs.cjs').validEvidence(a.result,record.mode,a.submittedAt)).length===1));
     // 只有全部账号的本次平台确认与当前输入一致才完成发布，导出不计入。
@@ -59,7 +59,7 @@ function summarizeTasks(data) {
       ready[0] ? '当前已填写原文案，可来自输入、导入或模型结果。' : '等待原文案。',
       ready[1] ? '当前最终文案已确认。' : draft.rewrite.trim() || draft.finalText.trim() ? '已有文案，尚未确认使用。' : '等待最终文案确认。',
       ready[2] ? '当前配音素材可读取；不据此认定声音克隆效果。' : voice.reason,
-      ready[3] ? (draft.edit.sourceId ? '当前为手动导入剪辑源，不代表已生成数字人。' : '当前视频素材可读取。') : video.reason,
+      ready[3] ? (require('./story-links.cjs').activeStoryEpisode(draft)?'当前选用的非口播单集已交接，可进入剪辑。':draft.edit.sourceId ? '当前为手动导入剪辑源，不代表已生成数字人。' : '当前视频素材可读取。') : video.reason,
       ready[4] ? '当前剪辑结果文件可读取。' : edited.reason,
       ready[5] ? '当前封面图片可读取。' : cover.reason,
       publication?(publication.mode==='draft'?'全部所选账号均已确认保存平台草稿。':'全部所选账号均已取得平台发布确认。'):exported ? '已导出本地发布包，尚未上传平台。' : '尚未取得平台发布确认。',
@@ -72,7 +72,7 @@ function summarizeTasks(data) {
       let status = ready[index] ? 'ready' : index===2&&voiceSkipped?'skipped':'pending';
       if (unsettled) status = unsettled.status;
       else if (status!=='skipped'&&!ready[index] && ['failed','interrupted','cancelled'].includes(latest?.status)) status = latest.status;
-      let message = status==='skipped'?'本次自动流程使用手选视频，已跳过配音；没有生成音频。':messages[index];
+      let message = status==='skipped'?(draft.video.mode==='story'&&draft.story?.narrationMode==='none'?'当前非口播选择无旁白，未生成配音。':'本次自动流程使用手选视频，已跳过配音；没有生成音频。'):messages[index];
       if (!ready[index] && latest?.status === 'succeeded') message += ' 历史成功记录仍保留，当前尚无符合就绪条件的内容或产物。';
       const label = runLabels[status] || (status==='skipped'?'已跳过':status === 'ready' ? ['已填写','已确认','已就绪','已就绪','已就绪','已就绪',publication?.mode==='draft'?'草稿已保存':'已发布'][index] : exported && index === 6 ? '已导出，待发布' : '待处理');
       return {key:definition.key, name:definition.name, index, status, label, available:ready[index], completed:ready[index]||status==='skipped', message, artifact:artifacts[index]?.id ? artifacts[index] : null, latest:publicRun(latest), unsettled:publicRun(unsettled), history:history.map(publicRun)};

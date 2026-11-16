@@ -1,6 +1,13 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {preview,apply}=require('../server/subtitle-proofread.cjs'),{createDraft}=require('../server/store.cjs'),{createService}=require('../server/service.cjs');
 function fixture(){const d=createDraft();d.finalText='红色便签贴在封底。设备没有电池，不提供邮寄。';d.edit.captions=[{id:'a',start:0,end:3,text:'红色变迁贴在封底。',auxiliary:{sourceText:'红色变迁贴在封底。',translation:'旧译文'}},{id:'b',start:3.1,end:6,text:'设备没有电池，不提供邮寄。'}];return d;}
+test('非口播当前集字幕校对读取本集原文，切集使旧建议失效',()=>{
+ const d=fixture(),text=d.finalText,{createStory,hash}=require('../server/story-contract.cjs');
+ d.confirmed=true;d.finalText='另一个故事的完整正文。'+text;d.video.mode='story';d.video.assetId='episode-video';d.edit.sourceId='episode-video';
+ d.story=createStory(d);d.story.narrationMode='none';d.story.episodesSourceHash=hash([d.story.sourceText,d.story.episodeCount,d.story.episodeDuration]);d.story.activeEpisodeId='episode-a';d.story.episodes=[{id:'episode-a',text,shots:[],resultId:'episode-video',resultInputHash:'composition',resultNarrationAssetId:''}];
+ const result=preview(d);assert.equal(result.reference.kind,'story-episode');assert.equal(result.reference.episodeId,'episode-a');assert.equal(result.reference.text,text);assert.equal(apply(d,result,[0])[0].text,'红色便签贴在封底。');
+ d.story.episodes[0].text='不同集的正文';assert.throws(()=>apply(d,result,[0]),/已变化/);
+});
 test('原稿建议保留原识别、每条ID和时间，应用仅修改所选句并清除旧辅助文本',()=>{const d=fixture(),before=structuredClone(d),result=preview(d);assert.equal(result.suggestions[0].proposed,'红色便签贴在封底。');assert.deepEqual(d,before);const rows=apply(d,result,[0]);assert.equal(rows[0].text,'红色便签贴在封底。');assert.equal(rows[0].auxiliary,undefined);assert.deepEqual(rows.map(({id,start,end})=>({id,start,end})),before.edit.captions.map(({id,start,end})=>({id,start,end})));assert.deepEqual(rows[1],before.edit.captions[1]);assert.deepEqual(result.originalCaptions,before.edit.captions);});
 test('拒绝无关文案、缺少原稿、空字幕、过量与重叠时间轴',()=>{for(const change of [d=>d.finalText='明天举办社区旧书交换活动，请带五本书。',d=>d.finalText='',d=>d.edit.captions=[],d=>d.edit.captions[1].start=2,d=>d.edit.captions[0].end=NaN,d=>d.finalText='字'.repeat(4001)]){const d=fixture();change(d);assert.throws(()=>preview(d));}});
 test('所有有效输入变化使建议失效，无关界面字段不使建议失效',()=>{for(const change of [d=>d.finalText+='新增一句。',d=>d.edit.sourceId='changed',d=>d.id='other',d=>d.edit.captions[0].text+='改',d=>d.edit.captions[0].start=.1]){const d=fixture(),r=preview(d);change(d);assert.throws(()=>apply(d,r,[0]),/已变化/);}const d=fixture(),r=preview(d);d.step=5;d.cover.title='封面';assert.equal(apply(d,r,[0])[0].text,r.suggestions[0].proposed);});

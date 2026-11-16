@@ -22,6 +22,8 @@ actions.add('proofreadSubtitles');actions.add('applySubtitleProofread');
 actions.add('restoreCaptionHistory');
 for(const action of ['copyTopics','copyCandidates','useCopyCandidate'])actions.add(action);
 actions.add('coverFontData');actions.add('saveCoverDefault');
+for(const action of ['saveStory','splitStoryEpisodes','splitStoryShots','extractStoryAssets','generateStoryImage','selectStoryImage','generateStoryVideo','selectStoryVideo','composeStoryEpisode','useStoryEpisode','saveStoryModels','checkStoryModels'])actions.add(action);
+actions.add('queryStoryResult');
 actions.add('listBgmResources');actions.add('previewBgmResource');actions.add('selectBgmResource');
 actions.add('planWorkflow');actions.add('startWorkflow');actions.add('stopWorkflow');for(const action of ['brainStudy','brainReview','brainTopics','brainCopies','selectBrain','useBrainCopy','deleteBrain'])actions.add(action);
 contextBridge.exposeInMainWorld('studio',{importDroppedVoice:file=>{const filePath=webUtils.getPathForFile(file);return filePath?ipcRenderer.invoke('studio:dropVoice',filePath):null;},invoke:(action,payload)=>{if(!actions.has(action))return Promise.reject(new Error('不支持的操作'));return ipcRenderer.invoke('studio:invoke',action,payload);},revealAsset:id=>ipcRenderer.invoke('studio:revealAsset',id),exportAsset:(id,options)=>ipcRenderer.invoke('studio:exportAsset',id,options),pickFiles:(kind,options)=>ipcRenderer.invoke('studio:pickFiles',kind,options),chooseDirectory:()=>ipcRenderer.invoke('studio:directory'),window:action=>ipcRenderer.send('studio:window',action),media:id=>'media://asset/'+encodeURIComponent(id),openOutput:()=>ipcRenderer.invoke('studio:output'),openPlatformHome:platform=>ipcRenderer.invoke('studio:open-platform-home',platform)});

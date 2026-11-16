@@ -70,7 +70,7 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
     },
     proofreadSubtitles:async({id})=>{const draft=structuredClone(store.draft(id));const result=await run('subtitle-proofread',id,{},async()=>require('./subtitle-proofread.cjs').preview(draft));return {...result,runId:store.data.runs.find(r=>r.output===result)?.id};},
     applySubtitleProofread:async({id,runId,selected})=>{const record=store.data.runs.find(r=>r.id===runId&&r.draftId===id&&r.type==='subtitle-proofread'&&r.status==='succeeded');if(!record?.output)throw Error('校对记录不存在，请重新校对');const next=structuredClone(store.draft(id));next.edit.captions=require('./subtitle-proofread.cjs').apply(next,record.output,selected);next.edit.subtitleProofread={runId,selected,sourceId:next.edit.sourceId||next.video.assetId,referenceKind:record.output.reference.kind,referenceSha256:record.output.referenceSha256,captionsSha256:require('./subtitle-proofread.cjs').hash(JSON.stringify(next.edit.captions))};const prior=record.applications;record.applications=[...(prior||[]),{...next.edit.subtitleProofread,appliedAt:new Date().toISOString()}];try{return store.updateDraft(next);}catch(error){if(prior===undefined)delete record.applications;else record.applications=prior;throw error;}},
-    generateEditTitle:async({id})=>{const draft=structuredClone(store.draft(id));return run('edit-title',id,{},ctx=>require('./title-generation.cjs').generateTitle(providers,draft,ctx));},
+    generateEditTitle:async({id})=>{const draft=require('./story-links.cjs').downstreamDraft(store.draft(id));return run('edit-title',id,{},ctx=>require('./title-generation.cjs').generateTitle(providers,draft,ctx));},
     saveSubtitleStyle:async({id,style})=>{const normalized=await subtitlePreview.validate(style),draft=structuredClone(store.draft(id));draft.edit.subtitleCustom=normalized;draft.edit.subtitleMode='custom';return store.updateDraft(draft);},
     saveAppearance:async({fontSize})=>{if(!['compact','standard','comfortable','large'].includes(fontSize))throw new Error('界面字号无效，请选择紧凑、标准、舒适或大');const before=store.data.settings.fontSize;store.data.settings.fontSize=fontSize;try{store.save();}catch(error){store.data.settings.fontSize=before;throw error;}return {fontSize};},
     newDraft:async()=>{const d=createDraft();d.template=(await import('./prompt-catalog.mjs')).resolvePrompt('rewrite',store.data).id;d.voice.profile=require('./draft-defaults.cjs').localDefaultVoice(store.data);Object.assign(d.cover,{modelVersion:1,template:store.data.settings.coverDefaultTemplate||'default',fontSize:110,mask:0});store.data.drafts.unshift(d);store.data.currentId=d.id;store.save();return d;},
@@ -126,12 +126,13 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
   };
   const service={store,media,runtime,providers,handlers,publisher,renderCover:options.renderCover,async invoke(action,p={}){
     if(!Object.hasOwn(handlers,action))throw new Error('不支持的操作');
-    if(['speech','testSpeech','avatar','startWorkflow','checkLocalSpeech','checkLocalLipSync'].includes(action)&&store.data.runs.some(run=>run.type==='voice-design'&&run.status==='running'))throw Error('自主音色模型正在生成，请等待或停止后再使用声音、视频模型');
+    if(['speech','testSpeech','avatar','startWorkflow','checkLocalSpeech','checkLocalLipSync','generateStoryImage','generateStoryVideo'].includes(action)&&store.data.runs.some(run=>run.type==='voice-design'&&run.status==='running'))throw Error('自主音色模型正在生成，请等待或停止后再使用声音、视频模型');
     if(backups.busy&&action!=='state')throw new Error('备份或恢复正在进行，请稍候');
     const jobs=store.data.workflowJobs||[],active=jobs.some(j=>['queued','running','stopping'].includes(j.status));
     if(active&&['saveSettings','saveAppearance','backup','restoreBackup'].includes(action))throw new Error('自动流程正在执行，请停止或等待完成后修改设置、备份或恢复');
     const protectedActions=['confirmCopy','copyTopics','copyCandidates','useCopyCandidate','analyzeMaterial','text','extract','speech','trainVoice','avatar','render','transcribe','frame','saveCover','coverVideo','importCaptions','saveSubtitleStyle','subtitleAuxiliary','generateEditTitle','brainStudy','brainReview','brainTopics','brainCopies','selectBrain','useBrainCopy','publish','preparePublish','reviewPublish','exportPackage','deleteDraft'];
     if(p.id&&(protectedActions.includes(action)||['saveVideoShots','testSpeech','prepareVoiceSample','trimVoiceSample','importVoiceSample','importRecording','designVoice','saveDesignedVoice'].includes(action))&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后手动操作');
+    if(p.id&&/Story/.test(action)&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后编辑非口播内容');
     if(['proofreadSubtitles','applySubtitleProofread','restoreCaptionHistory'].includes(action)&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后校对或恢复字幕');
     return handlers[action](p);
   },importPath:async file=>{if(backups.busy)throw new Error('备份或恢复正在进行，请稍候');return store.addAsset(file);}};
@@ -157,6 +158,18 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
   const avatarRecovery=new (require('./avatar-recovery.cjs').AvatarRecovery)(service);service.avatarRecovery=avatarRecovery;
   handlers.queryAvatarResult=p=>avatarRecovery.query({...p,continueSequence:false});
   handlers.continueAvatarSegments=p=>avatarRecovery.query({...p,continueSequence:true});
+  const storyGenerator=new (require('./story-generator.cjs').StoryGenerator)(store,media,providers);
+  const stories=new (require('./story-studio.cjs').StoryStudio)({store,media,providers,runtime,generator:storyGenerator});service.stories=stories;
+  for(const [action,method] of Object.entries({saveStory:'save',splitStoryEpisodes:'splitEpisodes',splitStoryShots:'splitShots',extractStoryAssets:'extractAssets',generateStoryImage:'generateImage',selectStoryImage:'selectImage',generateStoryVideo:'generateVideo',selectStoryVideo:'selectVideo',composeStoryEpisode:'composeEpisode',useStoryEpisode:'useEpisode',queryStoryResult:'recover'}))handlers[action]=p=>stories[method](p);
+  handlers.checkStoryModels=()=>storyGenerator.check();
+  handlers.saveStoryModels=async({provider})=>{
+    if(store.data.runs.some(run=>['running','queued'].includes(run.status))||(store.data.workflowJobs||[]).some(job=>['running','queued','stopping'].includes(job.status)))throw Error('当前有任务正在执行，请结束后修改非口播模型设置');
+    if(!provider||!['comfy','compatible'].includes(provider.storyImageProtocol)||!['comfy-h3','bridge'].includes(provider.storyVideoProtocol))throw Error('请选择有效的图片和视频服务');
+    const keys=['storyImageProtocol','storyImageBaseUrl','storyImageModel','storyVideoProtocol','storyVideoBaseUrl','storyVideoModel'],checked={};
+    for(const key of keys){if(typeof provider[key]!=='string'||!provider[key].trim()||provider[key].length>1000)throw Error('请完整填写非口播模型与服务地址');checked[key]=provider[key].trim();}
+    for(const key of ['storyImageBaseUrl','storyVideoBaseUrl']){let url;try{url=new URL(checked[key]);}catch{throw Error('服务地址需要完整HTTP或HTTPS网址');}if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw Error('服务地址需为HTTP或HTTPS，密钥请在模型设置中填写');const local=key==='storyImageBaseUrl'?checked.storyImageProtocol==='comfy':checked.storyVideoProtocol==='comfy-h3';if(local&&(url.protocol!=='http:'||!['localhost','127.0.0.1','[::1]'].includes(url.hostname)))throw Error('本地ComfyUI需填写本机HTTP服务地址');}
+    const previous=store.data.settings.provider;store.data.settings.provider={...previous,...checked};try{store.save();}catch(error){store.data.settings.provider=previous;throw error;}return {saved:true};
+  };
   return service;
 }
 module.exports={createService};
