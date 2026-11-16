@@ -1,5 +1,5 @@
 <script setup>
-import {computed,inject,ref} from 'vue';
+import {computed,inject,ref,watch} from 'vue';
 import I from './Icon.vue';
 import MediaPreview from './MediaPreview.vue';
 import {mediaUrl} from '../api';
@@ -8,6 +8,25 @@ const props=defineProps({id:String});
 const {state,notify}=inject('studio');
 const pending=ref(''),desktop=window.studio;
 const asset=computed(()=>state.value.assets.find(item=>item.id===props.id));
+const video=ref(null),currentTime=ref(0),mediaDuration=ref(null),mediaFailed=ref(false);
+const totalDuration=computed(()=>{
+  if(mediaDuration.value!==null)return mediaDuration.value;
+  const value=Number(asset.value?.duration);
+  return Number.isFinite(value)&&value>0?value:null;
+});
+watch(()=>props.id,()=>{currentTime.value=0;mediaDuration.value=null;mediaFailed.value=false;},{flush:'sync'});
+function timeLabel(seconds){
+  const value=Math.max(0,Math.floor(seconds)),hours=Math.floor(value/3600),minutes=Math.floor(value%3600/60),secondsPart=String(value%60).padStart(2,'0');
+  return hours?hours+':'+String(minutes).padStart(2,'0')+':'+secondsPart:minutes+':'+secondsPart;
+}
+function syncTime(event){
+  // 切换视频后忽略旧节点的事件，优先使用实际媒体元数据。
+  if(event.currentTarget!==video.value||event.currentTarget.dataset.assetId!==props.id)return;
+  const player=event.currentTarget;
+  currentTime.value=Number.isFinite(player.currentTime)?Math.max(0,player.currentTime):0;
+  mediaDuration.value=Number.isFinite(player.duration)&&player.duration>0?player.duration:null;
+  mediaFailed.value=!!player.error;
+}
 async function open(){
   if(!props.id||pending.value||!desktop)return;
   const id=props.id;pending.value='open';
@@ -32,7 +51,8 @@ async function exportVideo(){
       </div>
     </header>
     <div v-if="id" class="video-result-content">
-      <video :key="id" :src="mediaUrl(id)" controls preload="metadata" aria-label="视频预览"/>
+      <video ref="video" :key="id" :data-asset-id="id" :src="mediaUrl(id)" controls preload="metadata" aria-label="视频预览" @loadedmetadata="syncTime" @durationchange="syncTime" @timeupdate="syncTime" @seeked="syncTime" @ended="syncTime" @error="syncTime"/>
+      <div class="video-result-time"><span>播放时长</span><span aria-label="视频播放时间">{{timeLabel(currentTime)}} / {{totalDuration!==null?timeLabel(totalDuration):mediaFailed?'无法读取时长':'正在读取时长…'}}</span></div>
       <p v-if="asset" class="video-result-name" :title="asset.name">{{asset.name}}</p>
     </div>
     <MediaPreview v-else empty-icon="User" title="暂无预览视频" description="生成视频后将在此处显示预览"/>
