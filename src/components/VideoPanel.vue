@@ -34,7 +34,7 @@ async function editShots(){if(locked.value)return;try{await save();shotSignature
       <div class="video-field video-driver-field"><div class="card-heading"><span>驱动音频</span><small>{{audioSource}}</small></div><VideoDriverAudio :key="d.id+':'+audioId" :id="audioId" :name="audioAsset?.name" :size="audioAsset?.size" :disabled="locked" @choose="emit('choose','audio',a=>d.video.audioId=a.id,'选择驱动音频')"/></div>
       <div class="video-field video-model"><label>模型版本<DropdownSelect v-model="d.video.model" aria-label="模型版本" :disabled="locked||localH3||localMuse" :options="localMuse?[{value:'v1',label:'MuseTalk 1.5'},{value:'v2',label:'MuseTalk 1.5'}]:localH3?[{value:'v1',label:'MiniMax H3'},{value:'v2',label:'MiniMax H3'}]:[{value:'v1',label:'高清模型 V1'},{value:'v2',label:'高清模型 V2'}]"/></label></div>
       </div>
-      <p v-if="localMuse" class="hint">本地口型：支持1至600秒单形象和多镜头，保留各形象动作与背景，生成当前音轨对应的口型。多镜头总时长需与音频一致；成片采用首镜头画幅，不同画幅等比补边，请检查口型和音画同步。</p>
+      <p v-if="localMuse" class="hint">本地口型：成片时长跟随驱动音频（1～600秒），形象片段可更短并自动往返复用。常见帧率和旋转视频会自动适配，保留原文件。请选择人脸清晰可见的片段；多镜头总时长需与音频一致，不同画幅等比补边。</p>
       <p v-if="localH3" class="hint">本地 H3：支持单形象和按配置顺序生成多镜头。超过15秒的单个镜头按静音附近分段，使用完整原音轨合成。多镜头总时长需与驱动音频一致；人物、口型及接缝效果需检查。</p>
       <button class="primary full" :disabled="locked||!!generationReason" :title="generationReason||'使用当前形象和驱动音频生成视频'" @click="emit('generate')"><I name="User"/>生成视频</button>
     </article>

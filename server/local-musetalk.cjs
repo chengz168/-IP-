@@ -13,21 +13,23 @@ function runtimeOptions(config){
  return {home,python};
 }
 
-function runWorker({python,args,directory,signal,onEvent,onStart,timeout=4*60*60*1000,cancelGrace=20000}){
+function runWorker({python,args,directory,signal,onEvent,onStart,timeout=4*60*60*1000,cancelGrace=0}){
  signal?.throwIfAborted();
  return new Promise((resolve,reject)=>{
   const child=spawn(python,args,{windowsHide:true,env:{...process.env,PYTHONUTF8:'1',PYTHONIOENCODING:'utf-8',HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1'}});
-  let tail='',line='',failure,abortTimer,termination,settled=false;
+  let tail='',line='',failure,abortTimer,termination,settled=false,cancelRequestedAt,terminationMethod;
   const stopTree=()=>{
    if(termination)return termination;
    termination=new Promise(done=>{
-    if(process.platform==='win32'&&child.pid){const killer=spawn('taskkill.exe',['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});killer.on('error',()=>{child.kill();done();});killer.on('close',code=>{if(code)child.kill();done();});}
-    else{child.kill();done();}
+    if(process.platform==='win32'&&child.pid){terminationMethod='taskkill-tree';const killer=spawn('taskkill.exe',['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});killer.on('error',()=>{terminationMethod='child-kill-fallback';child.kill('SIGKILL');done();});killer.on('close',code=>{if(code&&child.exitCode===null){terminationMethod='child-kill-fallback';child.kill('SIGKILL');}done();});}
+    else{terminationMethod='child-kill';child.kill('SIGKILL');done();}
    });return termination;
   };
   const stop=()=>{
+   cancelRequestedAt??=new Date().toISOString();
    try{fs.writeFileSync(path.join(directory,'cancel.request'),'cancelled');}catch(error){if(error.code!=='ENOENT')failure??=error;}
-   abortTimer??=setTimeout(stopTree,cancelGrace);
+   // 默认立即终止本次本地进程树，不等待模型加载或一次推理到达检查点。
+   if(cancelGrace>0)abortTimer??=setTimeout(stopTree,cancelGrace);else stopTree();
   };
   const timer=setTimeout(()=>{failure=Error('本地口型运行超时，已停止本次进程');stopTree();},timeout);
   signal?.addEventListener('abort',stop,{once:true});
@@ -44,7 +46,11 @@ function runWorker({python,args,directory,signal,onEvent,onStart,timeout=4*60*60
    if(settled)return;settled=true;
    clearTimeout(timer);clearTimeout(abortTimer);signal?.removeEventListener('abort',stop);
    if(termination)await termination;
-   if(signal?.aborted)return reject(Error('本地口型生成已取消，未绑定视频'));
+   if(signal?.aborted){
+    const receipt={kind:'musetalk-stop-v1',pid:child.pid,requestedAt:cancelRequestedAt,closedAt:new Date().toISOString(),exitCode:code,terminationMethod:terminationMethod||'cooperative',workerExited:true,videoRegistered:false};
+    try{fs.writeFileSync(path.join(directory,'stop-receipt.json'),JSON.stringify(receipt,null,2));}catch{}
+    return reject(Error('本地口型生成已取消，未绑定视频'));
+   }
    if(failure)return reject(failure);
    if(code!==0)return reject(Error('本地口型生成失败（退出码'+code+'）：'+tail.slice(-1800)));
    resolve({code});
@@ -95,7 +101,7 @@ class LocalMuseTalk{
    const receipt=verifyReceipt(directory,input);
    const {avatarFilesCurrent}=require('./avatar-request.cjs');
    // 路径内容变化直接失败；任务配置变化由现有avatarCurrent保护迟到绑定。
-   if(!avatarFilesCurrent(context)||digest(context.video.path)!==input.video.sha256||digest(context.audio.path)!==input.audio.sha256)throw Error('本地口型生成期间源文件变化，结果未登记');
+   if(!avatarFilesCurrent(context)||digest(context.video.path)!==(input.originalVideo||input.video).sha256||digest(input.video.path)!==input.video.sha256||digest(context.audio.path)!==input.audio.sha256)throw Error('本地口型生成期间源文件变化，结果未登记');
    asset=this.store.addAsset(receipt.output.path,{origin:'local-musetalk',name:'本地口型-'+crypto.randomUUID().slice(0,8)+'.mp4',duration:input.duration,
     avatarRequest:context.input,lipSync:{engine:'musetalk-local',model:'MuseTalk 1.5',sourceFramePolicy:input.sourceFramePolicy,sourceVideoReusedOutsideFace:true,
      drivingAudioId:context.audio.id,newSpeechGeneratedHere:false,frames:receipt.generatedFrames,inferenceCalls:receipt.inferenceCalls,outputSha256:receipt.output.sha256,

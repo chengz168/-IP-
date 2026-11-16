@@ -1,7 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {runProcess}=require('./media.cjs');
 const {digest}=require('../integrations/musetalk-local/input.cjs');
-const {videoPlan,audioPlan,readPcm,prepareProductionInput}=require('../integrations/musetalk-local/production-input.cjs');
+const {prepareVideoSource,probeVideo,videoPlan,audioPlan,readPcm,prepareProductionInput}=require('../integrations/musetalk-local/production-input.cjs');
 
 function sequencePlan(samples,fps,shots){
  if(!Number.isInteger(fps)||fps<10||fps>60)throw Error('多镜头输出帧率必须是10至60的整数');
@@ -39,6 +39,7 @@ async function inspectVideo(media,file,{fps,width,height,frames},signal,{audioDu
 }
 
 async function prepareSequence({context,directory,media,signal}){
+ signal?.throwIfAborted();
  if(!path.isAbsolute(directory))throw Error('多镜头工作目录必须是绝对路径');
  const shots=context.input.shots,sources=context.input.shotAvatars;
  if(!Array.isArray(shots)||!shots.length||sources.length!==shots.length)throw Error('多镜头形象快照不完整');
@@ -47,24 +48,29 @@ async function prepareSequence({context,directory,media,signal}){
  for(const [index,shot]of shots.entries()){
   const source=sources[index];if(source.avatarId!==shot.avatarId||source.source.type!=='video')throw Error('镜头形象与快照不一致或不是视频');
   const file=source.source.path;
-  if(!distinct.has(file))distinct.set(file,{path:file,sha256:digest(file),...videoPlan(await media.probe(file))});
+  if(!distinct.has(file))distinct.set(file,{path:file,sha256:digest(file)});
+ }
+ fs.mkdirSync(directory);
+ let preparedIndex=0;
+ for(const source of distinct.values()){
+  const prepared=await prepareVideoSource({videoPath:source.path,normalizedPath:path.join(directory,'prepared-source-'+preparedIndex+'.mp4'),media,signal});
+  Object.assign(source,prepared.plan,{preparedPath:prepared.video.path,preparedSha256:prepared.video.sha256,videoPreparation:prepared.videoPreparation});preparedIndex++;
  }
  const first=distinct.get(sources[0].source.path),fps=Math.max(10,first.fps),width=first.width,height=first.height;
- fs.mkdirSync(directory);
  const normalizedAudio=path.join(directory,'original-16k.wav');
  await runProcess(media.binaries().ffmpeg,['-v','error','-n','-i',originalAudio.path,'-map','0:a:0','-vn','-ac','1','-ar','16000','-c:a','pcm_s16le',normalizedAudio],{signal});
  const timeline=sequencePlan(readPcm(normalizedAudio).samples,fps,shots);
  let sourceIndex=0;
  for(const source of distinct.values()){
   const count=Math.max(...timeline.shots.filter(shot=>sources[shot.index].source.path===source.path).map(shot=>shot.frameCount));
-  if(source.fps===fps&&source.width===width&&source.height===height){source.normalizedPath=source.path;source.conversion='none';}
+  if(source.fps===fps&&source.width===width&&source.height===height){source.normalizedPath=source.preparedPath;source.conversion=source.videoPreparation.conversion;}
   else{
    source.normalizedPath=path.join(directory,'source-'+sourceIndex+'.mp4');source.conversion='fps-and-aspect-fit-black-pad-v1';
    const limit=Math.max(1/fps,Math.min(source.sourceFrameCount/source.fps,Math.max(1,count/fps)));
-   await runProcess(media.binaries().ffmpeg,['-v','error','-n','-i',source.path,'-map','0:v:0','-an','-t',String(limit),'-vf',`tpad=stop_mode=clone:stop_duration=${1/fps},fps=${fps},scale=${width}:${height}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1`,
+   await runProcess(media.binaries().ffmpeg,['-v','error','-n','-i',source.preparedPath,'-map','0:v:0','-an','-t',String(limit),'-vf',`tpad=stop_mode=clone:stop_duration=${1/fps},fps=${fps},scale=${width}:${height}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1`,
     '-c:v','libx264','-preset','fast','-crf','16','-pix_fmt','yuv420p','-video_track_timescale',String(fps*1000),source.normalizedPath],{signal});
   }
-  source.normalizedSha256=digest(source.normalizedPath);sourceIndex++;
+  source.normalizedSha256=digest(source.normalizedPath);videoPlan(await probeVideo(media,source.normalizedPath,signal));sourceIndex++;
  }
  for(const shot of timeline.shots){
   const source=distinct.get(sources[shot.index].source.path),shotRoot=path.join(directory,'shot-'+String(shot.index).padStart(4,'0'));

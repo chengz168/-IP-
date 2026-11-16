@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {audioPlan,videoPlan,sourceIndex,prepareProductionInput,readPcm}=require('../integrations/musetalk-local/production-input.cjs');
+const {audioPlan,videoPlan,sourceIndex,prepareProductionInput,prepareVideoSource,readPcm}=require('../integrations/musetalk-local/production-input.cjs');
 const {Media,runProcess}=require('../server/media.cjs');
 const {avatarContext,avatarCurrent}=require('../server/avatar-request.cjs');
 const {avatarActionSignature}=require('../src/avatar-action.mjs');
@@ -43,7 +43,7 @@ test('往返映射包含重复端点，208秒不会被裁成源素材长度',()=
  assert.deepEqual(Array.from({length:12},(_,i)=>sourceIndex(i,3)),[0,1,2,2,1,0,0,1,2,2,1,0]);
  const p=audioPlan(208*16000,30);assert.equal(p.frameCount,6240);for(let i=0;i<6240;i++)assert(sourceIndex(i,593)>=0&&sourceIndex(i,593)<593);
 });
-test('VFR、非整数帧率、旋转、缺帧数和多视频流均明确拒绝',()=>{
+test('工作器严格契约继续拒绝未适配的VFR、非整数帧率、旋转和缺帧数',()=>{
  const picture={codec_type:'video',avg_frame_rate:'30/1',r_frame_rate:'30/1',nb_frames:'593',width:1080,height:1920};
  assert.equal(videoPlan({streams:[picture]}).sourceFrameCount,593);
  for(const patch of [{avg_frame_rate:'30000/1001'},{r_frame_rate:'25/1'},{nb_frames:'N/A'},{width:1081},{tags:{rotate:'90'}}])assert.throws(()=>videoPlan({streams:[{...picture,...patch}]}));
@@ -89,5 +89,38 @@ test('真实FFmpeg短形象与超过源长的非整帧音轨准备，原输入�
  await runProcess(ffmpeg,['-v','error','-n','-f','lavfi','-i','sine=frequency=400:sample_rate=16000','-t','2.013','-c:a','pcm_s16le',audio]);
  const before=[digest(video),digest(audio)],directory=path.join(root,'input'),plan=await prepareProductionInput({videoPath:video,audioPath:audio,directory,media});
  assert.equal(plan.sourceFrameCount,30);assert.equal(plan.frameCount,61);assert.equal(plan.sourceFramePolicy,'forward-reverse-repeat-endpoints-v1');assert.equal(readPcm(plan.driver.path).samples,plan.targetSamples);assert.deepEqual([digest(video),digest(audio)],before);
+ assert.equal(plan.video.path,video);assert.equal(plan.originalVideo.sha256,before[0]);assert.equal(plan.videoPreparation.conversion,'none');
  await assert.rejects(prepareProductionInput({videoPath:video,audioPath:audio,directory,media}),/exist|存在/i);
+});
+test('真实FFmpeg自动适配29.97、VFR、旋转、奇数画幅与缺帧数，原件hash不变',async t=>{
+ const root=folder(t),media=new Media({data:{settings:{}}});try{await media.check();}catch(error){t.skip('媒体工具未配置：'+error.message);return;}const {ffmpeg}=media.binaries();
+ const base=path.join(root,'base.mp4');await runProcess(ffmpeg,['-v','error','-n','-f','lavfi','-i','testsrc2=size=48x64:rate=30','-t','1.2','-c:v','libx264','-pix_fmt','yuv420p',base]);
+ const cases=[
+  {name:'29.97.mp4',args:['-f','lavfi','-i','testsrc2=size=48x64:rate=30000/1001','-t','1.2','-c:v','libx264','-pix_fmt','yuv420p'],fps:30},
+  {name:'VFR.mp4',args:['-i',base,'-vf','select=if(lt(n\\,15)\\,1\\,not(mod(n\\,2)))','-fps_mode','vfr','-c:v','libx264'],fps:23},
+  {name:'旋转.mp4',args:['-display_rotation:v:0','90','-i',base,'-c','copy'],width:64,height:48},
+  {name:'奇数.mp4',args:['-f','lavfi','-i','testsrc=size=33x47:rate=30','-t','1.2','-c:v','libx264','-pix_fmt','yuv444p'],width:32,height:46},
+  {name:'缺帧数.mkv',args:['-i',base,'-c','copy']}
+ ];
+ for(const item of cases){
+  const source=path.join(root,item.name);await runProcess(ffmpeg,['-v','error','-n',...item.args,source]);const before=digest(source),output=path.join(root,'normalized-'+cases.indexOf(item)+'.mp4');
+  const original=await media.probe(source);assert.throws(()=>videoPlan(original),item.name);
+  const prepared=await prepareVideoSource({videoPath:source,normalizedPath:output,media});
+  assert.equal(prepared.video.path,output);assert.equal(prepared.originalVideo.sha256,before);assert.equal(digest(source),before);assert.equal(prepared.video.sha256,digest(output));
+  assert.equal(prepared.videoPreparation.conversion,'integer-cfr-autorotate-even-size-v1');assert(prepared.videoPreparation.reasons.length);
+  if(item.fps)assert.equal(prepared.plan.fps,item.fps,item.name);if(item.width)assert.equal(prepared.plan.width,item.width);if(item.height)assert.equal(prepared.plan.height,item.height);
+  assert.deepEqual(videoPlan(await media.probe(output)),prepared.plan);await runProcess(ffmpeg,['-v','error','-xerror','-i',output,'-f','null','-']);
+ }
+});
+test('自动适配取消信号阻止探测和转换，不建立假成功输入',async t=>{
+ const root=folder(t),source=path.join(root,'source.mp4');fs.writeFileSync(source,'取消夹具');const controller=new AbortController();controller.abort();
+ await assert.rejects(prepareVideoSource({videoPath:source,normalizedPath:path.join(root,'normalized.mp4'),media:{binaries(){throw Error('不应启动媒体进程');}},signal:controller.signal}),/abort/i);
+ assert.deepEqual(fs.readdirSync(root),['source.mp4']);
+});
+test('真实FFmpeg适配转码中取消，保留原件且不写成功清单',async t=>{
+ const root=folder(t),media=new Media({data:{settings:{}}});try{await media.check();}catch(error){t.skip('媒体工具未配置：'+error.message);return;}const binaries=media.binaries(),source=path.join(root,'long-29.97.mp4'),audio=path.join(root,'unused.wav');
+ await runProcess(binaries.ffmpeg,['-v','error','-n','-f','lavfi','-i','testsrc2=size=256x256:rate=30000/1001','-t','3','-c:v','libx264',source]);fs.writeFileSync(audio,'取消应在处理驱动之前结束');const before=digest(source),controller=new AbortController();let conversionStarted=false;
+ const cancellingMedia={binaries:()=>({ffprobe:binaries.ffprobe,get ffmpeg(){conversionStarted=true;setTimeout(()=>controller.abort(),30);return binaries.ffmpeg;}})},directory=path.join(root,'input');
+ await assert.rejects(prepareProductionInput({videoPath:source,audioPath:audio,directory,media:cancellingMedia,signal:controller.signal}),/abort/i);
+ assert(conversionStarted);assert.equal(digest(source),before);assert(!fs.existsSync(path.join(directory,'input.json')));assert(fs.existsSync(path.join(directory,'preparation-failed.json')));assert(!fs.existsSync(path.join(directory,'audio-16k.wav')));
 });

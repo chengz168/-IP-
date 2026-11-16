@@ -57,3 +57,15 @@ test('真实媒体准备后的工作器失败或取消均不登记素材，不�
  assert.equal(workers,2);assert.equal(registrations,0);assert.equal(store.data.assets.length,0);
  const failed=fs.readdirSync(root).find(name=>name.startsWith('.musetalk-multi-'));assert.equal(JSON.parse(fs.readFileSync(path.join(root,failed,'failed.json'),'utf8')).registered,false);
 });
+test('真实FFmpeg多镜头接受非整数旋转视频与缺帧数素材，并保留各原件hash',async t=>{
+ const input=await fixture(t);if(!input)return;const {root,media,context}=input,{ffmpeg}=media.binaries(),fractional=path.join(root,'fractional.mp4'),rotated=path.join(root,'rotated.mp4'),missingFrames=path.join(root,'missing.mkv');
+ await runProcess(ffmpeg,['-v','error','-n','-f','lavfi','-i','testsrc2=size=64x48:rate=30000/1001','-t','1.2','-c:v','libx264',fractional]);
+ await runProcess(ffmpeg,['-v','error','-n','-display_rotation:v:0','-90','-i',fractional,'-c','copy',rotated]);
+ await runProcess(ffmpeg,['-v','error','-n','-i',context.input.shotAvatars[1].source.path,'-c','copy',missingFrames]);
+ context.input.shotAvatars[0].source.path=rotated;context.input.shotAvatars[1].source.path=missingFrames;const before=[rotated,missingFrames].map(digest),directory=path.join(root,'adapted-sequence');
+ const plan=await prepareSequence({context,directory,media});assert.equal(plan.fps,30);assert.equal(plan.width,48);assert.equal(plan.height,64);assert.equal(plan.frameCount,61);
+ for(const [index,source]of plan.sources.entries()){
+  assert.equal(source.sha256,before[index]);assert.equal(digest(source.path),before[index]);assert.equal(source.videoPreparation.conversion,'integer-cfr-autorotate-even-size-v1');assert.equal(digest(source.normalizedPath),source.normalizedSha256);
+ }
+ for(const shot of plan.shots){const prepared=await require('../integrations/musetalk-local/production-input.cjs').prepareProductionInput({videoPath:shot.source.normalizedPath,audioPath:shot.audio,directory:path.join(shot.directory,'input'),media});assert.equal(prepared.fps,30);assert.equal(prepared.width,48);assert.equal(prepared.height,64);assert.equal(prepared.videoPreparation.conversion,'none');}
+});
