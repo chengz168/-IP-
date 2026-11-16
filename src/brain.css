@@ -2,7 +2,8 @@
 .brain-form-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;flex-wrap:wrap}
 .brain-form-heading>h3{margin:0;line-height:1.5}
 .brain-studio .brain-local-entry{margin:0;padding:0;font-size:var(--app-font-size-meta);line-height:1.5;min-height:28px}
-.brain-studio .brain-fields{padding-right:4px}
+/* 为向外延伸的焦点边框留出四边空间，负外边距保持表单内容对齐。 */
+.brain-studio .brain-fields{margin:-4px;padding:4px 8px 4px 4px}
 /* 窄窗让步骤正文滚动，避免把两种学习模式压进不足一张卡片的内部视口。 */
 .stage-0>.main-tabs+.brain-studio{height:544px;min-height:544px;flex:none}
 .brain-profile-list{overflow:auto;min-height:0;flex:1;display:flex;flex-direction:column;gap:12px;padding:0 5px 4px 0;scrollbar-gutter:stable}
