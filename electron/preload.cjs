@@ -5,6 +5,8 @@ actions.add('materialDetail');actions.add('analyzeMaterial');actions.add('applyM
 actions.add('openExtractBrowser');actions.add('closeExtractBrowser');actions.add('extractBrowserStatus');
 for(const action of ['openAccountLogin','checkAccountConnection','closeAccountLogin','preparePublish','reviewPublish','publishStatus'])actions.add(action);
 actions.add('videoAudioInfo');actions.add('saveVideoShots');
+actions.add('avatarOptimize');
+for(const action of ['planAvatarBackground','generateAvatarBackground','queryAvatarBackground'])actions.add(action);
 actions.add('checkLocalLipSync');
 actions.add('discoverModels');actions.add('cancelModelDiscovery');
 actions.add('checkVoiceDesign');actions.add('designVoice');actions.add('saveDesignedVoice');

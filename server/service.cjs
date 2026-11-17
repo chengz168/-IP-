@@ -51,6 +51,13 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
     closeAccountLogin:async({accountId})=>accounts.close(accountId),
     preparePublish:async({id})=>accounts.prepare(id),
     state:async()=>({...store.state(),accounts:accounts.publicState(),avatarQueryRunIds:[...avatarRecovery.controllers.keys()],taskSummaries:summarizeTasks(store.data),...await keyState(secrets)}),
+    avatarOptimize:async p=>{
+      const id=p.id||store.data.currentId;store.draft(id);
+      if(require('./workflow-state.cjs').workflowActive(store.data,id))throw Error('该任务的自动流程正在执行，请先停止后优化形象');
+      if(store.data.runs.some(r=>['avatar','avatar-optimize','avatar-background'].includes(r.type)&&['running','queued','unknown'].includes(r.status)))throw Error('已有视频生成或形象优化任务尚未结束，请先等待或停止');
+      if(store.data.runs.some(r=>['speech','speech-test','voice-design','story-image','story-video','story-recover'].includes(r.type)&&['running','queued','unknown'].includes(r.status)))throw Error('已有声音或画面模型任务尚未结束，请先等待、停止或查询原任务');
+      return run('avatar-optimize',id,{avatarId:p.avatarId,look:p.look,background:p.background,beautyStrength:p.beautyStrength,backgroundAssetId:p.backgroundAssetId,sourceHash:p.sourceHash},ctx=>require('./avatar-appearance.cjs').processAvatarAppearance(store,media,{...p,id},ctx));
+    },
     openExtractBrowser:async()=>{if(!options.videoParserBrowser)throw Error('当前桌面环境未提供抖音解析窗口');return options.videoParserBrowser.open();},
     closeExtractBrowser:async()=>options.videoParserBrowser?.close()||true,
     extractBrowserStatus:async()=>options.videoParserBrowser?.status()||{open:false,url:'',message:'当前环境未提供抖音解析窗口'},
@@ -92,7 +99,7 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
     newDraft:async()=>{const d=createDraft();d.template=(await import('./prompt-catalog.mjs')).resolvePrompt('rewrite',store.data).id;d.voice.profile=require('./draft-defaults.cjs').localDefaultVoice(store.data);Object.assign(d.cover,{modelVersion:1,template:store.data.settings.coverDefaultTemplate||'default',fontSize:110,mask:0});store.data.drafts.unshift(d);store.data.currentId=d.id;store.save();return d;},
     selectDraft:async({id})=>{const d=store.draft(id);store.data.currentId=d.id;store.save();return d;},
     deleteDraft:async({id})=>{store.draft(id);if(store.data.workflowJobs?.some(j=>j.draftId===id&&['queued','running','stopping','unknown'].includes(j.status)))throw new Error('自动流程尚未结束或远程结果待确认，请先处理');if(store.data.runs.some(r=>r.draftId===id&&['running','queued'].includes(r.status)))throw new Error('任务正在运行或排队，请先停止');if(store.data.runs.some(r=>r.draftId===id&&r.status==='unknown'))throw new Error('远程任务结果尚未确认，暂不能删除其查询记录');store.data.drafts=store.data.drafts.filter(d=>d.id!==id);store.data.runs=store.data.runs.filter(r=>r.draftId!==id);if(store.data.workflowJobs){store.data.workflowJobs=store.data.workflowJobs.filter(j=>j.draftId!==id);if(!store.data.workflowJobs.length)delete store.data.workflowJobs;}if(!store.data.drafts.length)store.data.drafts.push(createDraft());if(store.data.currentId===id)store.data.currentId=store.data.drafts[0].id;store.save();return true;},
-    saveSettings:async p=>{if(typeof p.outputDir!=='string'||!p.provider||typeof p.provider!=='object')throw new Error('设置参数不完整');const {key,capabilityKeys,...settings}=p;if(Object.hasOwn(settings.provider,'textTimeoutSeconds'))textTimeoutSeconds(settings.provider);if(key!==undefined&&typeof key!=='string')throw new Error('密钥格式无效');if(settings.fontSize!==undefined&&!['compact','standard','comfortable','large'].includes(settings.fontSize))throw new Error('界面字号无效，请选择紧凑、标准、舒适或大');const allowed=['theme','fontSize','view','mode','outputDir','ffmpegPath','ffprobePath','subtitleFontsDir','subtitlePythonPath'];const provider={};for(const k of [...new Set([...Object.keys(store.data.settings.provider),'visionProtocol','visionBaseUrl','visionModel','ttsBaseUrl','asrBaseUrl','ttsClassicModel','ttsFastModel','indexttsHome','voiceDesignHome','musetalkHome','avatarProtocol','extractProtocol','extractPythonPath','extractPackagePath','textTimeoutSeconds'])]){const value=settings.provider[k];if(typeof value==='string')provider[k]=value.trim();else if(['textMaxTokens','textContextTokens','textTimeoutSeconds'].includes(k)&&typeof value==='number'&&Number.isFinite(value))provider[k]=String(value);}const before=structuredClone(store.data.settings),rollback=await saveKeys(secrets,{key,capabilityKeys});try{for(const k of allowed)if(typeof settings[k]==='string')store.data.settings[k]=settings[k];store.data.settings.provider={...store.data.settings.provider,...provider};store.save();}catch(error){store.data.settings=before;try{await rollback?.();}catch{throw Error('设置保存失败，密钥回退也未完成；请在模型设置核对密钥，原业务配置未更新');}throw error;}return true;},
+    saveSettings:async p=>{if(typeof p.outputDir!=='string'||!p.provider||typeof p.provider!=='object')throw new Error('设置参数不完整');const {key,capabilityKeys,...settings}=p;if(Object.hasOwn(settings.provider,'textTimeoutSeconds'))textTimeoutSeconds(settings.provider);if(key!==undefined&&typeof key!=='string')throw new Error('密钥格式无效');if(settings.fontSize!==undefined&&!['compact','standard','comfortable','large'].includes(settings.fontSize))throw new Error('界面字号无效，请选择紧凑、标准、舒适或大');const allowed=['theme','fontSize','view','mode','outputDir','ffmpegPath','ffprobePath','subtitleFontsDir','subtitlePythonPath'];const provider={};for(const k of [...new Set([...Object.keys(store.data.settings.provider),'visionProtocol','visionBaseUrl','visionModel','ttsBaseUrl','asrBaseUrl','ttsClassicModel','ttsFastModel','indexttsHome','voiceDesignHome','musetalkHome','portraitPython','portraitModel','avatarProtocol','extractProtocol','extractPythonPath','extractPackagePath','textTimeoutSeconds'])]){const value=settings.provider[k];if(typeof value==='string')provider[k]=value.trim();else if(['textMaxTokens','textContextTokens','textTimeoutSeconds'].includes(k)&&typeof value==='number'&&Number.isFinite(value))provider[k]=String(value);}const before=structuredClone(store.data.settings),rollback=await saveKeys(secrets,{key,capabilityKeys});try{for(const k of allowed)if(typeof settings[k]==='string')store.data.settings[k]=settings[k];store.data.settings.provider={...store.data.settings.provider,...provider};store.save();}catch(error){store.data.settings=before;try{await rollback?.();}catch{throw Error('设置保存失败，密钥回退也未完成；请在模型设置核对密钥，原业务配置未更新');}throw error;}return true;},
     testConnection:async()=>providers.test(),
     discoverModels:async p=>modelDiscovery.discover(p),
     cancelModelDiscovery:async({requestId})=>modelDiscovery.cancel(requestId),
@@ -147,11 +154,12 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
   let settingsSaving=false;
   const service={store,media,runtime,providers,handlers,publisher,renderCover:options.renderCover,async invoke(action,p={}){
     if(!Object.hasOwn(handlers,action))throw new Error('不支持的操作');
-    if(['speech','testSpeech','avatar','startWorkflow','checkLocalSpeech','checkLocalLipSync','generateStoryImage','generateStoryVideo'].includes(action)&&store.data.runs.some(run=>run.type==='voice-design'&&run.status==='running'))throw Error('自主音色模型正在生成，请等待或停止后再使用声音、视频模型');
+    if(['speech','testSpeech','avatar','avatarOptimize','generateAvatarBackground','designVoice','generateStoryImage','generateStoryVideo','startWorkflow','checkLocalLipSync','saveSettings','saveStoryModels','backup','restoreBackup'].includes(action)&&store.data.runs.some(r=>['avatar-optimize','avatar-background'].includes(r.type)&&['running','queued'].includes(r.status)))throw Error('形象优化正在执行，请等待完成或停止后继续');
+    if(['speech','testSpeech','avatar','avatarOptimize','generateAvatarBackground','startWorkflow','checkLocalSpeech','checkLocalLipSync','generateStoryImage','generateStoryVideo'].includes(action)&&store.data.runs.some(run=>run.type==='voice-design'&&run.status==='running'))throw Error('自主音色模型正在生成，请等待或停止后再使用声音、视频模型');
     if(backups.busy&&action!=='state')throw new Error('备份或恢复正在进行，请稍候');
     const jobs=store.data.workflowJobs||[],active=jobs.some(j=>['queued','running','stopping'].includes(j.status));
     if(active&&['saveSettings','saveAppearance','backup','restoreBackup'].includes(action))throw new Error('自动流程正在执行，请停止或等待完成后修改设置、备份或恢复');
-    const protectedActions=['confirmCopy','copyTopics','copyCandidates','useCopyCandidate','analyzeMaterial','text','extract','speech','trainVoice','avatar','render','transcribe','frame','saveCover','coverVideo','importCaptions','saveSubtitleStyle','subtitleAuxiliary','generateEditTitle','brainStudy','brainReview','brainTopics','brainCopies','selectBrain','useBrainCopy','publish','preparePublish','reviewPublish','exportPackage','deleteDraft'];
+    const protectedActions=['confirmCopy','copyTopics','copyCandidates','useCopyCandidate','analyzeMaterial','text','extract','speech','trainVoice','avatar','avatarOptimize','render','transcribe','frame','saveCover','coverVideo','importCaptions','saveSubtitleStyle','subtitleAuxiliary','generateEditTitle','brainStudy','brainReview','brainTopics','brainCopies','selectBrain','useBrainCopy','publish','preparePublish','reviewPublish','exportPackage','deleteDraft'];
     if(p.id&&(protectedActions.includes(action)||['saveVideoShots','testSpeech','prepareVoiceSample','trimVoiceSample','importVoiceSample','importRecording','designVoice','saveDesignedVoice'].includes(action))&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后手动操作');
     if(p.id&&/Story/.test(action)&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后编辑非口播内容');
     if(['proofreadSubtitles','applySubtitleProofread','restoreCaptionHistory'].includes(action)&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后校对或恢复字幕');
@@ -185,6 +193,43 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
   handlers.queryAvatarResult=p=>avatarRecovery.query({...p,continueSequence:false});
   handlers.continueAvatarSegments=p=>avatarRecovery.query({...p,continueSequence:true});
   const storyGenerator=new (require('./story-generator.cjs').StoryGenerator)(store,media,providers);
+  const avatarBackground=new(require('./avatar-background.cjs').AvatarBackground)({store,media,providers,generator:storyGenerator});
+  const backgroundReady=id=>{
+   store.draft(id);
+   if(require('./workflow-state.cjs').workflowActive(store.data,id))throw Error('该任务的自动流程正在执行，请先停止后编辑背景');
+   if(store.data.runs.some(r=>['avatar','avatar-optimize','avatar-background','voice-design','speech','speech-test','story-image','story-video','story-recover'].includes(r.type)&&['running','queued','unknown'].includes(r.status)))throw Error('已有声音、视频或背景模型任务尚未结束，请先等待、停止或查询原任务');
+   if([...runtime.controllers.keys()].some(key=>store.data.runs.find(r=>r.id===key)?.type==='avatar-background'))throw Error('原背景任务正在查询，请等待或停止');
+  };
+  handlers.planAvatarBackground=p=>{backgroundReady(p.id);return avatarBackground.plan(p);};
+  handlers.generateAvatarBackground=p=>{backgroundReady(p.id);return run('avatar-background',p.id,{...p},ctx=>avatarBackground.generate(p,ctx));};
+  handlers.queryAvatarBackground=async p=>{
+   const original=store.data.runs.find(r=>r.id===p.runId&&r.draftId===p.id&&r.type==='avatar-background');
+   if(original&&runtime.controllers.has(original.id))throw Error('此背景任务正在查询中，请等待或停止');
+   if(!original||original.status!=='unknown')throw Error('仅支持查询当前任务待确认的原背景生成记录');
+   if(store.data.runs.some(r=>r.id!==original.id&&(['running','queued'].includes(r.status)||runtime.controllers.has(r.id))))throw Error('其他任务正在执行，请等待后查询原背景');
+   if(require('./workflow-state.cjs').workflowActive(store.data,p.id))throw Error('自动流程正在执行，请先停止后查询原背景');
+   const before=structuredClone(original),controller=new AbortController();let started=false;runtime.controllers.set(original.id,controller);
+   const restore=value=>{for(const key of Object.keys(original))delete original[key];Object.assign(original,value);};
+   // 查询也占用原任务的运行态，让既有模型互斥和停止入口覆盖查询期间；未确定的异常恢复unknown。
+   original.unresolvedHistory??={status:before.status,error:before.error,endedAt:before.endedAt,progress:before.progress};original.status='running';original.queryStartedAt=new Date().toISOString();
+   try{
+    try{store.save();started=true;}catch(error){restore(before);throw error;}
+    const checkpoint=patch=>{const prior=structuredClone(original);Object.assign(original,patch);try{store.save();}catch(error){restore(prior);throw error;}};
+    const ctx={signal:controller.signal,progress:value=>{if(!controller.signal.aborted&&Number.isFinite(value))checkpoint({progress:Math.max(0,Math.min(99,value))});},remote:(remoteId,remote)=>{controller.signal.throwIfAborted();checkpoint({remoteId,remote:structuredClone(remote)});}};
+    // 上次收取成功、最后状态写盘失败时复用已登记产物，避免再次下载登记同一远端结果。
+    const input=original.remote?.input,existing=input?.inputHash&&store.data.assets.find(asset=>asset.storyGeneration?.inputHash===input.inputHash&&(original.remoteId?asset.storyGeneration.promptId===original.remoteId:asset.storyGeneration.clientId&&asset.storyGeneration.clientId===original.remote?.clientId)&&asset.storyGeneration?.target?.kind==='avatar-content-background-v1');
+    let output;if(existing){if(!fs.existsSync(existing.path)||existing.storyGeneration.outputSha256&&crypto.createHash('sha256').update(fs.readFileSync(existing.path)).digest('hex')!==existing.storyGeneration.outputSha256)throw Error('原背景产物已缺失或变化，请先核对素材，未重复收取远端结果');const target=existing.storyGeneration.target;output={asset:existing,candidate:{id:target.candidateId,label:target.label,prompt:target.prompt},source:target.source,stale:!avatarBackground.current(target.source),qualityAccepted:false};}
+    else output=await avatarBackground.recover(structuredClone(original),ctx);
+    controller.signal.throwIfAborted();const current=structuredClone(original);Object.assign(original,{status:'succeeded',progress:100,output,recoveredAt:new Date().toISOString(),queryEndedAt:new Date().toISOString()});delete original.error;
+    try{store.save();}catch(error){restore({...current,status:'unknown'});throw error;}return output;
+   }catch(error){
+    if(!started){restore(before);throw error;}
+    // 只有服务明确确认失败才解除unknown；本地停止、网络和写盘错误不能伪称远端取消。
+    if(original.status==='running')original.status=error.remoteConfirmed&&!controller.signal.aborted?'failed':'unknown';
+    original.error=controller.signal.aborted?'已停止本地背景查询，远端结果仍待确认，可稍后查询原任务':error.message;original.queryEndedAt=new Date().toISOString();
+    try{store.save();}catch(saveError){restore(before);throw saveError;}throw error;
+   }finally{if(runtime.controllers.get(original.id)===controller)runtime.controllers.delete(original.id);}
+  };
   const stories=new (require('./story-studio.cjs').StoryStudio)({store,media,providers,runtime,generator:storyGenerator});service.stories=stories;
   for(const [action,method] of Object.entries({saveStory:'save',splitStoryEpisodes:'splitEpisodes',splitStoryShots:'splitShots',extractStoryAssets:'extractAssets',generateStoryImage:'generateImage',selectStoryImage:'selectImage',generateStoryVideo:'generateVideo',selectStoryVideo:'selectVideo',composeStoryEpisode:'composeEpisode',useStoryEpisode:'useEpisode',queryStoryResult:'recover'}))handlers[action]=p=>stories[method](p);
   handlers.checkStoryModels=({provider}={})=>{if(provider!==undefined&&(!provider||typeof provider!=='object'||Array.isArray(provider)))throw Error('模型检查草稿无效');const keys=['storyImageProtocol','storyImageBaseUrl','storyImageModel','storyImageArchitecture','storyImageZUnet','storyImageZClip','storyImageZVae','storyVideoProtocol','storyVideoBaseUrl','storyVideoModel'];const draft={};for(const key of keys)if(provider?.[key]!==undefined){if(typeof provider[key]!=='string'||provider[key].length>1000)throw Error('模型检查字段无效');draft[key]=provider[key].trim();}return storyGenerator.check({},draft);};

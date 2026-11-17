@@ -16,24 +16,24 @@ function videoPlan(info){
  if(!Number.isFinite(rotation)||rotation%360!==0)throw Error('本地口型不隐式旋转，请先准备方向正确的形象');
  return {width,height,fps,frameRate:picture.avg_frame_rate,sourceFrameCount,sourceFramePolicy:'forward-reverse-repeat-endpoints-v1'};
 }
-async function probeVideo(media,file,signal){
+async function probeVideo(media,file,signal,processRunner=runProcess){
  signal?.throwIfAborted();
- return JSON.parse(await runProcess(media.binaries().ffprobe,['-v','error','-show_format','-show_streams','-of','json',file],{signal}));
+ return JSON.parse(await processRunner(media.binaries().ffprobe,['-v','error','-show_format','-show_streams','-of','json',file],{signal}));
 }
-async function constantTimeline(media,file,plan,signal){
- const text=await runProcess(media.binaries().ffprobe,['-v','error','-select_streams','v:0','-show_entries','frame=best_effort_timestamp_time','-of','csv=p=0',file],{signal});
+async function constantTimeline(media,file,plan,signal,processRunner=runProcess){
+ const text=await processRunner(media.binaries().ffprobe,['-v','error','-select_streams','v:0','-show_entries','frame=best_effort_timestamp_time','-of','csv=p=0',file],{signal});
  const times=text.split(/\r?\n/).map(line=>line.trim().split(',')[0]).filter(Boolean).map(Number);
  return times.length===plan.sourceFrameCount&&times.every((value,index)=>Number.isFinite(value)&&(!index||Math.abs(value-times[index-1]-1/plan.fps)<=1e-5));
 }
-async function prepareVideoSource({videoPath,normalizedPath,media,signal}){
+async function prepareVideoSource({videoPath,normalizedPath,media,signal,processRunner=runProcess}){
  signal?.throwIfAborted();
- const originalVideo={path:videoPath,sha256:digest(videoPath)},info=await probeVideo(media,videoPath,signal),pictures=info.streams?.filter(stream=>stream.codec_type==='video');
+ const originalVideo={path:videoPath,sha256:digest(videoPath)},info=await probeVideo(media,videoPath,signal,processRunner),pictures=info.streams?.filter(stream=>stream.codec_type==='video');
  if(pictures?.length!==1)throw Error('本地口型需要包含唯一视频流的形象');
  const picture=pictures[0];
  if(![picture.width,picture.height].every(value=>Number.isSafeInteger(Number(value))&&Number(value)>0))throw Error('形象视频的画面尺寸无效');
  const reasons=[];let plan;
  try{plan=videoPlan(info);}catch(error){reasons.push(error.message);}
- if(plan&&!await constantTimeline(media,videoPath,plan,signal))reasons.push('原始帧时间戳不是完整恒定帧率');
+ if(plan&&!await constantTimeline(media,videoPath,plan,signal,processRunner))reasons.push('原始帧时间戳不是完整恒定帧率');
  let file=videoPath;
  if(reasons.length){
   const rate=value=>{const [a,b]=String(value).split('/').map(Number);return a/b;};
@@ -41,9 +41,9 @@ async function prepareVideoSource({videoPath,normalizedPath,media,signal}){
   // 自动旋转后再按实际画幅缩放；仅建立中间副本，不修改用户原视频。
   const dimension=axis=>`max(2,trunc(${axis}*min(1,sqrt(8294400/(iw*ih)))/2)*2)`;
   const filter=`setpts=PTS-STARTPTS,fps=${fps},scale=w='${dimension('iw')}':h='${dimension('ih')}',setsar=1`;
-  await runProcess(media.binaries().ffmpeg,['-v','error','-n','-i',videoPath,'-map','0:v:0','-an','-sn','-dn','-vf',filter,'-c:v','libx264','-preset','fast','-crf','16','-pix_fmt','yuv420p','-fps_mode','cfr','-video_track_timescale',String(fps*1000),'-metadata:s:v:0','rotate=0','-movflags','+faststart',normalizedPath],{signal});
-  signal?.throwIfAborted();file=normalizedPath;plan=videoPlan(await probeVideo(media,file,signal));
-  if(!await constantTimeline(media,file,plan,signal))throw Error('自动适配后的形象视频时间轴验证失败');
+  await processRunner(media.binaries().ffmpeg,['-v','error','-n','-i',videoPath,'-map','0:v:0','-an','-sn','-dn','-vf',filter,'-c:v','libx264','-preset','fast','-crf','16','-pix_fmt','yuv420p','-fps_mode','cfr','-video_track_timescale',String(fps*1000),'-metadata:s:v:0','rotate=0','-movflags','+faststart',normalizedPath],{signal});
+  signal?.throwIfAborted();file=normalizedPath;plan=videoPlan(await probeVideo(media,file,signal,processRunner));
+  if(!await constantTimeline(media,file,plan,signal,processRunner))throw Error('自动适配后的形象视频时间轴验证失败');
  }
  signal?.throwIfAborted();
  if(digest(videoPath)!==originalVideo.sha256)throw Error('自动适配过程中原形象视频已变化');

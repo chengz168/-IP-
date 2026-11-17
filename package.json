@@ -39,7 +39,8 @@
       "integrations/indextts-local/**/*",
       "integrations/musetalk-local/**/*",
       "integrations/local-link-extractor/**/*",
-      "integrations/qwen-voice-design/**/*"
+      "integrations/qwen-voice-design/**/*",
+      "integrations/portrait-matting/**/*"
     ],
     "asarUnpack": [
       "server/local-asr.py",
@@ -47,7 +48,8 @@
       "integrations/indextts-local/**/*",
       "integrations/musetalk-local/**/*",
       "integrations/local-link-extractor/**/*",
-      "integrations/qwen-voice-design/**/*"
+      "integrations/qwen-voice-design/**/*",
+      "integrations/portrait-matting/**/*"
     ],
     "win": {
       "target": "dir",
