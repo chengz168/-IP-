@@ -47,6 +47,7 @@ class LocalLinkExtractor{
  }
  async check(ctx={}){const {python,packagePath,worker}=this.options(),result=await runWorker(python,worker,['--package',packagePath,'--mode','check'],ctx,30000);if(result.engine!=='yt-dlp'||typeof result.version!=='string'||!/^\d{4}\.\d{2}\.\d{2}(?:\..+)?$/.test(result.version))throw Error('解析器未返回可验证版本');return {...result,ready:true,platformsVerified:false};}
  async extract(value,ctx={},extractOptions={}){
+  if(extractOptions.preferVideo!==undefined&&typeof extractOptions.preferVideo!=='boolean')throw Error('优先视频参数必须为布尔值');
   const url=shareLink(value),{python,packagePath,worker}=this.options(),cookieFile=extractOptions.cookieFile||'',directory=fs.mkdtempSync(path.join(this.store.outputDir(),'.link-input-'));let asset;
   if(cookieFile&&(!path.isAbsolute(cookieFile)||!fs.existsSync(cookieFile)||!fs.statSync(cookieFile).isFile()))throw Error('浏览器会话 Cookie 文件无效');
   const cookieArgs=cookieFile?['--cookies',cookieFile]:[];
@@ -55,7 +56,7 @@ class LocalLinkExtractor{
    const metadata=await runWorker(python,worker,['--package',packagePath,'--url',url,'--mode','metadata','--output',directory,...cookieArgs],ctx);
    if(metadata.is_live||metadata.duration!=null&&(!Number.isFinite(metadata.duration)||metadata.duration<=0||metadata.duration>1800))throw Error('只支持30分钟以内的非直播音视频');
    ctx.progress?.(15,'正在下载链接对应的音视频');
-   const downloaded=await runWorker(python,worker,['--package',packagePath,'--url',url,'--mode','download','--output',directory,...cookieArgs],ctx,10*60*1000);
+   const downloaded=await runWorker(python,worker,['--package',packagePath,'--url',url,'--mode','download','--output',directory,...cookieArgs,...(extractOptions.preferVideo?['--prefer-video']:[])],ctx,10*60*1000);
    if(typeof downloaded.file!=='string'||path.dirname(path.resolve(downloaded.file))!==directory||fs.lstatSync(downloaded.file).isSymbolicLink())throw Error('解析器返回的媒体文件不在本次独立目录');
    const stat=fs.statSync(downloaded.file);if(!stat.isFile()||stat.size<=0||stat.size>maxBytes)throw Error('下载媒体为空或超过200MB');
    const info=await this.media.probe(downloaded.file),duration=Number(info.format.duration);
@@ -65,6 +66,7 @@ class LocalLinkExtractor{
    asset=this.store.addAsset(downloaded.file,{type:info.streams.some(stream=>stream.codec_type==='video')?'video':'audio',origin:'local-link-extract',sourceUrl:url,sourceTitle:metadata.title||'',duration},{persist:false});
    if(!['audio','video'].includes(asset.type))throw Error('解析媒体扩展名不受支持');
    const source={url,originalShareText:value,title:String(metadata.title||'').slice(0,2000),extractor:metadata.extractor||'',version:metadata.version,assetId:asset.id,sha256:sha(asset.path),bytes:asset.size,duration};
+   ctx.onReferenceAsset?.(asset.id,source.sha256);
    ctx.progress?.(25,'正在识别链接音轨，下载标题不会作为正文');
    const result=await this.providers.transcribe(asset.id,ctx);ctx.signal?.throwIfAborted();
    if(typeof result?.text!=='string'||!result.text.trim())throw Error('链接音轨未识别到有效文案');
@@ -83,6 +85,7 @@ class LocalLinkExtractor{
    ctx.signal?.throwIfAborted();
    asset=this.store.addAsset(file,{type:info.streams.some(stream=>stream.codec_type==='video')?'video':'audio',origin:'browser-link-extract',sourceUrl:url,sourceTitle:String(metadata.title||''),duration},{persist:false});
    const source={url,originalShareText:value,title:String(metadata.title||'').slice(0,2000),extractor:'douyin-browser-session',version:'browser-session',assetId:asset.id,sha256:sha(asset.path),bytes:asset.size,duration};
+   ctx.onReferenceAsset?.(asset.id,source.sha256);
    ctx.progress?.(25,'正在识别浏览器会话媒体音轨，页面标题不会作为正文');
    const result=await this.providers.transcribe(asset.id,ctx);ctx.signal?.throwIfAborted();
    if(typeof result?.text!=='string'||!result.text.trim())throw Error('链接音轨未识别到有效文案');

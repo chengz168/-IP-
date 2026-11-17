@@ -39,6 +39,8 @@ import {openCaptionSession} from '../caption-edit-session.mjs';
 import {getSubtitleTemplate} from '../../server/subtitle-templates.mjs';
 import {downstreamText} from '../../server/story-source.mjs';
 import {workflowOutputStatus} from '../workflow-output-status.mjs';
+import ReferenceAnalysis from '../components/ReferenceAnalysis.vue';
+import '../reference-analysis.css';
 const props=defineProps({view:String});
 const {state,draft:d,busy,activeRecognition,notify,act,refresh,save,importAssets,showDialog,newTask,navigate,stepNames,startWorkflow,workflowLocked}=inject('studio');
 const icons=['BulbOutlined','EditOutlined','SoundOutlined','VideoCameraOutlined','ScissorOutlined','PictureOutlined','RocketOutlined'];
@@ -47,7 +49,7 @@ const coverEditor=ref();
 const picker=ref(null),subtitleModal=ref(false),legal=ref(''),editTab=ref('params'),advanced=ref(false),silenceReport=ref(null);
 const captionSession=ref(null);
 function showCaptionEditor(){captionSession.value=openCaptionSession(captionSession.value,d.value);subtitleModal.value=true;}
-const tabs=[['extract','提取文案'],['brain','IP大脑'],['topic','爆款选题'],['marketing','营销文案']];
+const tabs=[['extract','提取文案'],['ref-analysis','视频拆解'],['brain','IP大脑'],['topic','爆款选题'],['marketing','营销文案']];
 const activeStep=computed(()=>d.value.step||0);
 const rewritePrompt=computed(()=>resolvePrompt('rewrite',state.value,d.value.template));
 const rewriteTemplate=computed({get:()=>rewritePrompt.value.id,set:id=>d.value.template=id});
@@ -98,6 +100,7 @@ function formatTime(n){return Number(n||0).toFixed(2);}
       <template v-if="activeStep===0"><div class="segmented main-tabs"><button v-for="[id,label] in tabs" :key="id" :class="{active:d.tab===id}" @click="d.tab=id">{{label}}</button></div>
         <div v-if="d.tab==='extract'" class="two-columns extract-columns"><article class="card extract-input"><h3>视频链接</h3><div class="align-right"><button class="text-button danger" @click="d.sourceUrl=''">清空</button></div><div class="link-input"><I name="Link"/><input v-model="d.sourceUrl" placeholder="粘贴视频分享链接或分享文本" aria-label="视频链接"/><button @click="clipboard">粘贴</button></div><div class="or">或</div><button class="upload-zone" @click="choose('all',extract,'从音视频或文本中提取文案')"><I name="Plus" :size="30"/><span><strong>从音频或视频中提取文案</strong><small>点击上传音频/视频，或直接导入已有文本。</small></span></button><button class="primary full" :disabled="!!busy" @click="extract()"><I name="Link"/>提取文案</button><p class="hint">支持直接粘贴分享文本，系统会自动识别有效链接。</p><div class="platform-hints"><span>快捷打开</span><button type="button" aria-label="打开抖音" @click="openPlatform('douyin')">抖</button><button type="button" aria-label="打开快手" @click="openPlatform('kuaishou')">快</button><button type="button" aria-label="打开小红书" @click="openPlatform('xiaohongshu')">红</button></div></article><article class="card text-card"><div class="card-heading"><h3>原文案</h3><button class="text-button" @click="d.sourceText=''">清空</button></div><textarea v-model="d.sourceText" class="large-text" placeholder="提取的文案将在这里显示，也可以直接输入或粘贴。" aria-label="原文案"></textarea><span class="word-count">{{d.sourceText.length}} 字</span></article></div>
 
+        <ReferenceAnalysis v-else-if="d.tab==='ref-analysis'"/>
         <BrainStudio v-else-if="d.tab==='brain'"/>
         <CopyStudio v-else :kind="d.tab==='topic'?'topic':'marketing'"/>
       </template>

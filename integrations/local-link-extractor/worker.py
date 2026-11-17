@@ -11,6 +11,7 @@ def main():
     parser.add_argument('--mode', choices=['check', 'metadata', 'download'], required=True)
     parser.add_argument('--output')
     parser.add_argument('--cookies', help='可选的浏览器会话 Netscape Cookie 文件')
+    parser.add_argument('--prefer-video', action='store_true', help='优先下载带音轨的视频；无可用视频时仍可保留音频')
     args = parser.parse_args()
     sys.path.insert(0, str(Path(args.package).resolve()))
     try:
@@ -50,7 +51,8 @@ def main():
                 return '媒体时长须大于0且不超过30分钟'
             return None
         options.update({
-            'format': 'bestaudio/best',
+            # 单文件带音轨视频优先，避免新增合流依赖；不可用时仍按原音轨路径回退。
+            'format': 'best[vcodec!=none][acodec!=none]/bestaudio/best' if args.prefer_video else 'bestaudio/best',
             'outtmpl': str(output / 'source.%(ext)s'),
             'max_filesize': 200 * 1024 * 1024,
             'overwrites': False,

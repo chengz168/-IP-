@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const {workflowView,skippedVoice}=require('./workflow-view.mjs');
 
 const definitions = [
-  {key:'source', name:'提取文案', types:['extract','topic','marketing']},
+  {key:'source', name:'提取文案', types:['extract','topic','marketing','reference-analysis','reference-script']},
   {key:'copy', name:'改写文案', types:['rewrite','translate']},
   {key:'voice', name:'声音生成', types:['speech']},
   {key:'video', name:'视频生成', types:['avatar','avatar-optimize','avatar-background',...require('./story-links.cjs').storyRunTypes]},

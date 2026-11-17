@@ -8,6 +8,9 @@ const {setTimeout:sleep}=require('node:timers/promises');
 // 解析窗口使用独立持久化会话。Cookie 只在本次解析时导出到临时文件，解析结束立即删除。
 const allowedHosts=['douyin.com','iesdouyin.com','snssdk.com','byteimg.com','ibytedtos.com','bytedance.com'];
 function isAllowed(url){try{const parsed=new URL(url);return parsed.protocol==='https:'&&allowedHosts.some(host=>parsed.hostname===host||parsed.hostname.endsWith('.'+host));}catch{return false;}}
+function isMediaUrl(url){try{const value=new URL(url);return value.protocol==='https:'&&['douyinvod.com','douyinpic.com'].some(host=>value.hostname===host||value.hostname.endsWith('.'+host))&&/media-audio|media-video|video_mp4|\/video\//.test(url);}catch{return false;}}
+// currentSrc能读取尚未下载完成的流媒体，避免只等onCompleted漏掉正在播放的资源。
+const mediaSnapshot=`(()=>[...Array.from(document.querySelectorAll('video')).flatMap(video=>[video.currentSrc,video.src,...Array.from(video.querySelectorAll('source')).map(source=>source.src)]),...performance.getEntriesByType('resource').map(entry=>entry.name)].filter(value=>typeof value==='string'&&value.startsWith('https://')))()`;
 function netscapeCookie(cookie){
   const domain=String(cookie.domain||'');
   const includeSubdomains=domain.startsWith('.')?'TRUE':'FALSE';
@@ -67,17 +70,19 @@ class VideoParserBrowser{
     fs.writeFileSync(file,['# Netscape HTTP Cookie File','# 此文件由本地解析临时生成，任务结束后删除',...usable.map(netscapeCookie),''].join('\n'),{mode:0o600});
     return file;
   }
-  async prepare(url,{signal}={}){
+  async prepare(url,{signal,mediaTimeoutMs=30000,pollMs=500}={}){
     if(!this.window||this.window.isDestroyed())throw Error('请先打开抖音解析窗口并完成验证');
     if(!isAllowed(url))throw Error('解析窗口只允许访问抖音及其媒体域名');
     const current=this.window,session=current.webContents.session,captured=[];
     const generation=++this.generation;
-    const filter={urls:['*://*/*']},onCompleted=details=>{if(/douyinvod\.com|douyinpic\.com/.test(details.url)&&/media-audio|media-video|video_mp4/.test(details.url))captured.push(details.url);};
+    const filter={urls:['*://*/*']},onCompleted=details=>{if(isMediaUrl(details.url))captured.push(details.url);};
     session.webRequest.onCompleted(filter,onCompleted);
-    try{await loadPage(current,url,{signal});await sleep(8000,undefined,{signal});}catch(error){if(signal?.aborted)throw Error('本地链接提取已取消');throw Error('抖音分享页加载失败：'+error.message);}finally{session.webRequest.onCompleted(filter,null);}
+    let observed=[];
+    try{await loadPage(current,url,{signal});const deadline=Date.now()+mediaTimeoutMs;
+      do{signal?.throwIfAborted();if(current.isDestroyed()||this.window!==current||generation!==this.generation)throw Error('解析窗口已关闭');const snapshot=await current.webContents.executeJavaScript(mediaSnapshot);observed=(Array.isArray(snapshot)?snapshot:[]).filter(isMediaUrl);if(observed.length||captured.length)break;await sleep(pollMs,undefined,{signal});}while(Date.now()<deadline);
+    }catch(error){if(signal?.aborted)throw Error('本地链接提取已取消');throw Error('抖音分享页加载失败：'+error.message);}finally{session.webRequest.onCompleted(filter,null);}
     if(!this.window||this.window!==current||generation!==this.generation||current.isDestroyed())throw Error('解析窗口已关闭，请重新打开后重试');
-    const mediaUrls=await current.webContents.executeJavaScript(`(()=>performance.getEntriesByType('resource').map(entry=>entry.name).filter(name=>/douyinvod\\.com|douyinpic\\.com/.test(name)&&/media-video|media-audio|video_mp4/.test(name)))()`);
-    return {url:current.webContents.getURL(),title:await current.webContents.getTitle(),mediaUrls:[...new Set([...(Array.isArray(mediaUrls)?mediaUrls:[]),...captured])],cookieFile:await this.cookieFile()};
+    return {url:current.webContents.getURL(),title:await current.webContents.getTitle(),mediaUrls:[...new Set([...observed,...captured])],cookieFile:await this.cookieFile()};
   }
   async downloadMedia(url,target,{signal}={}){
     if(!this.window||this.window.isDestroyed())throw Error('解析窗口已关闭，请重新打开后重试');
@@ -94,4 +99,4 @@ class VideoParserBrowser{
     try{return await work(prepared);}finally{if(prepared.cookieFile)fs.rmSync(prepared.cookieFile,{force:true});}
   }
 }
-module.exports={VideoParserBrowser,isAllowed,loadPage};
+module.exports={VideoParserBrowser,isAllowed,isMediaUrl,loadPage};

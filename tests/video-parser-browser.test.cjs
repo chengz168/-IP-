@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {EventEmitter}=require('node:events');
-const {VideoParserBrowser,loadPage}=require('../electron/video-parser-browser.cjs');
+const {VideoParserBrowser,isMediaUrl,loadPage}=require('../electron/video-parser-browser.cjs');
 
 function windowFixture(){
  const contents=new EventEmitter();contents.stops=0;contents.stop=()=>contents.stops++;
@@ -45,4 +45,19 @@ test('后台创建即静音且跳过首页，重复打开复用窗口，关闭�
  let redirectBlocked=false;windows[0].webContents.emit('will-redirect',{url:'bytedance://open/test',preventDefault(){redirectBlocked=true;}});assert.equal(redirectBlocked,true);
   let frameBlocked=false;windows[0].webContents.emit('will-frame-navigate',{url:'bytedance://open/frame',preventDefault(){frameBlocked=true;}});assert.equal(frameBlocked,true);
  await parser.open({silent:true});assert.equal(windows.length,1);parser.close();await parser.open({silent:true});assert.equal(windows.length,2);assert.equal(windows[1].muted,true);parser.close();
+});
+
+test('匿名页延迟产生currentSrc时继续轮询，不依赖媒体下载完成事件',async()=>{
+ const win=windowFixture();let reads=0,listener;
+ win.webContents.getURL=()=> 'https://www.douyin.com/video/123';win.webContents.getTitle=async()=> '真实测试标题';
+ win.loadURL=async()=>{};win.webContents.session={webRequest:{onCompleted:(_filter,handler)=>{listener=handler;}},cookies:{get:async()=>[]}};
+ const direct='https://v26-web.douyinvod.com/token/video/tos/file/?mime_type=video_mp4';
+ win.webContents.executeJavaScript=async script=>{assert.match(script,/currentSrc/);return ++reads<3?[]:[direct,'https://douyinvod.com.attacker.test/video/not-media'];};
+ const parser=new VideoParserBrowser({root:__dirname});parser.window=win;
+ const result=await parser.prepare('https://www.douyin.com/video/123',{mediaTimeoutMs:200,pollMs:1});assert.equal(reads,3);assert.deepEqual(result.mediaUrls,[direct]);assert.equal(listener,null);assert.equal(result.cookieFile,'');
+ assert.equal(isMediaUrl('blob:https://www.douyin.com/id'),false);assert.equal(isMediaUrl('https://fake-douyinvod.com/video/1'),false);
+});
+
+test('等待媒体期间取消立即退出并解绑采集器，不进入后备重复请求',async()=>{
+ const win=windowFixture(),controller=new AbortController();let listener;win.loadURL=async()=>{};win.webContents.session={webRequest:{onCompleted:(_filter,handler)=>{listener=handler;}}};win.webContents.executeJavaScript=async()=>{controller.abort();return [];};const parser=new VideoParserBrowser({root:__dirname});parser.window=win;await assert.rejects(parser.prepare('https://www.douyin.com/video/123',{signal:controller.signal,mediaTimeoutMs:200,pollMs:1}),/已取消/);assert.equal(listener,null);
 });
