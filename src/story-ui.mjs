@@ -47,6 +47,17 @@ export function storyEpisodeAssets(story,episode){
 
 export function storyVersionConflict(error){return /创作内容已更新，请刷新后再保存|版本冲突|版本不一致/.test(String(error?.message??error??''));}
 
+// 勾选范围独立于详情查看，提交前再次与当前筛选取交集，避免隐藏项被一起提交。
+export function storyScopedSelection(ids,items){const selected=new Set(ids||[]);return (items||[]).filter(item=>selected.has(item.id)).map(item=>item.id);}
+export function storyAssetNeedsGeneration(asset){return !asset?.selectedImageId&&!asset?.images?.some(item=>item.status==='ready');}
+export function storyBatchStatusLabel(status){return {queued:'等待生成',running:'正在生成',succeeded:'已生成候选，待确认',failed:'生成失败',unknown:'结果待确认，请查原任务',cancelled:'已停止',skipped:'未提交'}[status]||status||'状态未提供';}
+export function storyBatchSummary(run){
+  if(!run)return {items:[],counts:{total:0,finished:0,succeeded:0,failed:0,unknown:0,skipped:0,cancelled:0},active:false,uncertain:false};
+  const active=['running','queued'].includes(run.status),items=!active&&run.output?.items?run.output.items:run.parameters?.batchItems||run.batchItems||run.output?.items||[],ids=run.parameters?.batchAssetIds||[],counts={total:Math.max(ids.length,items.length),finished:0,succeeded:0,failed:0,unknown:0,skipped:0,cancelled:0};
+  for(const item of items)if(['succeeded','failed','unknown','skipped','cancelled'].includes(item.status)){counts[item.status]++;counts.finished++;}
+  return {items,counts,active,uncertain:run.status==='unknown'||counts.unknown>0};
+}
+
 export function storyEpisodeProgress(story,episode,options={}){
   const shots=episode?.shots||[],assets=storyEpisodeAssets(story,episode),media=options.media;
   const assetReady=assets.filter(item=>storySelectedCandidate(item,'image',media)),frameReady=shots.filter(item=>storySelectedCandidate(item,'image',media)),videoReady=shots.filter(item=>storySelectedCandidate(item,'video',media));

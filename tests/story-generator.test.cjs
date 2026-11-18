@@ -1,6 +1,11 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {StoryGenerator,imageGraph,videoGraph,h3Prompt,canvas,validDuration,DEFAULT_CHECKPOINT,DEFAULT_H3}=require('../server/story-generator.cjs');
 const {Media,runProcess}=require('../server/media.cjs');
+test('素材登记保存失败标记停止批量并回滚副本，不删除源文件',async t=>{
+ const {root,store,generator}=fixture(t),source=path.join(root,'source.png');fs.writeFileSync(source,'登记失败夹具');generator.verify=async()=>({width:768,height:1344});store.save=()=>{throw Error('无错误码的保存失败');};
+ await assert.rejects(generator.register(source,'image',{aspect:'9:16',inputHash:'hash',revision:1},{},{}),error=>error.message==='无错误码的保存失败'&&error.stopBatch===true);
+ assert.equal(store.data.assets.length,0);assert(fs.existsSync(source));assert(!fs.existsSync(path.join(root,'asset-0.png')));
+});
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'story-generator-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const store={data:{assets:[],settings:{provider:{}}},outputDir:()=>root,asset(id){const asset=this.data.assets.find(row=>row.id===id);if(!asset)throw Error('素材不存在');return asset;},save(){},addAsset(file,extra){const asset={id:'asset-'+this.data.assets.length,type:/\.png$/i.test(file)?'image':'video',path:path.join(root,'asset-'+this.data.assets.length+path.extname(file)),...extra};fs.copyFileSync(file,asset.path);this.data.assets.push(asset);return asset;}};return {root,store,generator:new StoryGenerator(store,new Media(store),{headers:async()=>({Authorization:'Bearer secret'}),request:async()=>{throw Error('未配置测试请求');}})};}
 function sdxlInfo(){return {CheckpointLoaderSimple:{input:{required:{ckpt_name:[[DEFAULT_CHECKPOINT]]}}},...Object.fromEntries(['KSampler','CLIPTextEncode','EmptyLatentImage','VAEDecode','VAEEncode','LoadImage','SaveImage'].map(name=>[name,{}]))};}
 const input=()=>({draftId:'draft',episodeId:'episode',shotId:'shot',prompt:'A red paper kite rises as the child runs across a grassy field. The camera tracks left slowly. Soft wind and footsteps.',duration:4,aspect:'9:16',inputHash:'input-hash',revision:3,image:{assetId:'image'}});
