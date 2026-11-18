@@ -47,3 +47,58 @@ test('本地多资产构图要求有效主参考，单资产自动选用，云�
   assert.deepEqual(storyShotProblems({...shot,selectedImageId:'confirmed-frame'},assets,{video:true,imageProtocol:'comfy'}),[]);
   assert.equal(createStoryShot().primaryReferenceAssetId,'');
 });
+
+function flowFixture(){
+ const candidate=id=>({id,status:'ready'}),asset=(id,selected=true)=>({id,name:id,kind:'character',images:[candidate(id+'-image')],selectedImageId:selected?id+'-image':''});
+ const shot=(id,ids)=>({id,assetIds:ids,images:[],videos:[],selectedImageId:'',selectedVideoId:''});
+ const story={assets:[asset('shared'),asset('scene-1',false),asset('scene-2')],episodes:[{id:'e1',shots:[shot('s1',['shared','scene-1']),shot('s2',['shared'])],resultId:''},{id:'e2',shots:[shot('s3',['shared','scene-2'])],resultId:''}]};
+ return {story,episode:story.episodes[0],candidate};
+}
+
+test('当前集资产进度只计算去重引用，待办定位具体资产，不改共享数据',async()=>{
+ const {storyEpisodeProgress,storyEpisodeAssets}=await import('../src/story-ui.mjs'),{story,episode}=flowFixture(),before=structuredClone(story);
+ assert.deepEqual(storyEpisodeAssets(story,episode).map(item=>item.id),['shared','scene-1']);const progress=storyEpisodeProgress(story,episode);
+ assert.deepEqual(progress.counts,{shots:2,assets:2,assetsReady:1,framesReady:0,videosReady:0});assert.equal(progress.next.stage,'assets');assert.equal(progress.next.target.assetId,'scene-1');assert.equal(progress.next.target.episodeId,'e1');assert.match(progress.next.reason,/已有图片候选/);assert.deepEqual(story,before);
+ assert.equal(storyEpisodeProgress(story,story.episodes[1]).counts.assetsReady,2);
+});
+
+test('未绑定或引用缺失资产优先定位镜头，来源变化使阶段回退',async()=>{
+ const {storyEpisodeProgress}=await import('../src/story-ui.mjs'),{story,episode}=flowFixture();episode.shots[0].assetIds=['missing'];let progress=storyEpisodeProgress(story,episode);assert.equal(progress.next.target.shotId,'s1');assert.equal(progress.next.target.section,'bindings');
+ episode.shots[0].assetIds=[];assert.equal(storyEpisodeProgress(story,episode).next.target.shotId,'s1');progress=storyEpisodeProgress(story,episode,{sourceChanged:true});assert.equal(progress.next.target.section,'source');assert(progress.stages.every(item=>!item.done));
+ assert.equal(storyEpisodeProgress(story,null).next.target.section,'source');assert.equal(storyEpisodeProgress(story,{id:'empty',shots:[]}).next.target.section,'episode');
+});
+
+test('首帧视频的生成候选不当作确认，过期或缺素材不计完成',async()=>{
+ const {storyEpisodeProgress,storySelectedCandidate}=await import('../src/story-ui.mjs'),{story,episode,candidate}=flowFixture();story.assets[1].selectedImageId='scene-1-image';const first=episode.shots[0],second=episode.shots[1];first.images=[candidate('f1')];let progress=storyEpisodeProgress(story,episode);assert.equal(progress.next.stage,'frames');assert.equal(progress.counts.framesReady,0);assert.match(progress.next.reason,/已有候选/);
+ first.selectedImageId='f1';second.images=[candidate('f2')];second.selectedImageId='f2';progress=storyEpisodeProgress(story,episode);assert.equal(progress.next.stage,'videos');assert.equal(progress.counts.framesReady,2);first.videos=[candidate('v1')];first.selectedVideoId='v1';second.videos=[{id:'v2',status:'stale'}];second.selectedVideoId='v2';assert.equal(storyEpisodeProgress(story,episode).counts.videosReady,1);assert(!storySelectedCandidate(second,'video'));assert(!storySelectedCandidate(first,'image',[]));assert(storySelectedCandidate(first,'image',[{id:'f1',type:'image'}]));
+ second.videos[0].status='ready';assert.equal(storyEpisodeProgress(story,episode,{narrationMissing:true}).next.label,'选择本集旁白');assert.equal(storyEpisodeProgress(story,episode).next.label,'前往合成当前集');episode.resultId='result';assert.equal(storyEpisodeProgress(story,episode).next.label,'检查当前集成片');
+});
+
+test('Z-Image绑定参考在提交前给出阻断，版本冲突与网络失败分开',async()=>{
+ const {storyShotProblems,storyVersionConflict}=await import('../src/story-ui.mjs'),assets=[{id:'one',name:'人物',selectedImageId:'image'}],shot={assetIds:['one']};assert.match(storyShotProblems(shot,assets,{imageProtocol:'comfy',imageArchitecture:'z-image-turbo'}).join(),/Z-Image.*不能使用/);assert.deepEqual(storyShotProblems(shot,assets,{imageProtocol:'compatible',imageArchitecture:'z-image-turbo'}),[]);
+ assert(storyVersionConflict(Error('创作内容已更新，请刷新后再保存，未覆盖新结果')));for(const error of ['fetch failed','无法连接模型服务','请选择资产图片','已恢复上次尚未保存的编辑'])assert(!storyVersionConflict(error));
+});
+
+async function componentFixture(options={}){
+ const fs=require('node:fs'),path=require('node:path'),vue=require('vue'),sfc=require('@vue/compiler-sfc'),helpers=await import('../src/story-ui.mjs'),filename=path.resolve(__dirname,'../src/components/StoryStudio.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename}),{story}=flowFixture();
+ Object.assign(story,{revision:1,sourceMode:'custom',sourceText:'本集测试剧本',episodeCount:2,episodeDuration:10,narrationMode:'none'});story.episodesSourceHash=await helpers.storyEpisodeFingerprint(story);for(const ep of story.episodes)for(const shot of ep.shots)Object.assign(shot,{duration:5,visual:'测试画面'});
+ helpers.storyUiDrafts.delete('task');
+ const draft=vue.ref({id:'task',story,voice:{audioId:''}}),state=vue.ref({drafts:[draft.value],assets:story.assets.flatMap(item=>item.images.map(image=>({id:image.id,type:'image'}))),runs:[],settings:{provider:{}}}),calls=[],navigation=[],notices=[];
+ const studio={state,draft,busy:vue.ref(''),workflowLocked:vue.ref(false),act:async(_,work)=>work(),refresh:async()=>{},notify:(...args)=>notices.push(args),navigate:value=>navigation.push(value),registerDraftFlusher:()=>()=>{}};
+ const call=async(action,payload)=>{calls.push({action,payload});return options.call?options.call(action,payload,{draft,state}):{story:structuredClone(JSON.parse(JSON.stringify(draft.value.story)))};};
+ const compiled=sfc.compileScript(descriptor,{id:'story-ui-test'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return'),scope=vue.effectScope();
+ const names=['computed','inject','nextTick','onBeforeUnmount','ref','watch','I','AssetPicker','Modal','StoryModelSettings','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)],values=[vue.computed,()=>studio,vue.nextTick,()=>{},vue.ref,vue.watch,{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
+ const component=new Function(...names,compiled)(...values),vm=scope.run(()=>component.setup({}, {expose(){}}));await vue.nextTick();vm.inputFingerprint.value=await helpers.storyEpisodeFingerprint(vm.story.value);await vue.nextTick();return {vm,draft,state,calls,navigation,notices,dispose:()=>scope.stop(),descriptor,sfc,filename};
+}
+
+test('真实组件模板可编译，视频页就地绑定，错误恢复仅版本冲突提供',async()=>{
+ const f=await componentFixture();try{assert.deepEqual(f.sfc.compileTemplate({id:'story-ui-test',source:f.descriptor.template.content,filename:f.filename}).errors,[]);assert.match(f.descriptor.template.content,/aria-label="视频页本地构图主参考"/);assert.match(f.descriptor.template.content,/v-if="versionConflict"[^>]*@click="loadServer"/);f.vm.error.value='fetch failed';assert.equal(f.vm.versionConflict.value,false);const before=JSON.stringify(f.vm.story.value);f.vm.loadServer();assert.equal(JSON.stringify(f.vm.story.value),before);f.vm.error.value='创作内容已更新，请刷新后再保存，未覆盖新结果';assert.equal(f.vm.versionConflict.value,true);}finally{f.dispose();}
+});
+
+test('具体待办只导航本集资产或镜头，不调用生成确认，网络错误不丢编辑',async()=>{
+ const f=await componentFixture();try{assert.equal(f.vm.assetScope.value,'episode');await f.vm.goTo(f.vm.progress.value.next.target);assert.equal(f.vm.tab.value,'assets');assert.equal(f.vm.asset.value.id,'scene-1');assert.equal(f.calls.length,0);await f.vm.goTo({tab:'videos',episodeId:'e2',shotId:'s3',section:'bindings'});assert.equal(f.vm.episode.value.id,'e2');assert.equal(f.vm.shot.value.id,'s3');assert.equal(f.calls.length,0);f.vm.setBinding('scene-1',true);assert(f.vm.shot.value.assetIds.includes('scene-1'));f.vm.primaryReference.value='scene-1';assert.equal(f.vm.shot.value.primaryReferenceAssetId,'scene-1');assert.equal(f.draft.value.story.episodes[1].shots[0].primaryReferenceAssetId,undefined);f.vm.error.value='fetch failed';f.vm.loadServer();assert(f.vm.shot.value.assetIds.includes('scene-1'));assert.equal(f.calls.length,0);}finally{f.dispose();}
+});
+
+test('组件网络失败只提交一次并保留旧稿，unknown任务阻止导航生成',async()=>{
+ const f=await componentFixture({call:async()=>{throw Error('fetch failed');}});try{const before=JSON.stringify(f.vm.story.value);await f.vm.run('generateStoryImage',{assetId:'scene-1'},'生成资产图片');assert.equal(f.calls.length,1);assert.equal(f.vm.error.value,'fetch failed');assert.equal(f.vm.versionConflict.value,false);assert.equal(JSON.stringify(f.vm.story.value),before);f.state.value.runs.push({id:'unknown',draftId:'task',type:'story-image',status:'unknown'});await f.vm.run('generateStoryImage',{assetId:'scene-1'});await f.vm.goTo({tab:'videos',episodeId:'e2'});assert.equal(f.calls.length,1);assert.equal(f.vm.tab.value,'episodes');assert.equal(f.vm.episode.value.id,'e1');}finally{f.dispose();}
+});

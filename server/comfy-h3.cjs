@@ -37,9 +37,25 @@ class ComfyH3{
  observe(remote,ctx={},details={}){return observeComfy({baseUrl:localBase(remote.baseUrl),clientId:remote.clientId,graph:remote.graph,signal:ctx.signal,onActivity:ctx.activity,...details});}
  sequence(){if(!this.sequenceRunner){const {H3Sequence}=require('./h3-sequence.cjs');this.sequenceRunner=new H3Sequence(this.store,this.media,this);}return this.sequenceRunner;}
  async request(base,route,options={},ctx={}){
-  return fetch(localBase(base)+route,{...options,signal:ctx.signal?AbortSignal.any([ctx.signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});
+  const address=localBase(base),deadline=AbortSignal.timeout(20000),signal=ctx.signal?AbortSignal.any([ctx.signal,deadline]):deadline;
+  try{return await fetch(address+route,{...options,signal});}
+  catch(cause){
+   // 这里只说明连接阶段；提交是否可能生效仍由submit及原任务凭据判断。
+   const message=ctx.signal?.aborted?'ComfyUI 请求已停止：'+address:deadline.aborted||cause.name==='TimeoutError'?'ComfyUI 请求超时：'+address+'，请检查服务状态后重试原查询':'无法连接 ComfyUI 本地服务：'+address+'，请先启动该服务并核对模型设置中的地址';
+   throw new Error(message,{cause});
+  }
  }
- async json(base,route,options={},ctx={}){const response=await this.request(base,route,options,ctx);const result=await response.json();if(!response.ok){const error=Error('ComfyUI 返回HTTP '+response.status+'：'+JSON.stringify(result).slice(0,1000));error.httpStatus=response.status;throw error;}return result;}
+ async json(base,route,options={},ctx={}){
+  const response=await this.request(base,route,options,ctx);let result,parseError;
+  try{result=await response.json();}catch(error){
+   if(ctx.signal?.aborted)throw new Error('ComfyUI 请求已停止：'+localBase(base),{cause:error});
+   if(error.name==='TimeoutError'||error.name==='AbortError')throw new Error('ComfyUI 响应读取超时：'+localBase(base)+'，请检查服务状态后重试原查询',{cause:error});
+   parseError=error;
+  }
+  // HTTP拒绝即使返回非JSON也保留状态，避免把明确拒绝误判为提交结果未知。
+  if(!response.ok){const error=new Error('ComfyUI 返回HTTP '+response.status+'：'+localBase(base)+(parseError?'，服务未返回有效JSON':'：'+JSON.stringify(result).slice(0,1000)),parseError?{cause:parseError}:undefined);error.httpStatus=response.status;throw error;}
+  if(parseError)throw new Error('ComfyUI 响应不是有效JSON：'+localBase(base),{cause:parseError});return result;
+ }
  async upload(base,file,subfolder,ctx){const form=new FormData();form.set('image',new Blob([fs.readFileSync(file)]),path.basename(file));form.set('type','input');form.set('subfolder',subfolder);const result=await this.json(base,'/upload/image',{method:'POST',body:form},ctx);if(typeof result.name!=='string'||typeof result.subfolder!=='string'||result.type!=='input')throw Error('ComfyUI 没有返回有效输入文件');return {...result,sha256:sha(file)};}
  async submit(base,graph,tag,ctx){
   try{

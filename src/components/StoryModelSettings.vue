@@ -2,7 +2,7 @@
 import {computed,inject,ref,watch} from 'vue';
 import {call} from '../api';
 const {state,busy,workflowLocked,notify,refresh}=inject('studio');
-const expanded=ref(false),working=ref(false),result=ref(''),inspection=ref(null);
+const expanded=ref(false),working=ref(false),result=ref(''),inspection=ref(null),checkedAt=ref('');
 const config=ref({}),baseline=ref('');
 const defaults={storyImageProtocol:'comfy',storyImageBaseUrl:'http://127.0.0.1:8188',storyImageModel:'sd_xl_base_1.0.safetensors',storyImageArchitecture:'sdxl',storyImageZUnet:'z_image_turbo_bf16.safetensors',storyImageZClip:'qwen_3_4b.safetensors',storyImageZVae:'ae.safetensors',storyVideoProtocol:'comfy-h3',storyVideoBaseUrl:'http://127.0.0.1:8188',storyVideoModel:'minimax_h3_fl2va_pruned_int8_convrot.safetensors'};
 const keys=Object.keys(defaults);
@@ -12,7 +12,8 @@ read();
 const dirty=computed(()=>JSON.stringify(config.value)!==baseline.value);
 const savedSignature=computed(()=>JSON.stringify(savedConfig()));
 // 只跟踪本组件字段；轮询与其他设置更新都不能覆盖尚未保存的输入。
-watch(savedSignature,()=>{if(!working.value&&!dirty.value)read();});
+watch(savedSignature,()=>{inspection.value=null;checkedAt.value='';if(!working.value&&!dirty.value)read();});
+watch(()=>JSON.stringify(config.value),()=>{inspection.value=null;checkedAt.value='';});
 const serverChanged=computed(()=>dirty.value&&savedSignature.value!==baseline.value);
 const activeTask=computed(()=>state.value.runs.some(run=>['running','queued'].includes(run.status))||(state.value.workflowJobs||[]).some(job=>['running','queued','stopping'].includes(job.status)));
 const lockReason=computed(()=>working.value?'正在保存或检查模型设置':busy.value?'当前操作尚未结束，请完成后修改模型设置':workflowLocked.value||activeTask.value?'当前有任务正在执行，请结束后修改非口播模型设置':'');
@@ -20,13 +21,18 @@ const locked=computed(()=>!!lockReason.value);
 const localImage=computed(()=>config.value.storyImageProtocol==='comfy');
 const textOnly=computed(()=>config.value.storyImageArchitecture==='z-image-turbo');
 const available=computed(()=>inspection.value?.image?.available||{});
-function showInspection(checked){inspection.value=checked;result.value=typeof checked==='string'?checked:JSON.stringify(checked,null,2);}
+function showInspection(checked){inspection.value=checked;checkedAt.value=new Date().toLocaleTimeString('zh-CN');result.value=typeof checked==='string'?checked:JSON.stringify(checked,null,2);}
+function inspectionText(kind){const item=inspection.value?.[kind];if(!item)return '尚未检查';if(!['comfy','comfy-h3'].includes(item.protocol))return '云端配置 · 需实际生成验证';if(!item.connected)return item.error||'本地服务未连接，请启动 ComfyUI 后重新检查';if(item.ready)return '连接正常，所需节点与权重齐备';return '连接正常，缺少：'+[...(item.missingNodes||[]),...(item.missingModels||[]),...(item.invalidOptions||[])].join('、');}
+function open(){expanded.value=true;}
+defineExpose({open,check:discover});
 async function discover(){if(locked.value)return;working.value=true;result.value='';try{showInspection(await call('checkStoryModels',{provider:{...config.value}}));}catch(error){notify(error.message,'error');}finally{working.value=false;}}
 async function save(check=false){if(locked.value)return;working.value=true;result.value='';try{await call('saveStoryModels',{provider:{...config.value}});await refresh();read();if(check)showInspection(await call('checkStoryModels'));else notify('非口播模型设置已保存','success');}catch(error){notify(error.message,'error');}finally{working.value=false;}}
 </script>
 <template>
   <section class="story-model-settings">
-    <button class="text-button" :aria-expanded="expanded" @click="expanded=!expanded">{{expanded?'收起':'展开'}}非口播模型设置 · 图片 / 动态视频</button>
+    <div class="story-model-heading"><button class="text-button" :aria-expanded="expanded" @click="expanded=!expanded">{{expanded?'收起':'展开'}}非口播模型设置 · 图片 / 动态视频</button><button :disabled="locked" @click="discover">{{working?'正在检查…':'检查图片与视频服务'}}</button></div>
+    <div class="story-service-summary" aria-live="polite"><p v-for="item in [['image','图片'],['video','视频']]" :key="item[0]" :class="{unready:inspection?.[item[0]]&&!inspection[item[0]].ready}"><strong>{{item[1]}}服务</strong><span>{{inspectionText(item[0])}}</span></p></div>
+    <p class="hint">{{checkedAt?'检查于 '+checkedAt+'，仅代表当时连接及模型状态，生成结果仍需预览确认。':'生成前可先检查连接与模型；检查不会提交生成任务。'}}{{dirty?' 当前检查使用未保存输入，生成使用已保存配置。':''}}</p>
     <div v-if="expanded" class="story-model-form">
       <p class="hint">拆集与分镜使用设置中的文本模型。图片、动态视频可各自选择本地或云端；云端使用对应能力的独立密钥，未配置时沿用全局密钥。</p>
       <p v-if="lockReason" class="hint" role="status">{{lockReason}}</p>
@@ -53,10 +59,11 @@ async function save(check=false){if(locked.value)return;working.value=true;resul
       <p v-else class="hint">本地 SDXL 仅主参考图片参与图生图，其余绑定只传文字，不提供多图或身份一致性保证。云端参考图需要可用的图片编辑接口。H3 单镜头支持 4～15 秒。</p>
       <p v-if="inspection?.image" class="hint" role="status">图片检查：{{inspection.image.ready?'所需节点与权重齐备，尚未验证生成':'当前配置未就绪'}}；参考方式：{{inspection.image.referenceMode||'未确认'}}。模型列表读取不会执行生成或更改设置。</p>
       <div class="story-model-actions"><button :disabled="locked" @click="discover">{{working?'正在检查…':'读取本地模型与能力（不保存）'}}</button><button :disabled="locked" @click="save(false)">保存模型设置</button><button :disabled="locked" @click="save(true)">保存并检查本地能力</button></div>
-      <pre v-if="result" class="story-model-result">{{result}}</pre>
+      <details v-if="result"><summary>查看完整检查信息</summary><pre class="story-model-result">{{result}}</pre></details>
     </div>
   </section>
 </template>
 <style scoped>
+.story-model-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.story-service-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-block:12px}.story-service-summary p{margin:0;display:grid;gap:6px;padding:10px 12px;border:1px solid var(--border,#454152);border-radius:8px;min-width:0;overflow-wrap:anywhere;line-height:1.6}.story-service-summary .unready{border-color:var(--warning,#c89146)}.story-service-summary span{font-size:13px}.story-model-heading button{min-height:36px}@media(max-width:760px){.story-service-summary{grid-template-columns:minmax(0,1fr)}}
 .story-model-settings{margin-block:12px;border:1px solid var(--border,#454152);border-radius:12px;padding:12px 16px;background:var(--card-bg,rgba(255,255,255,.025))}.story-model-form{display:grid;gap:14px;padding-top:12px}.story-model-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.story-model-grid label{display:grid;gap:8px;min-width:0}.story-model-grid input,.story-model-grid select{width:100%;min-width:0}.story-model-actions{display:flex;gap:12px;flex-wrap:wrap}.story-model-result{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font-size:12px}.hint{margin:0;line-height:1.7}@media(max-width:1100px){.story-model-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.story-model-grid{grid-template-columns:minmax(0,1fr)}}
 </style>

@@ -7,6 +7,14 @@ function fixture(){const d={id:'draft',confirmed:true,finalText:'小明走进花
  const studio=new StoryStudio({store,providers,runtime:new Runtime(store),media:{},generator});return {studio,d,store,calls,responses,assets,generator};}
 async function oneEpisode(f){const initial=createStory(f.d);initial.episodeDuration=4;await f.studio.save({id:'draft',story:initial,revision:0});await f.studio.splitEpisodes({id:'draft'});const episode=f.d.story.episodes[0];f.responses.push({shots:[{endUnit:require('../server/story-text-ranges.cjs').sourceUnits(episode.text).length,visual:'一人花园浇花',action:'拿起水壶',camera:'中景固定',sound:'环境声',duration:4,imagePrompt:'花园中的小明',videoPrompt:'小明拿起水壶'}]});await f.studio.splitShots({id:'draft',episodeId:episode.id});return {episodeId:episode.id,shotId:f.d.story.episodes[0].shots[0].id};}
 async function imageAndVideo(f,target){const image=await f.studio.generateImage({id:'draft',...target});await f.studio.selectImage({id:'draft',...target,imageId:image.material.id});const video=await f.studio.generateVideo({id:'draft',...target});await f.studio.selectVideo({id:'draft',...target,videoId:video.material.id});return video;}
+
+test('视频生成完整传入当前镜头画面动作运镜声音，高级提示词不覆盖当前编辑',async()=>{
+ const f=fixture(),target=await oneEpisode(f);let s=structuredClone(f.d.story),shot=s.episodes[0].shots[0];
+ Object.assign(shot,{visual:'狸花猫坐在窗边',action:'猫咪自然眨眼',camera:'中近景固定机位',sound:'室内低环境声，无音乐',videoPrompt:'Earlier advanced prompt'});await f.studio.save({id:'draft',story:s,revision:s.revision});
+ await imageAndVideo(f,target);const input=f.calls.find(item=>item.kind==='video').input;
+ for(const value of ['Earlier advanced prompt','Scene: 狸花猫坐在窗边','Action: 猫咪自然眨眼','Camera: 中近景固定机位','Sound: 室内低环境声，无音乐','take precedence'])assert(input.prompt.includes(value));
+ assert.equal(f.d.story.episodes[0].shots[0].videoPrompt,'Earlier advanced prompt');assert.equal(input.duration,4);
+});
 test('当前集交接归档旧标题封面发布正文，无旁白默认不识别环境音，保存失败完整回滚',async()=>{
  const f=fixture(),target=await oneEpisode(f);await imageAndVideo(f,target);await f.studio.composeEpisode({id:'draft',episodeId:target.episodeId});
  f.d.edit.title='旧集标题';f.d.edit.subtitle='旧集副标题';f.d.edit.subtitlesEnabled=true;f.d.cover={title:'旧封面',subtitle:'旧副标题',backgroundId:'old-image',assetId:'cover',scene:{layers:[{id:'main',text:'旧封面',binding:'title'}]}};f.d.publish={title:'旧发布标题',description:'旧集发布信息',tags:['旧集'],videoId:'old'};
