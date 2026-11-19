@@ -8,11 +8,21 @@ import {createKeyDrafts,keyChanges} from '../provider-key-drafts.mjs';
 import {createProtocolDrafts,createDiscoveryController,discoveryModels} from '../model-settings.mjs';
 import {fontPresets,normalizeFontSize} from '../typography.mjs';
 const props=defineProps({initialTab:{type:String,default:'general'}});
-const {state,busy,act,notify,showDialog,refresh}=inject('studio');const config=ref(JSON.parse(JSON.stringify(state.value.settings))),key=ref(''),changeKey=ref(false),tab=ref(props.initialTab);const desktop=window.studio;const restorePath=ref(''),restoreDialog=ref(false);
+const {state,busy,act,notify,showDialog,refresh,registerPageLeaveGuard}=inject('studio');const config=ref(JSON.parse(JSON.stringify(state.value.settings))),key=ref(''),changeKey=ref(false),tab=ref(props.initialTab);const desktop=window.studio;const restorePath=ref(''),restoreDialog=ref(false);
 watch(()=>props.initialTab,value=>{if(tabs.some(item=>item[0]===value))tab.value=value;});
 const tabs=[['general','常规设置','SettingOutlined'],['models','模型设置','RobotOutlined'],['prompts','提示词管理','FormOutlined'],['data','数据设置','DatabaseOutlined'],['update','软件更新','CloudDownloadOutlined']];
 const keyDrafts=ref(createKeyDrafts());
 Object.assign(config.value.provider,{visionProtocol:config.value.provider.visionProtocol||'ollama',visionBaseUrl:config.value.provider.visionBaseUrl||'',visionModel:config.value.provider.visionModel||'',ttsBaseUrl:config.value.provider.ttsBaseUrl||'',asrBaseUrl:config.value.provider.asrBaseUrl||'',avatarProtocol:config.value.provider.avatarProtocol||'compatible'});
+const environmentEditor=ref(null),settingsSaving=ref(false),leaveDialog=ref(false),leaveSaving=ref(false),leaveError=ref('');
+function generalSnapshot(){const {localEnvironment,...general}=config.value;return JSON.parse(JSON.stringify(general));}
+const settingsBaseline=ref(JSON.stringify(generalSnapshot()));
+const settingsDirty=computed(()=>JSON.stringify(generalSnapshot())!==settingsBaseline.value||!!key.value||changeKey.value||Object.values(keyDrafts.value).some(draft=>draft.action!=='keep'||!!draft.value));
+const hasUnsavedSettings=computed(()=>settingsDirty.value||!!environmentEditor.value?.dirty);
+let finishLeave=null;
+function requestLeave(){if(settingsSaving.value||environmentEditor.value?.pending){notify('请等待设置操作完成后再离开');return false;}if(!hasUnsavedSettings.value)return true;if(finishLeave)return false;leaveDialog.value=true;leaveError.value='';return new Promise(resolve=>finishLeave=resolve);}
+function resolveLeave(allowed){if(leaveSaving.value)return;leaveDialog.value=false;const finish=finishLeave;finishLeave=null;finish?.(allowed);}
+async function saveAndLeave(){if(leaveSaving.value)return;leaveSaving.value=true;leaveError.value='';let allowed=false;try{if(settingsDirty.value&&!await save()){leaveError.value='设置未能保存，请检查错误提示并继续编辑。';return;}if(environmentEditor.value?.dirty&&!await environmentEditor.value.save()){leaveError.value='启动配置未能保存，已保留输入。请继续编辑后重试。';return;}allowed=true;}catch(error){leaveError.value=error.message||'保存失败，输入已保留。';}finally{leaveSaving.value=false;if(allowed)resolveLeave(true);}}
+const unregisterLeave=registerPageLeaveGuard?.(requestLeave);
 const protocolDrafts=createProtocolDrafts();
 function switchProtocol(group,value){protocolDrafts.switch(config.value.provider,group,value);}
 const capabilities=['text','vision','tts','asr'];
@@ -26,7 +36,7 @@ function discoverySignature(name){
 for(const name of capabilities)watch(()=>discoverySignature(name),()=>{controllers[name].invalidate();discoveries.value[name]={phase:'idle',models:[],message:'设置已变化，请刷新读取对应来源的模型。当前配置已保留。'};},{flush:'sync'});
 function cancelDiscovery(name){controllers[name].invalidate();discoveries.value[name]={phase:'cancelled',models:[],message:'已取消本次读取，当前配置已保留。'};}
 watch(tab,(value,prior)=>{if(prior==='models'&&value!=='models')for(const name of capabilities)if(discoveries.value[name].phase==='loading')cancelDiscovery(name);});
-onBeforeUnmount(()=>{for(const name of capabilities)controllers[name].invalidate();});
+onBeforeUnmount(()=>{unregisterLeave?.();finishLeave?.(false);finishLeave=null;for(const name of capabilities)controllers[name].invalidate();});
 async function discover(name){
  if(discoveries.value[name].phase==='loading')return;
  let changes;try{changes=keyChanges(keyDrafts.value,{validate:true,only:name});}catch(error){notify(error.message,'error');return;}
@@ -49,14 +59,14 @@ const extractProtocol=computed({get:()=>config.value.provider.extractProtocol||(
 async function checkLinkExtractor(){if(!await save())return;const r=await act('检查链接解析器',()=>call('checkLinkExtractor'));if(r)showDialog('本地链接解析器可用','yt-dlp '+r.version+'\n版本检查通过，平台链接仍需实际解析验证。');}
 async function openExtractBrowser(){const r=await act('打开抖音解析窗口',()=>call('openExtractBrowser'));if(r)showDialog('抖音解析窗口已打开','请在独立窗口中完成登录、验证码或其他平台验证，然后回到工作台点击“提取文案”。解析会使用该窗口的会话，不会读取其他浏览器的Cookie。');}
 const currentFontPreset=computed(()=>fontPresets.find(preset=>preset.id===normalizeFontSize(state.value.settings.fontSize)));
-async function changeFontSize(id){if(id===normalizeFontSize(state.value.settings.fontSize))return;const result=await act('切换界面字号',()=>call('saveAppearance',{fontSize:id}));if(result){config.value.fontSize=result.fontSize;notify('界面字号已切换为'+fontPresets.find(preset=>preset.id===id).label,'success');}}
+async function changeFontSize(id){if(id===normalizeFontSize(state.value.settings.fontSize))return;const result=await act('切换界面字号',()=>call('saveAppearance',{fontSize:id}));if(result){config.value.fontSize=result.fontSize;const baseline=JSON.parse(settingsBaseline.value);baseline.fontSize=result.fontSize;settingsBaseline.value=JSON.stringify(baseline);notify('界面字号已切换为'+fontPresets.find(preset=>preset.id===id).label,'success');}}
 // 启动配置通过专用组件保存，避免本页旧快照覆盖刚刚保存的新路径。
-async function save(){let changes;try{changes=keyChanges(keyDrafts.value,{validate:true});}catch(error){notify(error.message,'error');return false;}const {localEnvironment,...generalSettings}=config.value;const r=await act('保存设置',()=>call('saveSettings',{...generalSettings,...(changeKey.value?{key:key.value}:{}),capabilityKeys:changes}));if(r){key.value='';changeKey.value=false;keyDrafts.value=createKeyDrafts();notify('设置已保存','success');}return r;}
+async function save(){if(settingsSaving.value)return false;if(key.value&&!changeKey.value){notify('API Key 已填写，请勾选“更新密钥”后保存，或清空输入以保留原密钥。','error');return false;}let changes;try{changes=keyChanges(keyDrafts.value,{validate:true});}catch(error){notify(error.message,'error');return false;}const generalSettings=generalSnapshot(),payload={...generalSettings,...(changeKey.value?{key:key.value}:{}),capabilityKeys:changes};settingsSaving.value=true;try{const r=await act('保存设置',()=>call('saveSettings',payload));if(r){settingsBaseline.value=JSON.stringify(generalSettings);key.value='';changeKey.value=false;keyDrafts.value=createKeyDrafts();notify('设置已保存','success');}return r;}finally{settingsSaving.value=false;}}
 async function check(action){if(!await save())return;const r=await act('检查连接',()=>call(action));if(r)showDialog(action==='checkMedia'?'媒体工具可用':'模型服务已连接',action==='checkMedia'?r.ffmpeg+'\n'+r.ffprobe:'服务返回 '+r.models.length+' 个模型。\n'+r.models.slice(0,15).join('、'));}
 async function directory(){if(window.studio){const dir=await window.studio.chooseDirectory();if(dir)config.value.outputDir=dir;}else notify('浏览器预览中请填写绝对路径；桌面程序可打开文件夹选择器');}
 async function backup(){const r=await act('备份任务与素材',()=>call('backup'));if(r)showDialog('备份已导出',r.directory+'\n已复制 '+r.assets+' 项素材。\n'+r.note);}
 async function restoreDirectory(){if(desktop){const directory=await desktop.chooseDirectory();if(directory)restorePath.value=directory;}}
-async function restore(){restoreDialog.value=false;const r=await act('恢复任务与素材',()=>call('restoreBackup',{directory:restorePath.value}));if(r){await refresh(true);protocolDrafts.clear();config.value=JSON.parse(JSON.stringify(state.value.settings));showDialog('恢复完成','已恢复 '+r.drafts+' 个任务、'+r.assets+' 项素材。\n恢复前副本：'+r.safetyDirectory+'\n'+r.note);}}
+async function restore(){restoreDialog.value=false;const r=await act('恢复任务与素材',()=>call('restoreBackup',{directory:restorePath.value}));if(r){await refresh(true);protocolDrafts.clear();config.value=JSON.parse(JSON.stringify(state.value.settings));settingsBaseline.value=JSON.stringify(generalSnapshot());showDialog('恢复完成','已恢复 '+r.drafts+' 个任务、'+r.assets+' 项素材。\n恢复前副本：'+r.safetyDirectory+'\n'+r.note);}}
 function useOllama(){switchProtocol('text','ollama');config.value.mode='own';config.value.provider.baseUrl='http://127.0.0.1:11434/v1';config.value.provider.textMaxTokens='2048';notify('已在设置草稿中填写本机地址，保存后生效；请刷新读取已有模型。');}
 async function checkLocalSpeech(){
  if(!await save())return;
@@ -91,10 +101,11 @@ const currentHeading=computed(()=>headings[tab.value]);
 </script>
 
 <template>
-<section class="management-page settings-page"><div class="settings-layout">
+<section class="management-page settings-page"><div class="settings-layout" :inert="settingsSaving||leaveSaving">
   <aside class="settings-nav"><header><I name="SettingOutlined" :size="currentFontPreset.pageTitle"/><h1>设置</h1></header><nav aria-label="设置分类"><button v-for="[id,label,icon] in tabs" :key="id" :class="{active:tab===id}" @click="tab=id"><I :name="icon" :size="currentFontPreset.body"/>{{label}}</button></nav><footer>本地版本 0.1.0</footer></aside>
-  <article class="settings-content"><header class="settings-heading"><h2>{{currentHeading[0]}}</h2><p>{{currentHeading[1]}}</p></header>
-  <div :key="tab" class="settings-body" :class="'settings-'+tab">
+  <article class="settings-content"><header class="settings-heading"><h2>{{currentHeading[0]}}</h2><p>{{currentHeading[1]}}</p><p v-if="hasUnsavedSettings" class="hint" role="status">设置有未保存的修改，离开前可保存或放弃。</p></header>
+  <div class="settings-body" :class="'settings-'+tab">
+    <div v-show="tab==='models'" class="settings-form-section"><LocalEnvironment ref="environmentEditor" configure/></div>
     <template v-if="tab==='general'">
       <div class="settings-form-section">
         <label class="settings-field">界面主题<select v-model="config.theme" class="short-control"><option value="default">默认主题</option><option value="midnight">午夜蓝</option></select></label><p class="hint">选择应用的配色主题，保存后生效</p>
@@ -108,7 +119,6 @@ const currentHeading=computed(()=>headings[tab.value]);
       <div class="settings-footer"><button class="primary" :disabled="!!busy" @click="save">保存设置</button></div>
     </template>
     <template v-else-if="tab==='models'">
-      <div class="settings-form-section"><LocalEnvironment configure/></div>
       <div class="settings-form-section"><span class="field-title">按能力选择模型来源</span><p class="hint">文本、视觉、语音合成和语音识别可分别选择云端兼容服务或已有本机引擎。刷新只读取列表或已有文件，不自动保存设置、下载模型或生成内容。</p></div>
       <div class="settings-form-section"><h3>全局服务密钥</h3><label class="settings-field">API Key</label><div class="inline"><input v-model="key" type="password" autocomplete="new-password" :placeholder="state.keyConfigured?'已配置，填写后勾选更新':'尚未配置'" aria-label="API Key"/><label class="check-row"><input v-model="changeKey" type="checkbox"/>更新密钥</label></div><p class="hint">未设置独立密钥的能力沿用此项。勾选更新后留空保存可清除全局密钥。桌面版使用Windows加密存储；浏览器预览仅在本次服务进程中使用。</p></div>
       <CapabilityKeys :drafts="keyDrafts" :configured="state.capabilityKeyConfigured" :global-configured="state.keyConfigured"/>
@@ -136,5 +146,6 @@ const currentHeading=computed(()=>headings[tab.value]);
   </div></article>
 </div>
 <Modal v-if="restoreDialog" title="确认恢复备份" @close="restoreDialog=false"><p>恢复将替换当前任务、资源列表及执行记录，并复制备份中的素材。当前数据会先保存为恢复前副本。</p><p class="hint">{{restorePath}}</p><template #footer><button @click="restoreDialog=false">取消</button><button class="primary" @click="restore">确认恢复</button></template></Modal>
+<Modal v-if="leaveDialog" title="设置尚未保存" :close-disabled="leaveSaving" @close="resolveLeave(false)"><p>当前设置有未保存的修改。保存成功后再离开；选择放弃将丢弃本页尚未保存的输入。</p><p class="hint">模型设置与本地启动配置分别保存，密钥仅在明确保存时提交。</p><p v-if="leaveError" role="alert">{{leaveError}}</p><template #footer><button :disabled="leaveSaving" @click="resolveLeave(false)">继续编辑</button><button :disabled="leaveSaving" @click="resolveLeave(true)">放弃修改</button><button class="primary" :disabled="leaveSaving||!!busy||settingsSaving||!!(environmentEditor?.dirty&&environmentEditor?.blocked)" @click="saveAndLeave">{{leaveSaving?'正在保存…':'保存并离开'}}</button></template></Modal>
 </section>
 </template>

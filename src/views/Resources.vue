@@ -16,7 +16,13 @@ const records=computed(()=>state.value[props.page]?.filter(v=>v.name?.includes(s
 const assets=computed(()=>state.value.assets.filter(a=>a.name.includes(search.value)&&(filter.value==='all'||filter.value===a.type)&&(category.value==='全部素材'||a.category===category.value)));
 watch(()=>props.page,()=>{search.value='';editing.value=null;preview.value=null;});
 function add(){editing.value={name:'',description:'',assetId:'',sampleId:'',remoteId:'',platform:'抖音',category:'全部素材',tags:[]};}
-async function save(){const r=await act('保存资源',()=>call('saveResource',{type:kind.value,item:editing.value}));if(r){editing.value=null;notify('资源已保存','success');}}
+async function save(){
+  if(!editing.value||busy.value)return;
+  // 等待草稿保存期间，弹窗可能被关闭或重新打开；提交固定快照，只结束原编辑会话。
+  const session=editing.value,payload={type:kind.value,item:JSON.parse(JSON.stringify(editing.value))};
+  const r=await act('保存资源',()=>call('saveResource',payload));
+  if(r){if(editing.value===session)editing.value=null;notify('资源已保存','success');}
+}
 async function remove(){const target=deleting.value;const r=await act('删除记录',()=>call(props.page==='assets'?'deleteAsset':'deleteResource',props.page==='assets'?{id:target.id}:{type:kind.value,id:target.id}));if(r){deleting.value=null;notify('已删除','success');}}
 function selected(a){if(kind.value==='voice')editing.value.sampleId=a.id;else editing.value.assetId=a.id;picker.value=false;}
 async function addCategory(){if(!categoryName.value.trim())return;const r=await act('添加分类',()=>call('addCategory',{name:categoryName.value}));if(r){category.value=categoryName.value;categoryName.value='';categoryDialog.value=false;}}
@@ -28,3 +34,8 @@ async function addCategory(){if(!categoryName.value.trim())return;const r=await 
 <Modal v-if="preview" :title="preview.name" wide @close="preview=null"><MediaPreview v-if="preview.type!=='text'" :id="preview.id" :type="preview.type"/><p v-else class="hint">文本文件可在学习对标或字幕编辑中导入。</p></Modal>
 <Modal v-if="deleting" title="确认删除" @close="deleting=null"><p>删除“{{deleting.name}}”？被任务引用的资源需要先解除引用。</p><template #footer><button @click="deleting=null">取消</button><button class="danger-button" @click="remove">删除</button></template></Modal>
 </template>
+
+<style scoped>
+/* 长网址、模型编号与连续字符按卡片边界断行，保留完整描述。 */
+.resource-card{min-width:0}.resource-card>h3,.resource-card>p{min-width:0;max-width:100%;overflow-wrap:anywhere;white-space:normal}.resource-card>.toolbar{min-width:0}
+</style>

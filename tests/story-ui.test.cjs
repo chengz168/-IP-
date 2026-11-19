@@ -124,3 +124,12 @@ test('资产查看与勾选独立，筛选裁剪勾选，批量携带各自要�
 test('停止只取消当前外层批量ID并等待真实状态，unknown只显示查询不重交',async()=>{
  const f=await componentFixture();try{f.state.value.runs=[{id:'batch-outer',draftId:'task',type:'story-image',status:'running',parameters:{batchAssetIds:['shared','scene-1'],batchItems:[{assetId:'shared',status:'running'},{assetId:'scene-1',status:'queued'}]}}];assert.equal(f.vm.batchSummary.value.active,true);await f.vm.stopBatch();assert.deepEqual(f.calls,[{action:'cancelRun',payload:{id:'batch-outer'}}]);assert.equal(f.vm.batchStopRunId.value,'batch-outer');assert.equal(f.state.value.runs[0].status,'running');await f.vm.stopBatch();assert.equal(f.calls.length,1);f.state.value.runs[0].status='unknown';f.state.value.runs[0].parameters.batchItems[0].status='unknown';f.state.value.runs[0].parameters.batchItems[1].status='skipped';assert.equal(f.vm.batchSummary.value.uncertain,true);assert.equal(f.vm.batchSummary.value.active,false);f.vm.checkedAssets.value=['shared'];await f.vm.generateCheckedAssets();assert.equal(f.calls.length,1);assert.match(f.descriptor.template.content,/停止批量生成/);assert.match(f.descriptor.template.content,/存在结果待确认的原任务/);}finally{f.dispose();}
 });
+
+test('窄窗口查看资产定位详情，宽窗口保留位置，均不改变批量勾选或提交生成',async()=>{
+ const f=await componentFixture();try{
+  const movements=[];let width=720;
+  f.vm.rootElement.value={getBoundingClientRect:()=>({width}),querySelector:selector=>{assert.equal(selector,'[data-story-section="asset"]');return{scrollIntoView:options=>movements.push(['scroll',options]),focus:options=>movements.push(['focus',options])};}};
+  f.vm.checkAsset('shared',true);await f.vm.viewAsset('scene-1');assert.equal(f.vm.asset.value.id,'scene-1');assert.deepEqual(f.vm.selectedAssetIds.value,['shared']);assert.deepEqual(movements,[['scroll',{block:'start',behavior:'auto'}],['focus',{preventScroll:true}]]);
+  width=1000;await f.vm.viewAsset('shared');assert.equal(f.vm.asset.value.id,'shared');assert.equal(movements.length,2);assert.equal(f.calls.length,0);
+ }finally{f.dispose();}
+});

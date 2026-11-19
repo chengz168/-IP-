@@ -16,7 +16,7 @@ const checkLabel=computed(()=>state.value?.settings?.localEnvironment?.autoStart
 // 轮询只更新未修改的配置，保留用户尚未保存的路径和开关。
 watch(()=>state.value?.settings?.localEnvironment,value=>{if(!dirty.value&&!pending.value){config.value=localEnvironmentConfig(value);baseline.value=JSON.stringify(config.value);}},{deep:true});
 async function operate(action){
- if(pending.value||checking.value)return;
+ if(pending.value||checking.value)return false;
  if(action==='ensureLocalEnvironment'&&props.configure&&dirty.value){error.value='启动配置尚未保存，请先保存，再检查环境。';return;}
  pending.value=action;error.value='';message.value='';
  const snapshot=localEnvironmentConfig(config.value);
@@ -27,9 +27,12 @@ async function operate(action){
   await refresh();
   if(action==='saveLocalEnvironment'){config.value=localEnvironmentConfig(state.value?.settings?.localEnvironment);baseline.value=JSON.stringify(config.value);}
   message.value=action==='saveLocalEnvironment'?'启动配置已保存。检查并启动将使用已保存的模型来源与地址。':'本地环境检查已完成，请查看各项实际状态。';
- }catch(reason){error.value=reason?.message||'本地环境操作失败，请重试。';}
+  return true;
+ }catch(reason){error.value=reason?.message||'本地环境操作失败，请重试。';return false;}
  finally{pending.value='';}
 }
+// 设置页切换分类时保留本组件实例，离开确认可读取并单独保存启动配置。
+defineExpose({dirty,blocked,pending,save:()=>operate('saveLocalEnvironment')});
 </script>
 <template>
 <section class="local-environment" aria-label="本地环境管理" :aria-busy="blocked">
