@@ -37,12 +37,13 @@ class ComfyH3{
  observe(remote,ctx={},details={}){return observeComfy({baseUrl:localBase(remote.baseUrl),clientId:remote.clientId,graph:remote.graph,signal:ctx.signal,onActivity:ctx.activity,...details});}
  sequence(){if(!this.sequenceRunner){const {H3Sequence}=require('./h3-sequence.cjs');this.sequenceRunner=new H3Sequence(this.store,this.media,this);}return this.sequenceRunner;}
  async request(base,route,options={},ctx={}){
+   await this.store.localEnvironment?.ensureComfy(base,ctx);
   const address=localBase(base),deadline=AbortSignal.timeout(20000),signal=ctx.signal?AbortSignal.any([ctx.signal,deadline]):deadline;
   try{return await fetch(address+route,{...options,signal});}
   catch(cause){
    // 这里只说明连接阶段；提交是否可能生效仍由submit及原任务凭据判断。
    const message=ctx.signal?.aborted?'ComfyUI 请求已停止：'+address:deadline.aborted||cause.name==='TimeoutError'?'ComfyUI 请求超时：'+address+'，请检查服务状态后重试原查询':'无法连接 ComfyUI 本地服务：'+address+'，请先启动该服务并核对模型设置中的地址';
-   throw new Error(message,{cause});
+     throw Object.assign(new Error(message,{cause}),{stopBatch:true,environmentFailure:true});
   }
  }
  async json(base,route,options={},ctx={}){

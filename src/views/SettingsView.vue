@@ -3,10 +3,13 @@ import {computed,inject,ref,watch,onBeforeUnmount} from 'vue';import I from '../
 import PromptManager from '../components/PromptManager.vue';
 import ModelPicker from '../components/ModelPicker.vue';
 import CapabilityKeys from '../components/CapabilityKeys.vue';
+import LocalEnvironment from '../components/LocalEnvironment.vue';
 import {createKeyDrafts,keyChanges} from '../provider-key-drafts.mjs';
 import {createProtocolDrafts,createDiscoveryController,discoveryModels} from '../model-settings.mjs';
 import {fontPresets,normalizeFontSize} from '../typography.mjs';
-const {state,busy,act,notify,showDialog,refresh}=inject('studio');const config=ref(JSON.parse(JSON.stringify(state.value.settings))),key=ref(''),changeKey=ref(false),tab=ref('general');const desktop=window.studio;const restorePath=ref(''),restoreDialog=ref(false);
+const props=defineProps({initialTab:{type:String,default:'general'}});
+const {state,busy,act,notify,showDialog,refresh}=inject('studio');const config=ref(JSON.parse(JSON.stringify(state.value.settings))),key=ref(''),changeKey=ref(false),tab=ref(props.initialTab);const desktop=window.studio;const restorePath=ref(''),restoreDialog=ref(false);
+watch(()=>props.initialTab,value=>{if(tabs.some(item=>item[0]===value))tab.value=value;});
 const tabs=[['general','常规设置','SettingOutlined'],['models','模型设置','RobotOutlined'],['prompts','提示词管理','FormOutlined'],['data','数据设置','DatabaseOutlined'],['update','软件更新','CloudDownloadOutlined']];
 const keyDrafts=ref(createKeyDrafts());
 Object.assign(config.value.provider,{visionProtocol:config.value.provider.visionProtocol||'ollama',visionBaseUrl:config.value.provider.visionBaseUrl||'',visionModel:config.value.provider.visionModel||'',ttsBaseUrl:config.value.provider.ttsBaseUrl||'',asrBaseUrl:config.value.provider.asrBaseUrl||'',avatarProtocol:config.value.provider.avatarProtocol||'compatible'});
@@ -47,7 +50,8 @@ async function checkLinkExtractor(){if(!await save())return;const r=await act('�
 async function openExtractBrowser(){const r=await act('打开抖音解析窗口',()=>call('openExtractBrowser'));if(r)showDialog('抖音解析窗口已打开','请在独立窗口中完成登录、验证码或其他平台验证，然后回到工作台点击“提取文案”。解析会使用该窗口的会话，不会读取其他浏览器的Cookie。');}
 const currentFontPreset=computed(()=>fontPresets.find(preset=>preset.id===normalizeFontSize(state.value.settings.fontSize)));
 async function changeFontSize(id){if(id===normalizeFontSize(state.value.settings.fontSize))return;const result=await act('切换界面字号',()=>call('saveAppearance',{fontSize:id}));if(result){config.value.fontSize=result.fontSize;notify('界面字号已切换为'+fontPresets.find(preset=>preset.id===id).label,'success');}}
-async function save(){let changes;try{changes=keyChanges(keyDrafts.value,{validate:true});}catch(error){notify(error.message,'error');return false;}const r=await act('保存设置',()=>call('saveSettings',{...config.value,...(changeKey.value?{key:key.value}:{}),capabilityKeys:changes}));if(r){key.value='';changeKey.value=false;keyDrafts.value=createKeyDrafts();notify('设置已保存','success');}return r;}
+// 启动配置通过专用组件保存，避免本页旧快照覆盖刚刚保存的新路径。
+async function save(){let changes;try{changes=keyChanges(keyDrafts.value,{validate:true});}catch(error){notify(error.message,'error');return false;}const {localEnvironment,...generalSettings}=config.value;const r=await act('保存设置',()=>call('saveSettings',{...generalSettings,...(changeKey.value?{key:key.value}:{}),capabilityKeys:changes}));if(r){key.value='';changeKey.value=false;keyDrafts.value=createKeyDrafts();notify('设置已保存','success');}return r;}
 async function check(action){if(!await save())return;const r=await act('检查连接',()=>call(action));if(r)showDialog(action==='checkMedia'?'媒体工具可用':'模型服务已连接',action==='checkMedia'?r.ffmpeg+'\n'+r.ffprobe:'服务返回 '+r.models.length+' 个模型。\n'+r.models.slice(0,15).join('、'));}
 async function directory(){if(window.studio){const dir=await window.studio.chooseDirectory();if(dir)config.value.outputDir=dir;}else notify('浏览器预览中请填写绝对路径；桌面程序可打开文件夹选择器');}
 async function backup(){const r=await act('备份任务与素材',()=>call('backup'));if(r)showDialog('备份已导出',r.directory+'\n已复制 '+r.assets+' 项素材。\n'+r.note);}
@@ -104,6 +108,7 @@ const currentHeading=computed(()=>headings[tab.value]);
       <div class="settings-footer"><button class="primary" :disabled="!!busy" @click="save">保存设置</button></div>
     </template>
     <template v-else-if="tab==='models'">
+      <div class="settings-form-section"><LocalEnvironment configure/></div>
       <div class="settings-form-section"><span class="field-title">按能力选择模型来源</span><p class="hint">文本、视觉、语音合成和语音识别可分别选择云端兼容服务或已有本机引擎。刷新只读取列表或已有文件，不自动保存设置、下载模型或生成内容。</p></div>
       <div class="settings-form-section"><h3>全局服务密钥</h3><label class="settings-field">API Key</label><div class="inline"><input v-model="key" type="password" autocomplete="new-password" :placeholder="state.keyConfigured?'已配置，填写后勾选更新':'尚未配置'" aria-label="API Key"/><label class="check-row"><input v-model="changeKey" type="checkbox"/>更新密钥</label></div><p class="hint">未设置独立密钥的能力沿用此项。勾选更新后留空保存可清除全局密钥。桌面版使用Windows加密存储；浏览器预览仅在本次服务进程中使用。</p></div>
       <CapabilityKeys :drafts="keyDrafts" :configured="state.capabilityKeyConfigured" :global-configured="state.keyConfigured"/>

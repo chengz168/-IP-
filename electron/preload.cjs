@@ -9,6 +9,7 @@ actions.add('videoAudioInfo');actions.add('saveVideoShots');
 actions.add('avatarOptimize');
 for(const action of ['planAvatarBackground','generateAvatarBackground','queryAvatarBackground'])actions.add(action);
 actions.add('checkLocalLipSync');
+for(const action of ['ensureLocalEnvironment','saveLocalEnvironment'])actions.add(action);
 actions.add('discoverModels');actions.add('cancelModelDiscovery');
 actions.add('checkVoiceDesign');actions.add('designVoice');actions.add('saveDesignedVoice');
 actions.add('importVoiceSample');

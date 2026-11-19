@@ -152,7 +152,7 @@ class StoryStudio{
      const itemCtx={...ctx};for(const method of ['remote','local','activity','progress'])if(ctx[method])itemCtx[method]=(...args)=>{try{if(method==='progress')args[0]=Math.min(99,Math.floor((index+Math.max(0,Math.min(100,args[0]))/100)/items.length*99));return ctx[method](...args);}catch(error){error.stopBatch=true;throw error;}};
      try{const result=await this.imageWork(id,item.input,itemCtx);saveRemote(item);Object.assign(item,{status:'succeeded',material:result.material,candidate:result.candidate,stale:result.stale,endedAt:new Date().toISOString()});clearRemote();persist();}
      catch(error){saveRemote(item);item.status=uncertain(error)?'unknown':ctx.signal?.aborted?'skipped':'failed';item.error=error.message;item.endedAt=new Date().toISOString();if(error.evidence)item.evidence=structuredClone(error.evidence);if(item.status!=='unknown')clearRemote();
-      if(item.status==='unknown'||ctx.signal?.aborted||error.stopBatch||['ENOSPC','EACCES','EPERM','EROFS','EIO','EBUSY','EDQUOT'].includes(error.code)){skipRemaining(item.status==='unknown'?'前项结果待确认，未继续提交':ctx.signal?.aborted?'批量任务已停止，未提交':'任务记录或创作状态无法安全保存，未继续提交');persist();throw error;}persist();}
+      if(item.status==='unknown'||ctx.signal?.aborted||error.stopBatch||['ENOSPC','EACCES','EPERM','EROFS','EIO','EBUSY','EDQUOT'].includes(error.code)){skipRemaining(item.status==='unknown'?'前项结果待确认，未继续提交':ctx.signal?.aborted?'批量任务已停止，未提交':error.environmentFailure?'公共模型环境不可用，未继续提交':'任务记录或创作状态无法安全保存，未继续提交');persist();throw error;}persist();}
      ctx.progress?.(Math.floor((index+1)/items.length*99),'资产图片已处理 '+(index+1)+' / '+items.length);
     }
     return {story:this.story(id),items:structuredClone(items),counts:this.batchCounts(items)};

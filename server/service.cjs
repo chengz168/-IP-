@@ -19,6 +19,9 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
   fs.writeFileSync(lockFile,JSON.stringify({pid:process.pid,owner}),{flag:'wx'});
   const release=()=>{try{if(JSON.parse(fs.readFileSync(lockFile,'utf8')).owner===owner)fs.rmSync(lockFile);}catch{}};process.once('exit',release);
   const store=new Store(root);const media=new Media(store);const runtime=new Runtime(store);const providers=new Providers(store,media,secrets);const prompts=new (require('./prompt-library.cjs').PromptLibrary)(store);
+  const localEnvironment=options.localEnvironment||new (require('./local-environment.cjs').LocalEnvironment)(store,{enabled:options.manageLocalEnvironment===true});
+  // 运行状态独立于业务数据，只有实际桌面入口启用服务管理，测试和只读脚本不启动模型服务。
+  if(localEnvironment.enabled)store.localEnvironment=localEnvironment;
   if(options.builtinAvatars)require('./builtin-avatars.cjs').ensureBuiltinAvatars(store);
   const modelDiscovery=new (require('./model-discovery.cjs').ModelDiscovery)(providers);
   const backups=new Backups(store,runtime);
@@ -51,7 +54,9 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
     checkAccountConnection:async({accountId})=>accounts.check(accountId),
     closeAccountLogin:async({accountId})=>accounts.close(accountId),
     preparePublish:async({id})=>accounts.prepare(id),
-    state:async()=>({...store.state(),accounts:accounts.publicState(),avatarQueryRunIds:[...avatarRecovery.controllers.keys()],taskSummaries:summarizeTasks(store.data),...await keyState(secrets)}),
+    state:async()=>({...store.state(),localEnvironment:localEnvironment.state(),accounts:accounts.publicState(),avatarQueryRunIds:[...avatarRecovery.controllers.keys()],taskSummaries:summarizeTasks(store.data),...await keyState(secrets)}),
+    ensureLocalEnvironment:async()=>localEnvironment.start(),
+    saveLocalEnvironment:async({settings})=>{if(localEnvironment.state().checking)throw Error('本地环境正在检查或启动，请稍候再保存');if(store.data.runs.some(run=>['running','queued'].includes(run.status))||(store.data.workflowJobs||[]).some(job=>['running','queued','stopping'].includes(job.status)))throw Error('当前有生成任务，请等待或停止后修改启动配置');const value=require('./local-environment.cjs').validateEnvironmentSettings(settings),before=structuredClone(store.data.settings);try{store.data.settings.localEnvironment=value;store.save();}catch(error){store.data.settings=before;throw error;}return localEnvironment.state();},
     avatarOptimize:async p=>{
       const id=p.id||store.data.currentId;store.draft(id);
       if(require('./workflow-state.cjs').workflowActive(store.data,id))throw Error('该任务的自动流程正在执行，请先停止后优化形象');
@@ -153,7 +158,7 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
   };
   // 设置保存涉及密钥和工作台配置两份状态，同一事务期间拒绝其他设置写入，避免失败回滚覆盖成功请求。
   let settingsSaving=false;
-  const service={store,media,runtime,providers,handlers,publisher,renderCover:options.renderCover,extractReferenceSource,async invoke(action,p={}){
+  const service={store,media,runtime,providers,handlers,publisher,localEnvironment,renderCover:options.renderCover,extractReferenceSource,async invoke(action,p={}){
     if(!Object.hasOwn(handlers,action))throw new Error('不支持的操作');
     if(['speech','testSpeech','avatar','avatarOptimize','generateAvatarBackground','designVoice','generateStoryImage','generateStoryAssetImages','generateStoryVideo','startWorkflow','checkLocalLipSync','saveSettings','saveStoryModels','backup','restoreBackup'].includes(action)&&store.data.runs.some(r=>['avatar-optimize','avatar-background'].includes(r.type)&&['running','queued'].includes(r.status)))throw Error('形象优化正在执行，请等待完成或停止后继续');
     if(['speech','testSpeech','avatar','avatarOptimize','generateAvatarBackground','startWorkflow','checkLocalSpeech','checkLocalLipSync','generateStoryImage','generateStoryAssetImages','generateStoryVideo'].includes(action)&&store.data.runs.some(run=>run.type==='voice-design'&&run.status==='running'))throw Error('自主音色模型正在生成，请等待或停止后再使用声音、视频模型');
@@ -164,7 +169,7 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
     if(p.id&&(protectedActions.includes(action)||['saveVideoShots','testSpeech','prepareVoiceSample','trimVoiceSample','importVoiceSample','importRecording','designVoice','saveDesignedVoice'].includes(action))&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后手动操作');
     if(p.id&&/Story/.test(action)&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后编辑非口播内容');
     if(['proofreadSubtitles','applySubtitleProofread','restoreCaptionHistory'].includes(action)&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后校对或恢复字幕');
-    if(['saveSettings','saveAppearance','saveStoryModels','saveCoverDefault','restoreBackup'].includes(action)){
+    if(['saveSettings','saveAppearance','saveStoryModels','saveLocalEnvironment','saveCoverDefault','restoreBackup'].includes(action)){
       if(settingsSaving)throw new Error('设置正在保存，请稍候再试');
       settingsSaving=true;
       try{return await handlers[action](p);}finally{settingsSaving=false;}

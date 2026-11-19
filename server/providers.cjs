@@ -14,6 +14,7 @@ class Providers{
   async sameOriginHeaders(url,base,capability){return base&&new URL(address(url)).origin===new URL(address(base)).origin?this.headers(capability):{};}
   async request(url,options,ctx={},timeoutMs=180000){
     if(!Number.isInteger(timeoutMs)||timeoutMs<=0)throw Error('请求等待时间无效');
+    const localService=this.store.localEnvironment?.ollamaFor(url);if(localService)await this.store.localEnvironment.ensureOllama(localService.baseUrl,ctx);
     const deadline=AbortSignal.timeout(timeoutMs),signal=ctx.signal?AbortSignal.any([ctx.signal,deadline]):deadline;let response;
     try{response=await fetch(address(url),{...options,signal});}catch(e){throw new Error(ctx.signal?.aborted||e.name==='AbortError'?'请求已停止':deadline.aborted||e.name==='TimeoutError'?'模型服务请求超时':'无法连接模型服务，请检查地址与网络');}
     if(!response.ok){let message='';try{const data=await response.json();message=data.error?.message||data.message||'';}catch{}if(ctx.signal?.aborted)throw Error('请求已停止');if(deadline.aborted)throw Error('模型服务请求超时');throw new Error('模型服务返回HTTP '+response.status+(message?'：'+message.slice(0,500):''));}return response;

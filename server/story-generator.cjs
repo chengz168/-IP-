@@ -116,7 +116,7 @@ class StoryGenerator{
     const base=localBase(config.storyImageBaseUrl||'http://127.0.0.1:8188'),model=weights.model,tag=crypto.randomUUID();let uploaded;
     // 所有本地图片架构都在上传和提交之前只读预检，服务未开不能留下提交中凭据。
     const info=await this.comfy.json(base,'/object_info',{},ctx),checked=inspectImageModels(info,config);
-    if(!checked.ready)throw Error((weights.architecture==='z-image-turbo'?'Z-Image':'SDXL')+'本地工作流不可用（'+base+'）：'+[...checked.missingNodes,...checked.missingModels,...checked.invalidOptions].join('、'));
+    if(!checked.ready)throw Object.assign(Error((weights.architecture==='z-image-turbo'?'Z-Image':'SDXL')+'本地工作流不可用（'+base+'）：'+[...checked.missingNodes,...checked.missingModels,...checked.invalidOptions].join('、')),{stopBatch:true,environmentFailure:true});
     const referenceMode=primary?'single-primary-img2img':'text-only';
     if(primary){const prepared=await this.preparePrimary(primary,directory,input.aspect,ctx);uploaded=await this.comfy.upload(base,prepared,'superip-story/'+tag,ctx);}
     const descriptions=refs.map(ref=>`${ref.kind||'asset'} ${ref.name||ref.storyAssetId}: ${ref.description||ref.prompt||ref.name||''}`).join('; ');
