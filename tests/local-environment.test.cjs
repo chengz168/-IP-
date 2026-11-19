@@ -72,7 +72,7 @@ test('现有Comfy安装只启动一次，并等待健康检查后才放行并发
  const f=fixture(t,{storyImageProtocol:'comfy'}),calls=[];let ready=false,launches=0;
  const manager=f.manager({fetch:async()=>ready?comfyResponse():offline(),spawn:(file,args,options)=>{launches++;calls.push({file,args,options});return processMock();},sleep:async()=>{await new Promise(resolve=>setTimeout(resolve,1));ready=true;}});
  await Promise.all([manager.start(),manager.ensureComfy('http://127.0.0.1:8188'),manager.ensureComfy('http://127.0.0.1:8188')]);
- assert.equal(launches,1);assert.equal(manager.state().status,'ready');const launch=calls[0];assert.equal(launch.file,f.comfyPython);assert.equal(launch.options.cwd,f.comfyRoot);assert.equal(launch.options.windowsHide,true);assert.equal(launch.options.detached,true);assert.equal(launch.args[launch.args.indexOf('--port')+1],'8188');assert(launch.args.includes('--disable-auto-launch'));assert(launch.args.includes('--user-directory'));assert.equal(launch.options.env.PYTHONUTF8,'1');assert.equal(launch.options.env.USERNAME,os.userInfo().username);
+ assert.equal(launches,1);assert.equal(manager.state().status,'ready');const launch=calls[0];assert.equal(launch.file,f.comfyPython);assert.equal(launch.options.cwd,f.comfyRoot);assert.equal(launch.options.windowsHide,true);assert.equal(launch.options.detached,false);assert.equal(launch.args[launch.args.indexOf('--port')+1],'8188');assert(launch.args.includes('--disable-auto-launch'));assert(launch.args.includes('--user-directory'));assert.equal(launch.options.env.PYTHONUTF8,'1');assert.equal(launch.options.env.USERNAME,os.userInfo().username);
 });
 
 test('两个工作台共享启动锁，不会为同一地址各起一个进程',async t=>{

@@ -125,7 +125,11 @@ class LocalEnvironment{
      else{
       if(health.occupied)throw failure('地址已响应但尚不是可用的'+item.name+'，未重复启动：'+item.baseUrl+'（'+health.message+'）');
       const spec=this.launchSpec(item,settings),fd=fs.openSync(logPath,'a');let child;
-      try{child=this.spawn(spec.file,spec.args,{cwd:spec.cwd,env:spec.env,windowsHide:true,detached:true,stdio:['ignore',fd,fd]});child.on('error',error=>{launchError=error;});child.on('exit',(code,signal)=>{launchError=Error('本地服务进程退出（'+(signal||code)+'）');});child.unref();}
+       try{
+        // Windows 下不让 ComfyUI 脱离工作台创建独立控制台；输出仍写入日志，避免 Python 子进程弹出黑色窗口。
+        child=this.spawn(spec.file,spec.args,{cwd:spec.cwd,env:spec.env,windowsHide:true,detached:false,stdio:['ignore',fd,fd]});
+        child.on('error',error=>{launchError=error;});child.on('exit',(code,signal)=>{launchError=Error('本地服务进程退出（'+(signal||code)+'）');});child.unref();
+       }
       finally{fs.closeSync(fd);}
       if(Number.isSafeInteger(child.pid)){
        const next={pid:child.pid,executable:spec.file,baseUrl:item.baseUrl,startedAt:new Date().toISOString(),identity:null};saveProcessRecord(record,next);
