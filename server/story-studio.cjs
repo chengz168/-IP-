@@ -186,6 +186,26 @@ class StoryStudio{
    run.status='succeeded';delete run.error;run.progress=100;run.recoveredAt=new Date().toISOString();run.output={material,candidate,stale,recovered:true,...(batch?{story,items:structuredClone(batch),counts:this.batchCounts(batch)}:{})};this.store.save();return {status:'succeeded',story,asset:material,candidate,stale,...(batch?{items:structuredClone(batch),counts:this.batchCounts(batch)}:{})};
   }));
  }
+ async confirmLost({runId}){
+  this.normalizeBatchRuns();
+  const run=this.store.data.runs.find(r=>r.id===runId);
+  if(!run||!['story-image','story-video'].includes(run.type)||run.status!=='unknown')throw Error('仅支持确认结果待确认的非口播图片或视频任务丢失');
+  if(typeof this.generator.confirmLost!=='function')throw Error('当前生成服务尚未提供任务丢失核查能力');
+  if(run.parameters?.batchItems){
+   const item=run.parameters.batchItems[run.parameters.itemIndex],input=run.parameters.input;
+   if(!item||item.status!=='unknown'||item.assetId!==input?.target?.assetId||hash(item.input)!==hash(input)||run.remote?.input&&hash(run.remote.input)!==hash(input))throw Error('批量任务记录与原始输入不一致，未确认丢失');
+  }
+  return this.locked('recover:'+runId,()=>this.runtime.run('story-confirm-lost',run.draftId,{runId},async ctx=>{
+   const before=structuredClone(run),message='原任务在当前 ComfyUI 队列与历史中不存在，未找到可取回输出；已允许重新生成。';
+   const result=await this.generator.confirmLost(structuredClone(run),ctx);ctx.signal?.throwIfAborted();
+   if(result?.status!=='lost'||run.status!=='unknown'||hash(run)!==hash(before))throw Error('核查结果或原任务记录已变化，未解除生成锁');
+   const endedAt=new Date().toISOString();run.unresolvedHistory??={error:run.error,endedAt:run.endedAt};run.status='failed';run.terminalConfirmed=true;run.lostConfirmed=true;run.error=message;run.endedAt=endedAt;run.recoveredAt=endedAt;
+   const items=run.parameters?.batchItems;
+   if(items){const item=items[run.parameters.itemIndex];Object.assign(item,{status:'failed',error:message,endedAt,terminalConfirmed:true});run.output={items:structuredClone(items),counts:this.batchCounts(items),lostConfirmed:true,terminalConfirmed:true};}
+   try{this.store.save();}catch(error){for(const key of Object.keys(run))delete run[key];Object.assign(run,before);error.remoteConfirmed=true;throw error;}
+   return {status:'lost',message,runId,items:items?structuredClone(items):undefined,counts:items?this.batchCounts(items):undefined};
+  }));
+ }
  async useEpisode({id,episodeId}){
   const s=this.ready(id),e=this.episode(s,episodeId),input=this.composition(s,episodeId,id);input.draftId=id;
   if(!e.resultId||hash(input)!==e.resultInputHash)throw Error('当前集还没有匹配镜头的合成视频');

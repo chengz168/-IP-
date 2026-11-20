@@ -64,6 +64,16 @@ async function queryStory(run){
   }catch(error){if(detailRunId.value===id)queryError.value=error.message;await refresh().catch(()=>{});}
   finally{if(queryingRun.value===id)queryingRun.value='';}
 }
+async function confirmStoryLost(run){
+  if(anyQuerying.value||busy.value)return;
+  const id=run.id;queryingRun.value=id;queryError.value='';queryMessage.value='';
+  try{
+    await save();const result=await call('confirmStoryLost',{runId:id});await refresh();
+    const message=result.message||'已确认原任务丢失，可以重新生成。';
+    if(detailRunId.value===id)queryMessage.value=message;notify(message,'success');
+  }catch(error){if(detailRunId.value===id)queryError.value=error.message;await refresh().catch(()=>{});}
+  finally{if(queryingRun.value===id)queryingRun.value='';}
+}
 async function remove(){
   if(removing.value||busy.value)return;
   removing.value=true;
@@ -144,10 +154,11 @@ async function remove(){
       <div class="remote-recovery-actions"><button class="primary" :disabled="anyQuerying||!!busy||!detailRun.remote?.statusUrl" @click="queryRemote(detailRun)">{{querying(detailRun.id)?'正在处理…':'查询远程结果'}}</button><button v-if="detailRun.remote?.kind==='comfy-h3-sequence-v1'" :disabled="anyQuerying||!!busy" @click="queryRemote(detailRun,true)">继续分段生成</button><button v-if="querying(detailRun.id)" @click="stopRun(detailRun)">停止等待</button></div>
     </section>
     <section v-if="['story-image','story-video'].includes(detailRun.type)&&detailRun.status==='unknown'" class="remote-recovery" :aria-busy="querying(detailRun.id)">
-      <p>只查询已提交的非口播原任务，不重新发起生成。查回的产物加入候选历史，需要回到资产图片或镜头视频中预览、确认；原输入变化时会标记为过期。</p>
+      <p>先查询已提交的非口播原任务，不重新发起生成。只有当前 ComfyUI 队列和历史都查不到原任务时，才可以确认丢失并解除当前生成锁。</p>
       <p v-if="detailRun.remote?.clientId">本地提交标识：<code>{{detailRun.remote.clientId}}</code></p>
       <p v-if="!detailRun.remote?.kind?.startsWith('story-')" class="hint">原记录没有完整的非口播查询凭据，不能直接重交。</p>
-      <div class="remote-recovery-actions"><button class="primary" :disabled="anyQuerying||!!busy||!detailRun.remote?.kind?.startsWith('story-')" @click="queryStory(detailRun)">{{querying(detailRun.id)?'正在查询原任务…':'查询非口播原任务结果'}}</button></div>
+      <div class="remote-recovery-actions"><button class="primary" :disabled="anyQuerying||!!busy||!detailRun.remote?.kind?.startsWith('story-')" @click="queryStory(detailRun)">{{querying(detailRun.id)?'正在查询原任务…':'查询非口播原任务结果'}}</button><button class="secondary" :disabled="anyQuerying||!!busy||!['story-comfy-image-v1','story-comfy-video-v1'].includes(detailRun.remote?.kind)" @click="confirmStoryLost(detailRun)">{{querying(detailRun.id)?'正在核查…':'确认原任务已丢失，允许重试'}}</button></div>
+      <p class="hint">确认后不会取回旧结果，也不会自动提交新任务；回到资产页面后重新勾选并生成。</p>
     </section>
     <ol v-if="detailRun.remote?.kind==='comfy-h3-sequence-v1'" class="task-stage-list"><li v-for="segment in detailRun.remote.segments" :key="segment.index" class="task-stage-card"><div class="task-stage-heading"><strong><template v-if="detailRun.remote.plan.mode==='multi'">镜头 {{detailRun.remote.plan.segments[segment.index].shotIndex+1}} · </template>第 {{segment.index+1}} 段</strong><span>{{({planned:'待生成',submitting:'提交待确认',accepted:'已提交',succeeded:'已取回，质量待检查',failed:'已确认失败，可继续重试'})[segment.status]||segment.status}}</span></div><p>{{(detailRun.remote.plan.segments[segment.index].startSample/32000).toFixed(3)}} ～ {{(detailRun.remote.plan.segments[segment.index].endSample/32000).toFixed(3)}} 秒</p><p v-if="segment.remoteId">模型任务：{{segment.remoteId}}</p><p v-if="segment.error" class="error-panel">{{segment.error}}</p></li></ol>
     <p v-else-if="detailRun.status==='unknown'" class="hint">远程结果尚未确认，请保留任务ID查询，重复提交可能产生重复任务。</p>

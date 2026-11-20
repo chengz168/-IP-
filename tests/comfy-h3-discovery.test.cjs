@@ -52,6 +52,16 @@ test('同一ID的队列与历史出现不同生成图，不得用后到记录覆
  assert(e.calls.every(([method])=>method==='GET'));
 });
 
+test('确认丢失只在本地队列和历史都没有任务时通过，并完整读取无ID历史',async t=>{
+ const e=await endpoint(t),h3=new ComfyH3({},{}),r={...remote(e.baseUrl),kind:'story-comfy-image-v1'};
+ assert.deepEqual(await h3.assertMissing('missing-id',r),{missing:true});
+ assert.deepEqual(e.calls.map(c=>c[1]),['/queue','/history/missing-id']);
+ e.set({queue_running:[[0,'queued-id',graph,{client_id:'own-client'}]],queue_pending:[]},{});
+ await assert.rejects(h3.assertMissing('queued-id',r),/仍在本地队列/);
+ e.set({queue_running:[],queue_pending:[]},{'old-id':{prompt:[0,'old-id',graph,{client_id:'own-client'}]}});
+ await assert.rejects(h3.assertMissing('',r),/仍存在于本地历史/);
+});
+
 test('已保存无ID提交的普通取消和失联仍未知，明确拒绝可确认失败',async t=>{
  const service=createService(workspace(t)),draft=service.store.draft();
  for(const mode of ['cancel','disconnect','reject']){

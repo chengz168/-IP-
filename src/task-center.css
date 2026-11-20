@@ -81,6 +81,7 @@
 .remote-recovery>p,.remote-query-message,.remote-recovery-history{font-size:var(--app-font-size-caption);line-height:1.7;overflow-wrap:anywhere}
 .remote-recovery-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
 .remote-recovery-actions>button{min-height:40px;padding:8px 16px}
+.remote-recovery-actions>.secondary{border:1px solid #7d6b9d;background:#322b48;color:#eadfff}
 .remote-query-message{padding:12px 16px;border:1px solid #69bba455;border-radius:8px;color:#a4dfcf;background:#69bba412}
 .remote-recovery-history{margin:12px 0;color:#a6b9ce}
 @media(max-width:1230px){

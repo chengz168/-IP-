@@ -105,6 +105,24 @@ class ComfyH3{
   if(queue.queue_pending?.some(row=>row[1]===remoteId))return {jobId:remoteId,status:'queued'};
   throw Error('ComfyUI 暂未返回该任务的最终状态，请查询原任务，不能重新提交代替查询');
  }
+ async assertMissing(remoteId,remote,ctx={}){
+  if(!remote?.kind?.startsWith('story-comfy-'))throw Error('仅支持核查本地 ComfyUI 非口播任务');
+  if(!remote.baseUrl)throw Error('原任务缺少本地 ComfyUI 地址，无法核查是否丢失');
+  const base=localBase(remote.baseUrl);
+  if(!remoteId){
+   if(!remote.clientId||!remote.graph)throw Error('原任务缺少完整提交凭据，无法安全核查是否丢失');
+   if(remote.graphSha256&&remote.graphSha256!==graphSignature(remote.graph))throw Error('保存的生成图与提交指纹不一致，未确认丢失');
+  }
+  const queue=await this.json(base,'/queue',{},ctx);
+  if(!Array.isArray(queue?.queue_running)||!Array.isArray(queue?.queue_pending))throw Error('本地队列响应不完整，不能确认任务丢失');
+  const matches=row=>remoteId?row?.[1]===remoteId:row?.[3]?.client_id===remote.clientId;
+  if([...queue.queue_running,...queue.queue_pending].some(matches))throw Error('原任务仍在本地队列中，请先查询原任务结果');
+  // 未收到任务ID时查全量历史，避免最近1000条之外的旧结果被误判丢失。
+  const history=await this.json(base,remoteId?'/history/'+encodeURIComponent(remoteId):'/history',{},ctx);
+  if(!history||typeof history!=='object'||Array.isArray(history))throw Error('本地历史响应不完整，不能确认任务丢失');
+  if(remoteId?Object.hasOwn(history,remoteId):Object.values(history).some(item=>matches(item?.prompt)))throw Error('原任务仍存在于本地历史中，请先查询原任务结果');
+  ctx.signal?.throwIfAborted();return {missing:true};
+ }
  async collect(result,remote,input,ctx={},options={}){
   const directory=fs.mkdtempSync(path.join(this.store.outputDir(),'.h3-result-'));let created;
   try{

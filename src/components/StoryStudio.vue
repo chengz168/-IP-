@@ -28,6 +28,16 @@ const selectedShotIds=computed(()=>storyScopedSelection(checkedShots.value,episo
 const selectedAssetIds=computed(()=>storyScopedSelection(checkedAssets.value,visibleAssets.value));
 const recentBatch=computed(()=>state.value.runs.find(item=>item.draftId===draft.value.id&&item.type==='story-image'&&Array.isArray(item.parameters?.batchAssetIds))||null);
 const batchSummary=computed(()=>storyBatchSummary(recentBatch.value));
+const batchRecovering=ref(false);
+const canConfirmBatchLost=computed(()=>recentBatch.value?.status==='unknown'&&['story-comfy-image-v1','story-comfy-video-v1'].includes(recentBatch.value?.remote?.kind));
+async function confirmBatchLost(){
+  if(batchRecovering.value||busy.value||pending.value||saving.value||workflowLocked.value)return;
+  const runId=recentBatch.value?.id;if(!runId)return;
+  batchRecovering.value=true;error.value='';
+  try{await persist();const result=await call('confirmStoryLost',{runId});await refresh();notify(result.message,'success');}
+  catch(e){error.value=e.message;await refresh().catch(()=>{});}
+  finally{batchRecovering.value=false;}
+}
 const upstream=computed(()=>upstreamStoryText(draft.value));
 const sourceConfirmed=computed(()=>story.value.sourceMode==='custom'||draft.value.confirmed&&!!draft.value.finalText?.trim());
 const sourceChanged=computed(()=>!sourceConfirmed.value||story.value.episodes.length>0&&((story.value.sourceMode!=='custom'&&story.value.sourceText!==upstream.value)||story.value.episodesSourceHash!==inputFingerprint.value));
@@ -157,9 +167,10 @@ async function stopBatch(){
     </section>
 
     <section v-if="recentBatch" class="card story-batch-results" aria-label="资产批量生成进度">
-      <div class="card-heading"><h3>资产批量生成</h3><span role="status">结果状态 {{batchSummary.counts.finished}} / {{batchSummary.counts.total}} 项 · 候选 {{batchSummary.counts.succeeded}} · 失败 {{batchSummary.counts.failed}} · 待确认 {{batchSummary.counts.unknown}}</span></div>
+      <div class="card-heading"><h3>资产批量生成</h3><span role="status">共 {{batchSummary.counts.total}} 项 · 候选 {{batchSummary.counts.succeeded}} · 失败 {{batchSummary.counts.failed}} · 待确认 {{batchSummary.counts.unknown}} · 未提交 {{batchSummary.counts.skipped}}</span></div>
       <p class="story-help">{{batchSummary.uncertain?'存在结果待确认的原任务，后续项目不再提交，请进入任务中心查询。':recentBatch.status==='cancelled'?'已停止后续提交；成功候选保留，尚未提交的项目不会自动重跑。':batchStopRunId===recentBatch.id?'已请求停止，等待服务返回真实状态；正在执行项可能仍需查询确认。':'各项串行生成，普通失败后继续；已有选用图片保持不变，生成成功仍需人工确认。'}}</p>
-      <div class="story-action-row"><button v-if="batchSummary.active" class="story-stop-batch" :disabled="batchStopping||batchStopRunId===recentBatch.id" @click="stopBatch">{{batchStopping||batchStopRunId===recentBatch.id?'正在停止批量生成…':'停止批量生成'}}</button><button @click="navigate('tasks')">查看原批量任务</button></div>
+      <div class="story-action-row"><button v-if="batchSummary.active" class="story-stop-batch" :disabled="batchStopping||batchStopRunId===recentBatch.id" @click="stopBatch">{{batchStopping||batchStopRunId===recentBatch.id?'正在停止批量生成…':'停止批量生成'}}</button><button v-if="canConfirmBatchLost" :disabled="batchRecovering||!!busy||pending||saving||workflowLocked" @click="confirmBatchLost">{{batchRecovering?'正在核查原任务…':'核查原任务丢失并解除阻塞'}}</button><button @click="navigate('tasks')">查看原批量任务</button></div>
+      <p v-if="canConfirmBatchLost" class="story-help">核查仅查询当前本地队列和历史；原任务仍存在时会保留锁定。确认丢失后请勾选待生成项，再批量生成，不会自动重交。</p>
       <ol class="story-batch-item-list"><li v-for="(item,index) in batchSummary.items" :key="item.assetId||index"><strong>{{item.name||story.assets.find(asset=>asset.id===item.assetId)?.name||item.assetId}}</strong><span :class="'status-'+item.status">{{storyBatchStatusLabel(item.status)}}</span><small v-if="item.error">{{item.error}}</small></li></ol>
     </section>
 

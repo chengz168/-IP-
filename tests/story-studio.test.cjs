@@ -168,6 +168,25 @@ test('批量恢复前校验原目标和remote输入，错配时不查询不附�
  const f=await batchFixture();f.generator.image=async(input,ctx)=>{ctx.remote('retained-id',{kind:'story-comfy-image-v1',input,submissionState:'accepted'});throw Object.assign(Error('未知'),{unknown:true});};await assert.rejects(f.studio.generateAssetImages({id:'draft',assetIds:f.assetIds}),/未知/);const run=f.store.data.runs[0];run.remote.input.target.assetId=f.assetIds[2];let called=false;f.generator.recover=async()=>{called=true;return {id:'wrong',type:'image'};};await assert.rejects(f.studio.recover({runId:run.id}),/不一致/);assert.equal(called,false);assert(f.d.story.assets.every(asset=>asset.images.length===0));assert.equal(run.status,'unknown');
 });
 
+test('确认原任务丢失解除批量锁，当前项失败且后续未提交项保持跳过',async()=>{
+ const f=await batchFixture(3),s=f.d.story,input=f.studio.imagePlan(s,{id:'draft',assetId:f.assetIds[1]});
+ const run={id:'lost-batch',draftId:'draft',type:'story-image',status:'unknown',parameters:{batchId:'lost',batchAssetIds:f.assetIds,itemIndex:1,input,batchItems:[
+  {assetId:f.assetIds[0],status:'succeeded',input:f.studio.imagePlan(s,{id:'draft',assetId:f.assetIds[0]})},
+  {assetId:f.assetIds[1],status:'unknown',input},
+  {assetId:f.assetIds[2],status:'skipped',input:f.studio.imagePlan(s,{id:'draft',assetId:f.assetIds[2]}),error:'前项结果待确认，未继续提交'}
+ ]},remoteId:'missing-id',remote:{kind:'story-comfy-image-v1',baseUrl:'http://127.0.0.1:8188',input,submissionState:'accepted'}};
+ f.store.data.runs.unshift(run);let called=0;f.generator.confirmLost=async original=>{called++;assert.equal(original.id,run.id);return {status:'lost'};};
+ const result=await f.studio.confirmLost({runId:run.id});
+ assert.equal(called,1);assert.equal(run.status,'failed');assert.equal(run.terminalConfirmed,true);assert.equal(run.lostConfirmed,true);assert.equal(run.parameters.batchItems[1].status,'failed');assert.equal(run.parameters.batchItems[2].status,'skipped');assert.equal(result.status,'lost');
+ assert.equal(f.store.data.runs.filter(item=>item.id===run.id).length,1);
+});
+
+test('原任务未确认丢失时不解除批量锁',async()=>{
+ const f=await batchFixture(2),s=f.d.story,input=f.studio.imagePlan(s,{id:'draft',assetId:f.assetIds[0]}),run={id:'still-there',draftId:'draft',type:'story-image',status:'unknown',parameters:{itemIndex:0,input,batchItems:[{assetId:f.assetIds[0],status:'unknown',input},{assetId:f.assetIds[1],status:'skipped',input:f.studio.imagePlan(s,{id:'draft',assetId:f.assetIds[1]})}]},remoteId:'queued-id',remote:{kind:'story-comfy-image-v1',baseUrl:'http://127.0.0.1:8188',input,submissionState:'accepted'}};
+ f.store.data.runs.unshift(run);f.generator.confirmLost=async()=>{throw Error('原任务仍在本地队列中，请先查询原任务结果');};
+ await assert.rejects(f.studio.confirmLost({runId:run.id}),/仍在本地队列/);assert.equal(run.status,'unknown');assert.equal(run.parameters.batchItems[0].status,'unknown');
+});
+
 test('批量取消分别处理未提交与已提交目标，保留此前成功且不附着迟到候选',async()=>{
  for(const submitted of [false,true]){const f=await batchFixture(),original=f.generator.image;let finish;const seen=[];f.generator.image=async(input,ctx)=>{seen.push(input.target.assetId);if(seen.length===1){ctx.remote('previous-id',{kind:'story-comfy-image-v1',input,submissionState:'accepted'});return original(input,ctx);}if(submitted)ctx.remote('active-id',{kind:'story-comfy-image-v1',input,submissionState:'accepted'});return new Promise(resolve=>finish=()=>resolve({id:'too-late',type:'image'}));};const pending=f.studio.generateAssetImages({id:'draft',assetIds:f.assetIds});await tick();const run=f.store.data.runs[0];f.studio.runtime.cancel(run.id);finish();await assert.rejects(pending,/abort|取消/i);assert.equal(run.status,submitted?'unknown':'cancelled');assert.deepEqual(run.parameters.batchItems.map(item=>item.status),['succeeded',submitted?'unknown':'skipped','skipped']);assert.equal(run.remoteId,submitted?'active-id':'');assert.equal(run.remote?.input?.target?.assetId,submitted?f.assetIds[1]:undefined);assert.equal(f.d.story.assets[0].images.length,1);assert.equal(f.d.story.assets[1].images.length,0);assert.equal(seen.length,2);}
 });
