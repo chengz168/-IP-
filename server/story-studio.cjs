@@ -13,8 +13,8 @@ class StoryStudio{
  }
  story(id){return structuredClone(this.store.draft(id).story||createStory(this.store.draft(id)));}
  currentSource(id,refresh=false){this.assertMutable(id);const s=this.story(id),d=this.store.draft(id);if(s.sourceMode==='upstream'){if(!d.confirmed||!d.finalText?.trim())throw Error('请先在第二步确认文案，或切换为独立剧本');if(s.sourceText!==d.finalText){if(!refresh)throw Error('上游文案已变化，请重新拆集后继续');s.sourceText=d.finalText;s.sourceHash=hash(d.finalText);return this.write(id,reconcile(this.story(id),s));}}return s;}
- sourceCurrent(id,s){const d=this.store.draft(id);return s.episodesSourceHash===episodeFingerprint(s)&&(s.sourceMode!=='upstream'||d.confirmed&&d.finalText===s.sourceText);}
- ready(id){const s=this.currentSource(id);if(s.episodesSourceHash!==episodeFingerprint(s))throw Error('剧本已变化或尚未拆集，请重新拆集');return s;}
+ sourceCurrent(id,s){const d=this.store.draft(id);return s.episodesSourceHash===episodeFingerprint(s)&&(s.sourceMode!=='upstream'||d.confirmed&&d.finalText===s.sourceText)&&require('./product-introduction.cjs').currentIntroduction({store:this.store},d,s);}
+ ready(id){const s=this.currentSource(id);if(s.productIntroduction&&!require('./product-introduction.cjs').currentIntroduction({store:this.store},this.store.draft(id),s))throw Error('商品资料、素材或配音已变化，请回商品宣传重新准备产品介绍分镜');if(s.episodesSourceHash!==episodeFingerprint(s))throw Error('剧本已变化或尚未拆集，请重新拆集');return s;}
  write(id,s,evidence){try{this.assertMutable(id);}catch(error){if(evidence){error.evidence={...evidence,deferred:true,storyAttached:false};if(evidence.material)error.remoteConfirmed=true;}throw error;}const draft=this.store.draft(id),prior=structuredClone(draft);s.revision=this.story(id).revision+1;draft.story=validateStory(s);
   // 当前集变更后清理已交接引用，避免剪辑继续消费旧镜头成片。
   const old=prior.story?.episodes?.find(e=>e.id===prior.story.activeEpisodeId),current=draft.story.episodes.find(e=>e.id===old?.id);
@@ -24,7 +24,12 @@ class StoryStudio{
   try{this.store.save();}catch(error){for(const key of Object.keys(draft))delete draft[key];Object.assign(draft,prior);throw error;}return structuredClone(draft.story);}
  async locked(key,work){if(this.locks.has(key))throw Error('该创作操作正在执行，请等待或停止');this.locks.add(key);try{return await work();}finally{this.locks.delete(key);}}
  pending(id,type,predicate){if(this.store.data.runs.some(run=>run.draftId===id&&run.type===type&&['running','queued','unknown'].includes(run.status)&&predicate(run.parameters?.input,run)))throw Error('该目标仍有任务执行中或远程结果待确认，请先查询原任务，不能直接重交');}
- async save({id,story,revision}){this.assertMutable(id);const before=this.story(id);if(revision!==before.revision)throw Error('创作内容已更新，请刷新后再保存，未覆盖新结果');const next=validateStory(story);if(next.sourceMode==='upstream'){const d=this.store.draft(id);next.sourceText=d.confirmed?d.finalText||'':'';next.sourceHash=hash(next.sourceText);}next.episodesSourceHash=before.episodesSourceHash||'';next.activeEpisodeId=before.activeEpisodeId||'';return {story:this.write(id,reconcile(before,next))};}
+ async save({id,story,revision}){this.assertMutable(id);const before=this.story(id);if(revision!==before.revision)throw Error('创作内容已更新，请刷新后再保存，未覆盖新结果');
+  if(hash(before.productIntroduction||null)!==hash(story.productIntroduction||null))throw Error('商品介绍来源凭据由服务端维护，请使用准备产品介绍分镜重新建立');
+  const next=validateStory(story);
+  if(before.productIntroduction&&(next.sourceMode!=='upstream'||next.narrationMode!=='upstream'||next.episodeCount!==1||next.episodes.length!==1||next.episodes[0].narrationAssetId!==before.productIntroduction.audioId||next.episodes[0].text!==before.sourceText||next.episodes[0].shots.map(sh=>sh.text.replace(/\s/g,'')).join('')!==before.sourceText.replace(/\s/g,'')))throw Error('产品介绍必须沿用当前确认稿和第三步旁白，请回上方同步并重新准备分镜');
+  if(next.sourceMode==='upstream'){const d=this.store.draft(id);next.sourceText=d.confirmed?d.finalText||'':'';next.sourceHash=hash(next.sourceText);}next.episodesSourceHash=before.episodesSourceHash||'';next.activeEpisodeId=before.activeEpisodeId||'';return {story:this.write(id,reconcile(before,next))};
+ }
  episode(s,id){const e=s.episodes.find(e=>e.id===id);if(!e)throw Error('分集不存在或已删除');return e;}
  shot(s,episodeId,shotId){const e=this.episode(s,episodeId),shot=e.shots.find(x=>x.id===shotId);if(!shot)throw Error('镜头不存在或已删除');return {episode:e,shot};}
  target(s,args){if(args.assetId){const a=s.assets.find(x=>x.id===args.assetId);if(!a)throw Error('创作资产不存在');return {node:a,input:assetInput(s,a),target:{kind:'asset',assetId:a.id}};}const {shot}=this.shot(s,args.episodeId,args.shotId);return {node:shot,input:shotInput(s,shot),target:{kind:'shot',episodeId:args.episodeId,shotId:shot.id}};}
@@ -159,18 +164,46 @@ class StoryStudio{
    }catch(error){const active=items[run.parameters.itemIndex];if(active?.status==='running'){saveRemote(active);active.status=uncertain(error)?'unknown':ctx.signal?.aborted?'skipped':'failed';active.error=error.message;active.endedAt=new Date().toISOString();if(active.status!=='unknown')clearRemote();}skipRemaining(ctx.signal?.aborted?'批量任务已停止，未提交':'批量任务已中止，未提交');error.evidence={...(error.evidence||{}),batchId,items:structuredClone(items),counts:this.batchCounts(items)};persist();throw error;}
   });}finally{for(const key of keys)this.locks.delete(key);}
  }
- async selectImage(args){const {id,imageId}=args,s=this.ready(id),target=this.target(s,args),material=this.store.asset(imageId);if(material.type!=='image')throw Error('只能选择图片素材');let c=target.node.images.find(c=>c.id===imageId);if(c&&(c.status==='stale'||c.inputHash!==hash(target.input)))throw Error('候选图片已过期，请重新生成或导入');if(!c){c={id:imageId,inputHash:hash(target.input),createdAt:new Date().toISOString(),prompt:'用户导入',revision:s.revision,status:'ready',imported:true};target.node.images.push(c);}if(target.node.selectedImageId!==imageId){target.node.selectedImageId=imageId;if(args.assetId)this.invalidateAsset(s,args.assetId);else{const {episode,shot}=this.shot(s,args.episodeId,args.shotId);shot.selectedVideoId='';episode.resultId='';episode.resultInputHash='';}}return {story:this.write(id,s)};}
+ async selectImage(args){
+  const {id,imageId}=args,s=this.ready(id),target=this.target(s,args),material=this.store.asset(imageId);if(material.type!=='image')throw Error('只能选择图片素材');
+  let c=target.node.images.find(c=>c.id===imageId);const inputHash=hash(target.input),stale=c&&(c.status==='stale'||c.inputHash!==inputHash);
+  if(stale){
+   if(!s.productIntroduction||!c.imported)throw Error('候选图片已过期，请重新生成或导入');
+   const sha256=require('node:crypto').createHash('sha256').update(require('node:fs').readFileSync(material.path)).digest('hex'),expected=s.productIntroduction.images.find(image=>image.id===imageId)?.sha256||c.sourceSha256;
+   if(expected&&sha256!==expected)throw Error('商品参考图片内容已变化，请重新导入并核对');
+   // 用户显式重选原图时只更新当前构图依据，不复活旧动态视频或旧生成图。
+   Object.assign(c,{inputHash,status:'ready',revision:s.revision,sourceSha256:sha256,confirmedAt:new Date().toISOString()});
+  }
+  if(!c){c={id:imageId,inputHash,createdAt:new Date().toISOString(),prompt:'用户导入',revision:s.revision,status:'ready',imported:true};if(s.productIntroduction)c.sourceSha256=require('node:crypto').createHash('sha256').update(require('node:fs').readFileSync(material.path)).digest('hex');target.node.images.push(c);}
+  if(target.node.selectedImageId!==imageId){target.node.selectedImageId=imageId;if(args.assetId)this.invalidateAsset(s,args.assetId);else{const {episode,shot}=this.shot(s,args.episodeId,args.shotId);shot.selectedVideoId='';episode.resultId='';episode.resultInputHash='';}}
+  return {story:this.write(id,s)};
+ }
  async generateVideo({id,episodeId,shotId,instruction=''}){
   this.pending(id,'story-video',input=>input?.episodeId===episodeId&&input?.shotId===shotId);
   const s=this.ready(id),{shot}=this.shot(s,episodeId,shotId);if(!shot.selectedImageId)throw Error('请先确认镜头构图图片');
   if(![shot.videoPrompt,shot.action,shot.visual].some(value=>value?.trim()))throw Error('请填写镜头画面、动作或视频提示词');
   // 把用户当前编辑的画面、动作、运镜和声音完整传入生成，避免仅采用旧的高级提示词。
   const prompt=[shot.videoPrompt||shot.action||shot.visual,...[['Scene',shot.visual],['Action',shot.action],['Camera',shot.camera],['Sound',shot.sound]].filter(([,value])=>value?.trim()).map(([label,value])=>label+': '+value),'The current scene, action, camera and sound fields above take precedence over conflicting earlier draft instructions.'].filter(Boolean).join('\n');
-  const base={shot:shotInput(s,shot),imageId:shot.selectedImageId},inputHash=hash(base),input={draftId:id,episodeId,shotId,prompt,instruction,duration:shot.duration,aspect:s.aspect,style:s.style,image:{assetId:shot.selectedImageId},inputHash,revision:s.revision};
+  const base={shot:shotInput(s,shot),imageId:shot.selectedImageId},inputHash=hash(base),input={draftId:id,episodeId,shotId,prompt,instruction,duration:shot.duration,aspect:s.aspect,style:s.style,image:{assetId:shot.selectedImageId},inputHash,revision:s.revision,...(s.productIntroduction?{productIntroduction:{version:1,productHash:s.productIntroduction.productHash}}:{})};
   return this.locked(id+':video:'+shotId,()=>this.runtime.run('story-video',id,{input},async ctx=>{this.assertMutable(id);const material=await this.generator.video(input,ctx);ctx.signal?.throwIfAborted();if(material?.type!=='video')throw Error('动态视频生成未返回视频素材');const current=this.story(id);let now;try{now=this.shot(current,episodeId,shotId).shot;}catch{return {story:current,material,stale:true};}const candidate={id:material.id,inputHash,createdAt:new Date().toISOString(),prompt:input.prompt,instruction,revision:s.revision,status:this.sourceCurrent(id,current)&&hash({shot:shotInput(current,now),imageId:now.selectedImageId})===inputHash?'ready':'stale'};now.videos.push(candidate);return {story:this.write(id,current,{input,material,candidate}),candidate,material,stale:candidate.status==='stale'};}));
  }
  async selectVideo({id,episodeId,shotId,videoId}){const s=this.ready(id),{episode,shot}=this.shot(s,episodeId,shotId),c=shot.videos.find(c=>c.id===videoId);if(!c||c.status==='stale'||c.inputHash!==hash({shot:shotInput(s,shot),imageId:shot.selectedImageId}))throw Error('候选视频不存在或已过期');if(this.store.asset(videoId).type!=='video')throw Error('所选素材不是视频');shot.selectedVideoId=videoId;episode.resultId='';episode.resultInputHash='';return {story:this.write(id,s)};}
- composition(s,episodeId,id){const e=this.episode(s,episodeId);if(!e.shots.length)throw Error('当前集还没有镜头');const narrationId=s.narrationMode==='upstream'?(e.narrationAssetId||(s.episodes.length===1?this.store.draft(id).voice?.audioId:'')):'';if(s.narrationMode==='upstream'&&s.episodes.length>1&&!e.narrationAssetId)throw Error('多集旁白需逐集选择音频，不能自动截断整条上游音频');if(s.narrationMode==='upstream'&&!narrationId)throw Error('未找到当前集旁白音频');if(narrationId&&!['audio','video'].includes(this.store.asset(narrationId).type))throw Error('分集旁白素材必须包含音频');return {draftId:null,episodeId,aspect:s.aspect,narration:narrationId?{assetId:narrationId}:null,shots:e.shots.map(sh=>{const c=sh.videos.find(c=>c.id===sh.selectedVideoId);if(!sh.selectedImageId||!c||c.status==='stale'||c.inputHash!==hash({shot:shotInput(s,sh),imageId:sh.selectedImageId}))throw Error('当前集存在未确认或已过期的镜头视频');const asset=this.store.asset(c.id);if(asset.type!=='video'||!(asset.duration>0))throw Error('镜头视频缺少有效时长');return {shotId:sh.id,assetId:c.id,duration:asset.duration};})};}
+ composition(s,episodeId,id){
+  const e=this.episode(s,episodeId);if(!e.shots.length)throw Error('当前集还没有镜头');
+  const narrationId=s.narrationMode==='upstream'?(e.narrationAssetId||(s.episodes.length===1?this.store.draft(id).voice?.audioId:'')):'';
+  if(s.narrationMode==='upstream'&&s.episodes.length>1&&!e.narrationAssetId)throw Error('多集旁白需逐集选择音频，不能自动截断整条上游音频');
+  if(s.narrationMode==='upstream'&&!narrationId)throw Error('未找到当前集旁白音频');
+  if(narrationId&&!['audio','video'].includes(this.store.asset(narrationId).type))throw Error('分集旁白素材必须包含音频');
+  if(s.productIntroduction&&(!require('./product-introduction.cjs').currentIntroduction({store:this.store},this.store.draft(id),s)||narrationId!==s.productIntroduction.audioId||e.text!==s.sourceText||e.shots.map(sh=>sh.text.replace(/\s/g,'')).join('')!==s.sourceText.replace(/\s/g,'')))throw Error('产品镜头台词与确认稿或旁白不一致，请重新准备分镜，不能使用旧旁白');
+  return {draftId:null,episodeId,aspect:s.aspect,narration:narrationId?{assetId:narrationId}:null,
+   ...(s.productIntroduction?{productIntroduction:{version:1,productHash:s.productIntroduction.productHash,captions:s.productIntroduction.captions,audioSha256:s.productIntroduction.audioSha256,images:structuredClone(s.productIntroduction.images)}}:{}),
+   shots:e.shots.map(sh=>{
+    const c=sh.videos.find(c=>c.id===sh.selectedVideoId);if(!sh.selectedImageId||!c||c.status==='stale'||c.inputHash!==hash({shot:shotInput(s,sh),imageId:sh.selectedImageId}))throw Error('当前集存在未确认或已过期的镜头视频');
+    const asset=this.store.asset(c.id);if(asset.type!=='video'||!(asset.duration>0))throw Error('镜头视频缺少有效时长');
+    if(s.productIntroduction&&Math.abs(asset.duration-sh.duration)>.15)throw Error('产品镜头与台词计划时长不一致，请重新生成对应镜头');
+    return {shotId:sh.id,assetId:c.id,duration:asset.duration,...(s.productIntroduction?{text:sh.text,sellingPoint:sh.sellingPoint||'',evidence:sh.evidence||'',iconIds:sh.iconIds||[]}:{} )};
+   })};
+ }
  async composeEpisode({id,episodeId}){this.pending(id,'story-compose',input=>input?.episodeId===episodeId);const s=this.ready(id),input=this.composition(s,episodeId,id);input.draftId=id;const inputHash=hash(input);return this.locked(id+':compose:'+episodeId,()=>this.runtime.run('story-compose',id,{input,inputHash},async ctx=>{this.assertMutable(id);const material=await this.generator.compose({...input,inputHash,revision:s.revision},ctx);ctx.signal?.throwIfAborted();if(material?.type!=='video')throw Error('合成未返回有效视频');const current=this.story(id);let now;try{now=this.composition(current,episodeId,id);now.draftId=id;}catch{return {story:current,material,stale:true};}const e=this.episode(current,episodeId),candidate={id:material.id,inputHash,createdAt:new Date().toISOString(),revision:s.revision,status:this.sourceCurrent(id,current)&&hash(now)===inputHash?'ready':'stale'};e.results=e.results||[];e.results.push(candidate);if(candidate.status==='ready'){e.resultId=material.id;e.resultInputHash=inputHash;e.resultNarrationAssetId=input.narration?.assetId||'';}return {story:this.write(id,current,{input,material,candidate}),candidate,material,stale:candidate.status==='stale'};}));}
  async recover({runId}){
   this.normalizeBatchRuns();
@@ -218,9 +251,11 @@ class StoryStudio{
    if(d.cover.scene?.layers)for(const layer of d.cover.scene.layers)if(['main','sub'].includes(layer.id)||['title','subtitle'].includes(layer.binding))layer.text='';
    d.publish={...d.publish,title:'',description:'',tags:[]};
   }
-  d.edit={...d.edit,sourceId:material.id,resultId:''};d.video={...d.video,mode:'story',assetId:material.id};
+  d.edit={...d.edit,sourceId:material.id,resultId:''};d.video={...d.video,mode:s.productIntroduction?'product':'story',assetId:material.id};
   d.cover={...d.cover,assetId:'',videoId:''};d.publish={...d.publish,videoId:'',coverId:'',recordId:''};
   require('./caption-history.cjs').archiveOnSourceChange(before,d);
+  // 先归档旧来源字幕，再绑定当前商品旁白字幕，避免换源归档清空新时间轴。
+  if(s.productIntroduction){d.productSelection={kind:'script-driven-introduction',scriptRunId:s.productIntroduction.scriptRunId,baseId:material.id,resultId:material.id,episodeId,selectedAt:new Date().toISOString()};d.video.audioId=input.narration.assetId;d.edit={...d.edit,captions:structuredClone(s.productIntroduction.captions),subtitlesEnabled:true,speed:1,volume:1,cutSilence:false,pipEnabled:false};}
   // 无旁白不自动识别环境声为字幕，用户仍可在剪辑页面手动开启。
   if(!input.narration)d.edit.subtitlesEnabled=false;
   s.activeEpisodeId=episodeId;s.revision++;d.story=s;d.step=4;

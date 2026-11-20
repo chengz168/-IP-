@@ -4,6 +4,11 @@ const uid=()=>crypto.randomUUID();
 const string=(v,label,max=50000)=>{if(typeof v!=='string'||v.length>max)throw Error(label+'格式无效');return v;};
 function createStory(draft={}){const sourceText=draft.confirmed?draft.finalText||'':'';return {version:1,revision:0,sourceMode:'upstream',sourceKind:'confirmed-finalText',sourceText,sourceHash:hash(sourceText),episodesSourceHash:'',narrationMode:'none',episodeCount:1,episodeDuration:30,aspect:'9:16',style:'',instructions:'',episodes:[],assets:[]};}
 function candidate(item){if(!item||typeof item.id!=='string')throw Error('候选素材记录无效');return {...item};}
+// 图标权限来自服务端冻结的商品来源，不采信可编辑资产上的角色标签。
+function frozenProductIcons(productIntroduction){
+ const images=productIntroduction?.images;if(images===undefined)return new Map();if(!Array.isArray(images))throw Error('商品冻结素材清单无效，请重新准备产品介绍分镜');
+ const ids=new Set(),icons=new Map();for(const image of images){if(!image||typeof image.id!=='string'||!image.id||ids.has(image.id))throw Error('商品冻结素材ID缺失或重复，请重新准备产品介绍分镜');ids.add(image.id);if(image.role==='icon'){if(typeof image.sha256!=='string'||!(/^[a-f0-9]{64}$/i).test(image.sha256))throw Error('商品冻结图标校验凭据无效，请重新准备产品介绍分镜');icons.set(image.id,image.sha256.toLowerCase());}}return icons;
+}
 function validateStory(value){
  if(!value||value.version!==1||!Number.isSafeInteger(value.revision)||value.revision<0)throw Error('非口播创作版本无效');
  const s=structuredClone(value);string(s.sourceText,'剧本');string(s.style,'视觉风格',3000);string(s.instructions,'补充要求',5000);
@@ -18,10 +23,17 @@ function validateStory(value){
  for(const e of s.episodes){take(e.id,'分集');string(e.title,'分集标题',500);string(e.text,'分集原文');if(e.narrationAssetId!==undefined)string(e.narrationAssetId,'分集旁白素材ID',120);if(!Array.isArray(e.shots)||e.shots.length>100)throw Error('单集最多100个镜头');e.resultId=e.resultId||'';
   for(const shot of e.shots){take(shot.id,'镜头');for(const key of ['text','visual','action','camera','sound','imagePrompt','videoPrompt'])string(shot[key]||'',key,10000);if(!Number.isFinite(shot.duration)||shot.duration<.1||shot.duration>600)throw Error('镜头时长需为0.1至600秒');if(!Array.isArray(shot.assetIds)||new Set(shot.assetIds).size!==shot.assetIds.length||shot.assetIds.some(id=>!s.assets.some(a=>a.id===id)))throw Error('镜头引用了缺失或重复资产ID');if(shot.primaryReferenceAssetId&&!shot.assetIds.includes(shot.primaryReferenceAssetId))throw Error('主参考必须是当前镜头已绑定的资产');shot.images=(shot.images||[]).map(candidate);shot.videos=(shot.videos||[]).map(candidate);shot.selectedImageId=shot.selectedImageId||'';shot.selectedVideoId=shot.selectedVideoId||'';}
  }
+ if(s.productIntroduction){
+  const trustedIcons=frozenProductIcons(s.productIntroduction);
+  for(const e of s.episodes)for(const shot of e.shots){
+   for(const key of ['sellingPoint','evidence','stage'])string(shot[key]||'',key,key==='evidence'?1000:key==='sellingPoint'?160:500);
+   if(!Array.isArray(shot.iconIds)||shot.iconIds.length>4||new Set(shot.iconIds).size!==shot.iconIds.length||shot.iconIds.some(id=>!trustedIcons.has(id)||!s.assets.some(a=>a.role==='icon'&&a.selectedImageId===id&&shot.assetIds.includes(a.id))))throw Error('商品镜头图标必须引用冻结来源清单中当前绑定的原图标素材，每镜最多四个');
+  }
+ }
  return s;
 }
 function assetInput(s,a){return {aspect:s.aspect,style:s.style,instructions:s.instructions,kind:a.kind,name:a.name,description:a.description,prompt:a.prompt};}
-function shotInput(s,shot){return {aspect:s.aspect,style:s.style,instructions:s.instructions,text:shot.text,visual:shot.visual,action:shot.action,camera:shot.camera,sound:shot.sound,duration:shot.duration,imagePrompt:shot.imagePrompt,videoPrompt:shot.videoPrompt,primaryReferenceAssetId:shot.primaryReferenceAssetId||'',assets:shot.assetIds.map(id=>{const a=s.assets.find(a=>a.id===id);return a?{id,input:assetInput(s,a),selectedImageId:a.selectedImageId}:null;})};}
+function shotInput(s,shot){return {aspect:s.aspect,style:s.style,instructions:s.instructions,text:shot.text,visual:shot.visual,action:shot.action,camera:shot.camera,sound:shot.sound,duration:shot.duration,imagePrompt:shot.imagePrompt,videoPrompt:shot.videoPrompt,primaryReferenceAssetId:shot.primaryReferenceAssetId||'',...(s.productIntroduction?{product:{sellingPoint:shot.sellingPoint||'',evidence:shot.evidence||'',iconIds:shot.iconIds||[],audioId:s.productIntroduction.audioId,productHash:s.productIntroduction.productHash}}:{}),assets:shot.assetIds.map(id=>{const a=s.assets.find(a=>a.id===id);return a?{id,input:assetInput(s,a),selectedImageId:a.selectedImageId}:null;})};}
 function reconcile(before,after){
  const global=hash([before.sourceText,before.episodeCount,before.episodeDuration])!==hash([after.sourceText,after.episodeCount,after.episodeDuration]);
  for(const a of after.assets){const old=before.assets.find(x=>x.id===a.id);if(old){const same=hash(assetInput(before,old))===hash(assetInput(after,a));a.images=(old.images||[]).map(c=>same?c:{...c,status:'stale'});a.selectedImageId=same?old.selectedImageId:'';}else{a.images=[];a.selectedImageId='';}}
@@ -33,4 +45,4 @@ function reconcile(before,after){
  }
  return after;
 }
-module.exports={hash,uid,createStory,validateStory,assetInput,shotInput,reconcile};
+module.exports={hash,uid,createStory,validateStory,assetInput,shotInput,reconcile,frozenProductIcons};

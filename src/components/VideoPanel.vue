@@ -16,7 +16,7 @@ const emit=defineEmits(['choose','generate']);
 const {state,draft:d,busy,navigate,save,workflowLocked,notify}=inject('studio');
 const shotEditor=ref(false),shotSignature=ref('');
 const optimizeOpen=ref(false);
-const activeVideo=computed(()=>state.value.runs.some(run=>run.draftId===d.value.id&&(['avatar','avatar-optimize','avatar-background','product-video'].includes(run.type)||String(run.type).startsWith('story-'))&&['running','queued','unknown'].includes(run.status)));
+const activeVideo=computed(()=>state.value.runs.some(run=>run.draftId===d.value.id&&(['avatar','avatar-optimize','avatar-background','product-video','product-introduction'].includes(run.type)||String(run.type).startsWith('story-'))&&['running','queued','unknown'].includes(run.status)));
 const locked=computed(()=>!!busy.value||workflowLocked.value||activeVideo.value);
 const localH3=computed(()=>state.value.settings.provider.avatarProtocol==='comfy-h3');
 const localMuse=computed(()=>state.value.settings.provider.avatarProtocol==='musetalk-local');
@@ -31,7 +31,7 @@ function mode(value){if(locked.value)return;d.value.video.mode=value;if(value===
 async function editShots(){if(locked.value)return;try{await save();shotSignature.value=shotInputSignature(d.value);shotEditor.value=true;}catch(e){notify(e.message,'error');}}
 </script>
 <template>
-  <div class="video-mode-toolbar"><div class="segmented" role="tablist" aria-label="视频创作方式"><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='single'" :class="{active:d.video.mode==='single'}" @click="mode('single')">单形象</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='multi'" :class="{active:d.video.mode==='multi'}" @click="mode('multi')">多镜头口播</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='story'" :class="{active:d.video.mode==='story'}" @click="mode('story')">非口播创作</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='product'" :class="{active:d.video.mode==='product'}" @click="mode('product')">商品宣传</button></div><p v-if="d.video.mode==='story'">文案 → 分集分镜 → 资产图片 → 镜头视频 → 后续剪辑</p><p v-else-if="d.video.mode==='product'">已确认文案 → 第三步配音 → 商品原图分镜 → 后续剪辑</p></div>
+  <div class="video-mode-toolbar"><div class="segmented" role="tablist" aria-label="视频创作方式"><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='single'" :class="{active:d.video.mode==='single'}" @click="mode('single')">单形象</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='multi'" :class="{active:d.video.mode==='multi'}" @click="mode('multi')">多镜头口播</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='story'" :class="{active:d.video.mode==='story'}" @click="mode('story')">非口播创作</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='product'" :class="{active:d.video.mode==='product'}" @click="mode('product')">商品宣传</button></div><p v-if="d.video.mode==='story'">文案 → 分集分镜 → 资产图片 → 镜头视频 → 后续剪辑</p><p v-else-if="d.video.mode==='product'">商品详情与素材 → 确认脚本 → 配音 → 动态产品镜头 → 后续剪辑</p></div>
   <StoryStudio v-if="d.video.mode==='story'" :key="d.id"/>
   <ProductStudio v-else-if="d.video.mode==='product'" :key="d.id" phase="video"/>
   <template v-else>
