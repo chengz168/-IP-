@@ -42,6 +42,13 @@ class Store{
     const videoChanged=(!independentStory&&(voiceChanged||before.voice.audioId!==next.voice.audioId))||without(before.video,independentStory?storyVideoFields:['assetId'])!==without(next.video,independentStory?storyVideoFields:['assetId']);
     if(videoChanged)next.video.assetId='';
     require('./story-links.cjs').invalidateStoryHandoff(before,next);
+    // 商品成片绑定确认稿、商品资料与配音，修改上游后撤销旧交接，媒体文件仍留在素材库。
+    if(before.productSelection&&(before.finalText!==next.finalText||!next.confirmed||before.language!==next.language||before.voice.audioId!==next.voice.audioId||without(before.voice,['audioId'])!==without(next.voice,['audioId'])||JSON.stringify(before.product)!==JSON.stringify(next.product)||before.video.mode!==next.video.mode)){
+      const selected=before.productSelection;
+      if(next.edit.sourceId===selected.baseId)next.edit.sourceId='';
+      if(next.video.assetId===selected.baseId)next.video.assetId='';
+      next.edit.resultId='';next.cover.assetId='';next.cover.videoId='';next.publish.videoId='';next.publish.coverId='';next.publish.recordId='';delete next.productSelection;
+    }
     // 历史由服务端归档，较早的界面快照不能把已经保存的历史丢掉。
     if(before.artifacts?.captionHistory?.length){next.artifacts??={};const prior=before.artifacts.captionHistory;next.artifacts.captionHistory=[...(next.artifacts.captionHistory||[]).filter(e=>!prior.some(p=>p.id===e.id)),...structuredClone(prior)];}
     require('./caption-history.cjs').archiveOnSourceChange(before,next);

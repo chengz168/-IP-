@@ -2,10 +2,10 @@ const fs = require('node:fs');
 const {workflowView,skippedVoice}=require('./workflow-view.mjs');
 
 const definitions = [
-  {key:'source', name:'提取文案', types:['extract','topic','marketing','reference-analysis','reference-script']},
+  {key:'source', name:'提取文案', types:['extract','topic','marketing','reference-analysis','reference-script','product-collect','product-script']},
   {key:'copy', name:'改写文案', types:['rewrite','translate']},
   {key:'voice', name:'声音生成', types:['speech']},
-  {key:'video', name:'视频生成', types:['avatar','avatar-optimize','avatar-background',...require('./story-links.cjs').storyRunTypes]},
+  {key:'video', name:'视频生成', types:['product-video','avatar','avatar-optimize','avatar-background',...require('./story-links.cjs').storyRunTypes]},
   {key:'edit', name:'视频剪辑', types:['render','transcribe','silence-analysis']},
   {key:'cover', name:'封面生成', types:['frame','cover-video','title']},
   {key:'publish', name:'视频发布', types:['publish']},
@@ -50,7 +50,8 @@ function summarizeTasks(data) {
     if(edited.available&&!require('./pip-matching.cjs').pipResultCurrent(data,draft,assets.get(draft.edit.resultId))){edited.available=false;edited.reason='画中画匹配依据或源文件已变化，请重新剪辑';}
     const cover = assetState(draft.cover.assetId,'image');
     const workflowState=workflowView(workflow,draft,{available:(id,type)=>id===draft.edit.resultId&&type==='video'?edited.available:assetState(id,type).available,unsettled:runs.some(run=>run.status==='unknown')?'unknown':runs.some(run=>['running','queued'].includes(run.status))?'running':''});
-    const voiceSkipped=(skippedVoice(workflow,draft,video.available)||draft.video.mode==='story'&&draft.story?.narrationMode==='none')&&!voice.available;
+    const productSilent=draft.video.mode==='product'&&draft.product?.narration===false;
+    const voiceSkipped=(skippedVoice(workflow,draft,video.available)||draft.video.mode==='story'&&draft.story?.narrationMode==='none'||productSilent)&&!voice.available;
     const exported = data.publishRecords.find(record => record.id === draft.publish.recordId && record.draftId === draft.id && record.status === 'exported');
     const publication=data.publishRecords.find(record=>record.id===draft.publish.recordId&&record.draftId===draft.id&&['published','draft_saved'].includes(record.status)&&record.signature===require('./publish-jobs.cjs').signature(draft)&&Array.isArray(record.accounts)&&record.accounts.length===draft.publish.accountIds.length&&record.accounts.length>0&&draft.publish.accountIds.every(id=>record.accounts.filter(a=>a.id===id&&a.status==='succeeded'&&require('./publish-jobs.cjs').validEvidence(a.result,record.mode,a.submittedAt)).length===1));
     // 只有全部账号的本次平台确认与当前输入一致才完成发布，导出不计入。
@@ -72,7 +73,7 @@ function summarizeTasks(data) {
       let status = ready[index] ? 'ready' : index===2&&voiceSkipped?'skipped':'pending';
       if (unsettled) status = unsettled.status;
       else if (status!=='skipped'&&!ready[index] && ['failed','interrupted','cancelled'].includes(latest?.status)) status = latest.status;
-      let message = status==='skipped'?(draft.video.mode==='story'&&draft.story?.narrationMode==='none'?'当前非口播选择无旁白，未生成配音。':'本次自动流程使用手选视频，已跳过配音；没有生成音频。'):messages[index];
+      let message = status==='skipped'?(productSilent?'当前商品视频选择无旁白，已跳过配音。':draft.video.mode==='story'&&draft.story?.narrationMode==='none'?'当前非口播选择无旁白，未生成配音。':'本次自动流程使用手选视频，已跳过配音；没有生成音频。'):messages[index];
       if (!ready[index] && latest?.status === 'succeeded') message += ' 历史成功记录仍保留，当前尚无符合就绪条件的内容或产物。';
       const label = runLabels[status] || (status==='skipped'?'已跳过':status === 'ready' ? ['已填写','已确认','已就绪','已就绪','已就绪','已就绪',publication?.mode==='draft'?'草稿已保存':'已发布'][index] : exported && index === 6 ? '已导出，待发布' : '待处理');
       return {key:definition.key, name:definition.name, index, status, label, available:ready[index], completed:ready[index]||status==='skipped', message, artifact:artifacts[index]?.id ? artifacts[index] : null, latest:publicRun(latest), unsettled:publicRun(unsettled), history:history.map(publicRun)};

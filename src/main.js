@@ -26,3 +26,4 @@ import './edit-preview.css';
 
 import './namecard.css';
 import './bgm.css';
+import './product-studio.css';

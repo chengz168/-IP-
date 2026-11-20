@@ -13,6 +13,7 @@ class WorkflowJobs{
  plan(id){
   const d=this.store.draft(id),p=this.store.data.settings.provider,stages=[],issues=[];
   if(d.video.mode==='story'&&!this.available(d.edit.sourceId||d.video.assetId,'video'))issues.push('请先在第四步非口播创作中完成当前集并选用，再自动执行剪辑、封面与发布信息');
+  if(d.video.mode==='product'&&(!d.productSelection||d.productSelection.baseId!==(d.edit.sourceId||d.video.assetId)||!this.available(d.edit.sourceId||d.video.assetId,'video')))return {draftId:id,stages,issues:['请先在第四步商品宣传中生成并选用商品视频，再自动执行剪辑、封面与发布信息']};
   const add=(key,action,reason='')=>stages.push({key,name:names[key],action,reason,status:'pending',runId:'',assetId:'',error:''});
   if(!activeStoryEpisode(d)&&(!d.confirmed||!d.finalText.trim()))issues.push('请先确认最终文案');
   const editAsset=this.store.data.assets.find(a=>a.id===d.edit.resultId),hasEdit=this.available(d.edit.resultId,'video')&&require('./title-output.mjs').titleOutputCurrent(d,editAsset)&&require('./subtitle-output.mjs').subtitleOutputCurrent(d,editAsset)&&require('./pip-matching.cjs').pipResultCurrent(this.store.data,d,editAsset),imported=!!d.edit.sourceId,videoId=d.edit.sourceId||d.video.assetId||d.edit.resultId,hasVideo=this.available(videoId,'video');

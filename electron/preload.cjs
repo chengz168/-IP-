@@ -3,6 +3,7 @@ const {contextBridge,ipcRenderer,webUtils}=require('electron');
 const actions=new Set(['state','saveDraft','saveAppearance','listSubtitleFonts','subtitleSourceSize','previewSubtitle','generateEditTitle','saveSubtitleStyle','newDraft','selectDraft','deleteDraft','saveSettings','testConnection','checkLocalAsr','checkLocalSpeech','checkMedia','importFile','assetText','updateAsset','deleteAsset','saveResource','deleteResource','addCategory','text','extract','speech','testSpeech','trainVoice','avatar','render','transcribe','frame','imageData','coverVideo','importCaptions','exportCaptions','saveCover','exportPackage','publish','cancelRun','backup','restoreBackup','systemVoices','analyzeSilence']);
 actions.add('materialDetail');actions.add('analyzeMaterial');actions.add('applyMaterialAnalysis');
 for(const action of ['analyzeReferenceVideo','createReferenceScript','useReferenceScript'])actions.add(action);
+for(const action of ['collectProduct','createProductScript','useProductScript','syncProductShots','generateProductVideo','useProductVideo'])actions.add(action);
 actions.add('openExtractBrowser');actions.add('closeExtractBrowser');actions.add('extractBrowserStatus');
 for(const action of ['openAccountLogin','checkAccountConnection','closeAccountLogin','preparePublish','reviewPublish','publishStatus'])actions.add(action);
 actions.add('videoAudioInfo');actions.add('saveVideoShots');
