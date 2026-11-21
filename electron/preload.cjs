@@ -4,7 +4,7 @@ const actions=new Set(['state','saveDraft','saveAppearance','listSubtitleFonts',
 actions.add('materialDetail');actions.add('analyzeMaterial');actions.add('applyMaterialAnalysis');
 for(const action of ['analyzeReferenceVideo','createReferenceScript','useReferenceScript'])actions.add(action);
 for(const action of ['collectProduct','createProductScript','useProductScript','syncProductShots','generateProductVideo','useProductVideo'])actions.add(action);
-actions.add('prepareProductIntroduction');
+actions.add('prepareProductIntroduction');actions.add('proposeProductShotDesign');
 actions.add('openExtractBrowser');actions.add('closeExtractBrowser');actions.add('extractBrowserStatus');
 for(const action of ['openAccountLogin','checkAccountConnection','closeAccountLogin','preparePublish','reviewPublish','publishStatus'])actions.add(action);
 actions.add('videoAudioInfo');actions.add('saveVideoShots');

@@ -5,7 +5,7 @@ const definitions = [
   {key:'source', name:'提取文案', types:['extract','topic','marketing','reference-analysis','reference-script','product-collect','product-script']},
   {key:'copy', name:'改写文案', types:['rewrite','translate']},
   {key:'voice', name:'声音生成', types:['speech']},
-  {key:'video', name:'视频生成', types:['product-video','product-introduction','avatar','avatar-optimize','avatar-background',...require('./story-links.cjs').storyRunTypes]},
+  {key:'video', name:'视频生成', types:['product-video','product-introduction','product-shot-design','avatar','avatar-optimize','avatar-background',...require('./story-links.cjs').storyRunTypes]},
   {key:'edit', name:'视频剪辑', types:['render','transcribe','silence-analysis']},
   {key:'cover', name:'封面生成', types:['frame','cover-video','title']},
   {key:'publish', name:'视频发布', types:['publish']},

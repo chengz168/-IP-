@@ -44,7 +44,7 @@ function fixture(t) {
   service.media.probe = async file => file.endsWith('.wav')
     ? { format: { duration: '12.01' }, streams: [{ codec_type: 'audio' }] }
     : { streams: [{ codec_type: 'video', width: 750, height: 750 }] };
-  service.providers.text = async () => ({ text: JSON.stringify({ shots: rows.map((row, index) => ({
+  service.providers.text = async (system,user,ctx,options) => options?.schema?.properties?.prompt ? {text:JSON.stringify({prompt:'The same product moves gently once and settles. Static close shot, without dialogue.'})} : ({ text: JSON.stringify({ shots: rows.map((row, index) => ({
     text: row.text, visual: index === 2 ? '商品材质细节' : '完整的羽毛逗猫棒',
     imageIndex: index === 2 ? 1 : 0, duration: 4, sellingPoint: index === 2 ? 'PP材质' : '长杆和彩色羽毛',
     evidence: index === 2 ? '商品资料标注材质PP' : '商品资料与主图',
@@ -534,3 +534,5 @@ test('ASR期间原地替换同长度音频字节必须拒绝，不能将旧识�
   assert.equal(d.video.assetId, '');
   assert.equal(d.edit.sourceId, '');
 });
+
+test('中文镜头翻译期间发生修改，不提交过期GPU任务且保留原候选',async t=>{const env=await preparedFixture(t),{service,id,d}=env,episode=d.story.episodes[0],shot=episode.shots[0];let submitted=0;service.providers.text=async()=>{d.story.episodes[0].shots[0].action='用户已改为向右摆动';return {text:JSON.stringify({prompt:'The same product swings left and settles.'})};};service.stories.generator.video=async()=>{submitted++;throw Error('不应提交');};await assert.rejects(service.invoke('generateStoryVideo',{id,episodeId:episode.id,shotId:shot.id}),/翻译期间已变化/);assert.equal(submitted,0);assert.equal(d.story.episodes[0].shots[0].action,'用户已改为向右摆动');assert.equal(d.story.episodes[0].shots[0].videos.length,0);});

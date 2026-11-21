@@ -193,6 +193,7 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
   service.products=new(require('./product-studio.cjs').ProductStudio)(service,{pageReader:options.productBrowser});
   for(const [action,method]of Object.entries({collectProduct:'collect',createProductScript:'create',useProductScript:'useScript',syncProductShots:'sync',generateProductVideo:'generate',useProductVideo:'use'}))handlers[action]=p=>service.products[method](p);
   handlers.prepareProductIntroduction=p=>require('./product-introduction.cjs').prepareIntroduction(service.products,p);
+  handlers.proposeProductShotDesign=p=>require('./product-prompt.cjs').proposeProductShotDesign(service.products,p);
   handlers.materialDetail=p=>materials.detail(p);
   handlers.analyzeMaterial=async p=>{const result=await materials.analyze(p);return {...result,runId:store.data.runs.find(r=>r.output===result)?.id};};
   handlers.applyMaterialAnalysis=p=>materials.apply(p);

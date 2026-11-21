@@ -29,9 +29,9 @@ function fixture(t) {
   const asset = service.store.addAsset(file);
   d.product.assetIds = [asset.id];
   service.providers.text = async () => ({ text: JSON.stringify({ shots: [
-    { text: '了解这款测试商品', visual: '完整展示商品原图', imageIndex: 0, duration: 5 },
-    { text: '查看商品详情中的材质信息', visual: '展示详情原图', imageIndex: 0, duration: 5 },
-    { text: '选择前请核对商品规格', visual: '回到商品主图', imageIndex: 0, duration: 5 },
+    { text: '了解这款测试商品', visual: '完整展示商品原图', action:'商品沿原位置小幅转动后停下',camera:'中景固定机位', imageIndex: 0, duration: 5 },
+    { text: '查看商品详情中的材质信息', visual: '展示详情原图', action:'商品局部随光线变化显露纹理',camera:'近景固定机位', imageIndex: 0, duration: 5 },
+    { text: '选择前请核对商品规格', visual: '回到商品主图', action:'商品轻微转动回到正面',camera:'中景固定机位', imageIndex: 0, duration: 5 },
   ] }) });
   return { service, id: d.id, asset };
 }
