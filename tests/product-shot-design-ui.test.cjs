@@ -25,9 +25,9 @@ async function fixture({refreshAfterAct=false}={}){
  const studio={draft,state,busy:vue.ref(''),workflowLocked:vue.ref(false),act:async(_,fn)=>{const result=await fn();if(refreshAfterAct){draft.value=JSON.parse(JSON.stringify(draft.value));state.value={...state.value,drafts:[draft.value]};}return result;},refresh:async()=>{},notify:(...args)=>notices.push(args),navigate:()=>{},registerDraftFlusher:()=>()=>{}};
  const call=async(action,payload)=>{calls.push({action,payload:JSON.parse(JSON.stringify(payload))});if(action==='proposeProductShotDesign')return proposed(payload);if(action==='saveStory'){draft.value.story={...JSON.parse(JSON.stringify(payload.story)),revision:payload.revision+1};return{story:JSON.parse(JSON.stringify(draft.value.story))};}throw Error('测试未预期调用：'+action);};
  const filename=path.resolve(__dirname,'../src/components/StoryStudio.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename});
- const compiled=sfc.compileScript(descriptor,{id:'shot-design-ui'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return'),helpers=await import('../src/story-ui.mjs');
- const names=['computed','inject','ref','watch','nextTick','onBeforeUnmount','I','AssetPicker','Modal','StoryModelSettings','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)];
- const values=[vue.computed,()=>studio,vue.ref,vue.watch,vue.nextTick,()=>{},{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
+ const compiled=sfc.compileScript(descriptor,{id:'shot-design-ui'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return'),helpers={...await import('../src/story-ui.mjs'),...await import('../server/shot-localization-view.mjs')};
+ const names=['computed','inject','ref','watch','nextTick','onBeforeUnmount','I','AssetPicker','Modal','StoryModelSettings','CreativePresets','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)];
+ const values=[vue.computed,()=>studio,vue.ref,vue.watch,vue.nextTick,()=>{},{},{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
  const scope=vue.effectScope(),component=new Function(...names,compiled)(...values),vm=scope.run(()=>component.setup({productMode:true},{expose(){}}));await vue.nextTick();
  return{vm,draft,state,calls,notices,filename,descriptor,setProposal:fn=>{proposed=fn;},dispose:()=>scope.stop()};
 }

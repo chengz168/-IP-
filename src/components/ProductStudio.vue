@@ -3,6 +3,7 @@ import {computed,inject,ref,watch} from 'vue';
 import I from './Icon.vue';
 import MediaPreview from './MediaPreview.vue';
 import StoryStudio from './StoryStudio.vue';
+import CreativePresets from './CreativePresets.vue';
 import {call,mediaUrl} from '../api';
 
 const props=defineProps({phase:{type:String,default:'source'}});
@@ -123,6 +124,7 @@ watch(()=>d.value.id,()=>{error.value='';manualEntry.value=false;failedImages.va
   <header class="product-heading"><div><h3>{{props.phase==='source'?'商品宣传':'商品宣传视频'}}</h3><p>{{props.phase==='source'?'从商品资料和图片提炼卖点，生成有依据的文案与动作分镜，接续文案确认、声音和视频制作。':'沿用确认稿与第三步配音，按脚本生成产品介绍镜头，确认后继续网感剪辑。'}}</p></div><span class="product-method">{{introduction?'脚本驱动 · 动态产品介绍':'原图展示 · 兼容已有任务'}}</span></header>
   <fieldset v-if="props.phase==='video'" class="product-render-modes"><legend>视频制作方式</legend><label :class="{selected:introduction}"><input v-model="renderMode" type="radio" value="introduction" :disabled="locked"/><span><strong>脚本驱动产品介绍</strong><small>按卖点和动作生成动态镜头，逐镜预览确认后合成。</small></span></label><label :class="{selected:!introduction}"><input v-model="renderMode" type="radio" value="presentation" :disabled="locked"/><span><strong>原图展示</strong><small>使用商品原图、轻微运镜与转场，保留已有制作方式。</small></span></label></fieldset>
   <p v-if="props.phase==='source'" class="product-handoff-note">商品创作沿用左侧七步流程：在这里准备资料与脚本，接着确认文案、生成声音，再到视频生成中的「商品宣传」完成制作。</p>
+  <CreativePresets v-if="props.phase==='source'" stage="script" :context="{kind:'product'}" :disabled="locked"/>
   <p v-if="activeRun?.status==='unknown'" class="product-notice" role="status">上次操作结果尚待确认，请先在任务中心核对，避免重复提交。</p>
   <article v-if="props.phase==='source'" class="card product-source">
    <div class="card-heading"><h4>商品资料与图片</h4><span>{{sourceRun?'已读取商品资料':'输入商品链接，或手动添加'}}</span></div>

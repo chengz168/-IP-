@@ -1,5 +1,6 @@
 import {resolvePrompt,promptSnapshot,generationConfig} from './prompt-catalog.mjs';
 import {downstreamText} from './story-source.mjs';
+import {resolveCreativePreset} from './creative-presets.mjs';
 // 前后端共用输入与写入目标快照，防止较早的生成结果覆盖新输入或手工编辑。
 export function textInput(draft,kind,data){
  const template=resolvePrompt(kind,data,draft.template);
@@ -15,6 +16,7 @@ export function textInput(draft,kind,data){
   kind==='translate'?{finalText:draft.finalText}:
   kind==='title'?{title:draft.cover.title}:
   ['marketing','topic'].includes(kind)?{sourceText:draft.sourceText,confirmed:draft.confirmed}:null;
- return JSON.parse(JSON.stringify({id:draft.id,kind,fields,template:{selectedId:['rewrite','marketing','topic'].includes(kind)?draft.template:'',...promptSnapshot(template)},generation:generationConfig(data,template),destination}));
+ const creativePreset=['rewrite','marketing','topic'].includes(kind)?resolveCreativePreset(draft,kind==='rewrite'?'rewrite':kind==='topic'?'topic':'script',{kind:kind==='rewrite'?'rewrite':kind,content:kind==='rewrite'?draft.sourceText:undefined}):null;
+ return JSON.parse(JSON.stringify({id:draft.id,kind,fields,template:{selectedId:['rewrite','marketing','topic'].includes(kind)?draft.template:'',...promptSnapshot(template)},generation:generationConfig(data,template),destination,...(creativePreset?{creativePreset}:{})}));
 }
 export function textInputMatches(input,draft,kind,data){return !!input&&JSON.stringify(input)===JSON.stringify(textInput(draft,kind,data));}

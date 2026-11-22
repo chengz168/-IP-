@@ -22,6 +22,9 @@ class Store{
     const before=this.data.drafts[index],next=structuredClone(input);
     // 分集资产由带版本校验的专用服务写入，普通草稿保存不得覆盖异步产物。
     if(before.story)next.story=structuredClone(before.story);else delete next.story;
+    // 翻译属于服务端结果，旧界面保存和客户端输入不能覆盖或伪造译稿。
+    next.artifacts??={};if(before.artifacts?.shotTranslations)next.artifacts.shotTranslations=structuredClone(before.artifacts.shotTranslations);else delete next.artifacts.shotTranslations;
+    if(next.creativePreset!==undefined)next.creativePreset=require('./creative-presets.mjs').normalizeCreativeSelection(next.creativePreset);
     if(this.data.runs.some(r=>r.draftId===input.id&&r.type==='publish'&&['running','queued'].includes(r.status))&&require('./publish-jobs.cjs').signature(before)!==require('./publish-jobs.cjs').signature(next))throw Error('发布正在执行，请先停止并核对平台结果后修改发布内容');
     const {workflowActive,workflowInput}=require('./workflow-state.cjs'),active=workflowActive(this.data,input.id);
     if(active&&options.workflowJobId!==active.id&&workflowInput(before)!==workflowInput(next))throw new Error('此任务的自动流程正在执行，请先停止后修改生产输入');

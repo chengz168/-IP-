@@ -17,10 +17,10 @@ async function fixture({existing=false,stale=false,component='ProductStudio',pro
  const studio={state,draft,busy:vue.ref(''),workflowLocked:vue.ref(false),act:async(_,work)=>work(),save:async()=>{},refresh:async()=>{},notify:(...args)=>notices.push(args),importAssets:async()=>[],navigate:()=>{},registerDraftFlusher:()=>()=>{}};
  const filename=path.resolve(__dirname,'../src/components/'+component+'.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename});
  const compiled=sfc.compileScript(descriptor,{id:'product-intro-ui'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return');
- const helpers=await import('../src/story-ui.mjs');
+ const helpers={...await import('../src/story-ui.mjs'),...await import('../server/shot-localization-view.mjs')};
  const scope=vue.effectScope(),call=async(action,payload)=>{calls.push({action,payload});return {stale,story:JSON.parse(JSON.stringify(draft.value.story))};};
- const names=['computed','inject','ref','watch','nextTick','onBeforeUnmount','I','MediaPreview','StoryStudio','AssetPicker','Modal','StoryModelSettings','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)];
- const values=[vue.computed,()=>studio,vue.ref,vue.watch,vue.nextTick,()=>{},{},{},{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
+ const names=['computed','inject','ref','watch','nextTick','onBeforeUnmount','I','MediaPreview','StoryStudio','AssetPicker','Modal','StoryModelSettings','CreativePresets','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)];
+ const values=[vue.computed,()=>studio,vue.ref,vue.watch,vue.nextTick,()=>{},{},{},{},{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
  const componentObject=new Function(...names,compiled)(...values),vm=scope.run(()=>componentObject.setup({phase:'video',productMode},{expose(){}}));
  await vue.nextTick();
  return {vm,draft,state,calls,notices,descriptor,filename,initialDraftJson,dispose:()=>scope.stop()};

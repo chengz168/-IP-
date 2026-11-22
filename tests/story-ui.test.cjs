@@ -80,14 +80,14 @@ test('Z-Image绑定参考在提交前给出阻断，版本冲突与网络失败�
 });
 
 async function componentFixture(options={}){
- const fs=require('node:fs'),path=require('node:path'),vue=require('vue'),sfc=require('@vue/compiler-sfc'),helpers=await import('../src/story-ui.mjs'),filename=path.resolve(__dirname,'../src/components/StoryStudio.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename}),{story}=flowFixture();
+ const fs=require('node:fs'),path=require('node:path'),vue=require('vue'),sfc=require('@vue/compiler-sfc'),helpers={...await import('../src/story-ui.mjs'),...await import('../server/shot-localization-view.mjs')},filename=path.resolve(__dirname,'../src/components/StoryStudio.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename}),{story}=flowFixture();
  Object.assign(story,{revision:1,sourceMode:'custom',sourceText:'本集测试剧本',episodeCount:2,episodeDuration:10,narrationMode:'none'});story.episodesSourceHash=await helpers.storyEpisodeFingerprint(story);for(const ep of story.episodes)for(const shot of ep.shots)Object.assign(shot,{duration:5,visual:'测试画面'});
  helpers.storyUiDrafts.delete('task');
  const draft=vue.ref({id:'task',story,voice:{audioId:''}}),state=vue.ref({drafts:[draft.value],assets:story.assets.flatMap(item=>item.images.map(image=>({id:image.id,type:'image'}))),runs:[],settings:{provider:{}}}),calls=[],navigation=[],notices=[];
  const studio={state,draft,busy:vue.ref(''),workflowLocked:vue.ref(false),act:async(_,work)=>work(),refresh:async()=>{},notify:(...args)=>notices.push(args),navigate:value=>navigation.push(value),registerDraftFlusher:()=>()=>{}};
  const call=async(action,payload)=>{calls.push({action,payload});return options.call?options.call(action,payload,{draft,state}):{story:structuredClone(JSON.parse(JSON.stringify(draft.value.story)))};};
  const compiled=sfc.compileScript(descriptor,{id:'story-ui-test'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return'),scope=vue.effectScope();
- const names=['computed','inject','nextTick','onBeforeUnmount','ref','watch','I','AssetPicker','Modal','StoryModelSettings','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)],values=[vue.computed,()=>studio,vue.nextTick,()=>{},vue.ref,vue.watch,{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
+ const names=['computed','inject','nextTick','onBeforeUnmount','ref','watch','I','AssetPicker','Modal','StoryModelSettings','CreativePresets','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)],values=[vue.computed,()=>studio,vue.nextTick,()=>{},vue.ref,vue.watch,{},{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
  const component=new Function(...names,compiled)(...values),vm=scope.run(()=>component.setup({}, {expose(){}}));await vue.nextTick();vm.inputFingerprint.value=await helpers.storyEpisodeFingerprint(vm.story.value);await vue.nextTick();return {vm,draft,state,calls,navigation,notices,dispose:()=>scope.stop(),descriptor,sfc,filename};
 }
 

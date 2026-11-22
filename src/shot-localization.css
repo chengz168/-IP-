@@ -1,0 +1,11 @@
+.shot-translation-panel{display:grid;gap:12px;min-width:0;}
+.shot-translation-panel .card-heading{margin-bottom:0;gap:12px;flex-wrap:wrap;}
+.shot-translation-panel p{margin:0;line-height:1.65;overflow-wrap:anywhere;}
+.shot-translation-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.shot-translation-panel details{border-top:1px solid var(--border,#e6e8ee);padding-top:12px;}
+.shot-translation-panel summary{cursor:pointer;line-height:1.6;}
+.shot-translation-panel dl{display:grid;grid-template-columns:100px minmax(0,1fr);gap:10px;margin:12px 0 0;}
+.shot-translation-panel dt{font-weight:600;}
+.shot-translation-panel dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;}
+.story-studio textarea[readonly],.story-studio input[readonly]{cursor:default;}
+@media(max-width:640px){.shot-translation-actions{align-items:stretch;}.shot-translation-actions button{flex:1 1 180px;white-space:normal;}.shot-translation-panel dl{grid-template-columns:minmax(0,1fr);gap:6px;}.shot-translation-panel dd{margin-bottom:8px;}}

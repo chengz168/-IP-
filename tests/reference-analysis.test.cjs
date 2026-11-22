@@ -16,3 +16,46 @@ test('跨稿、类型混用与短稿拒绝，保存失败回滚且不切换当�
 test('自动流程保护与持久unknown均阻止选用和改稿',async t=>{const f=fixture(t),r=await report(f),{s,id}=f;s.store.data.workflowJobs=[{id:'job',draftId:id,status:'unknown'}];await assert.rejects(s.invoke('useReferenceScript',{id,runId:r.id,kind:'transcript'}),/待确认/);s.store.data.workflowJobs=[];s.store.data.runs.unshift({id:'production',draftId:id,type:'avatar',status:'unknown'});await assert.rejects(s.invoke('useReferenceScript',{id,runId:r.id,kind:'transcript'}),/待确认/);});
 test('选用最后一次异步校验期间改稿或插入生产任务必须拒绝',async t=>{const f=fixture(t),r=await report(f),{s,id}=f;let release;s.references.source.unchanged=()=>new Promise(resolve=>release=resolve);const pending=s.invoke('useReferenceScript',{id,runId:r.id,kind:'transcript'});s.store.draft(id).sourceText='等待期间新改的文案';release(true);await assert.rejects(pending,/变化/);assert.equal(s.store.draft(id).sourceText,'等待期间新改的文案');s.store.draft(id).sourceText='当前原稿';const next=s.invoke('useReferenceScript',{id,runId:r.id,kind:'transcript'});s.store.data.runs.unshift({id:'new-production',draftId:id,type:'avatar',status:'running'});release(true);await assert.rejects(next,/正在处理/);assert.equal(s.store.draft(id).sourceText,'当前原稿');});
 test('非口播用真实采样编号建结构与画面稿，不把歌词选成台词',async t=>{const f=fixture(t),{s,id,collected}=f;collected.visual={status:'succeeded',observations:[{time:0,description:'手持猫砂铲'},{time:8,description:'铲中有结团猫砂'}],limitation:'两张静态采样'};const a={contentType:'music-visual',audioRole:'音轨识别疑似歌词，未独立试听。',summary:'清理猫砂的画面展示',hook:{basis:'visual',kind:'操作画面开场',quote:'',visualSamples:[0],explanation:'直接呈现工具'},sections:[{basis:'visual',label:'工具入画',quote:'',visualSamples:[0],purpose:'近景展示猫砂铲，提供具体的操作对象。'},{basis:'visual',label:'结团细节',quote:'',visualSamples:[1],purpose:'特写展示铲内结团，不推断实际性能。'}],ending:{basis:'visual',quote:'',visualSamples:[1],explanation:'结团近景'},reusableStructure:['工具—细节'],uncertainties:['未观察帧间完整动作']};s.providers.text=async()=>({text:JSON.stringify(a)});const r=await report(f);assert.equal(r.output.analysis.sections[1].start,8);assert(r.output.outline.text.includes('工具入画'));await assert.rejects(s.invoke('useReferenceScript',{id,runId:r.id,kind:'transcript'}),/歌词/);const used=await s.invoke('useReferenceScript',{id,runId:r.id,kind:'outline'});assert.equal(used.sourceText,r.output.outline.text);assert.equal(used.referenceSelection.scriptBasis,'visual-analysis');a.sections[0].visualSamples=[99];assert.throws(()=>validateAnalysis(a,collected.transcript,10,collected.visual),/真实采样/);a.sections[0].visualSamples=[0];a.sections[0].quote='可见猫砂铲';assert.throws(()=>validateAnalysis(a,collected.transcript,10,collected.visual),/冒充/);});
+
+test('原视频只分析一次，切换创作预设可复用报告但拒绝旧预设创作稿',async t=>{
+ const f=fixture(t),{s,id}=f;
+ let collectCount=0;const collect=s.references.source.collect;
+ s.references.source.collect=async(...args)=>{collectCount++;return collect(...args);};
+ const r=await report(f),before=structuredClone(s.store.draft(id));
+ await s.invoke('saveCreativePreset',{id,selection:{mode:'manual',presetId:'tutorial',instruction:'写清检查结果'}});
+ const first=await s.invoke('createReferenceScript',{id,runId:r.id,brief:'整理桌面，只给观察建议'}),firstRun=s.store.data.runs[0];
+ assert.equal(first.stale,false);assert.equal(first.creativePreset.id,'tutorial');assert.equal(first.sourceRunId,r.id);
+ await s.invoke('saveCreativePreset',{id,selection:{mode:'manual',presetId:'knowledge'}});
+ await assert.rejects(s.invoke('useReferenceScript',{id,runId:firstRun.id,kind:'created'}),/创作预设.*变化/);
+ assert.equal(s.store.draft(id).sourceText,before.sourceText);assert.equal(s.store.draft(id).finalText,before.finalText);
+ const second=await s.invoke('createReferenceScript',{id,runId:r.id,brief:'整理桌面，只给观察建议'});
+ assert.equal(second.stale,false);assert.equal(second.creativePreset.id,'knowledge');assert.equal(second.sourceRunId,r.id);assert.equal(collectCount,1);
+ assert.equal(s.store.data.runs.filter(run=>run.type==='reference-analysis').length,1);assert.equal(s.store.data.runs.filter(run=>run.type==='reference-script').length,2);
+});
+
+test('参考创作生成中切换预设仅留下过期候选，不要求重做原始解析',async t=>{
+ const f=fixture(t),{s,id}=f,r=await report(f);let release,notify;
+ const started=new Promise(resolve=>notify=resolve),before=structuredClone(s.store.draft(id));
+ s.providers.text=async()=>{notify();return new Promise(resolve=>release=resolve);};
+ const pending=s.invoke('createReferenceScript',{id,runId:r.id,brief:'整理桌面，只给观察建议'});
+ await started;await s.invoke('saveCreativePreset',{id,selection:{mode:'manual',presetId:'review'}});
+ release({text:'先检查常用物品的位置，再按拿取习惯尝试调整，最后观察调整后的使用情况。'});
+ const result=await pending,run=s.store.data.runs[0];
+ assert.equal(result.stale,true);assert.equal(run.output.stale,true);assert.equal(run.status,'succeeded');assert.equal(s.store.draft(id).sourceText,before.sourceText);
+ await assert.rejects(s.invoke('useReferenceScript',{id,runId:run.id,kind:'created'}),/失效/);
+ s.providers.text=async()=>({text:'把你每天需要的物品集中在容易拿取的位置，再观察实际体验，并按需要逐步调整。'});
+ const current=await s.invoke('createReferenceScript',{id,runId:r.id,brief:'整理桌面，只给观察建议'});
+ assert.equal(current.stale,false);assert.equal(current.creativePreset.id,'review');assert.equal(s.store.data.runs.filter(item=>item.type==='reference-analysis').length,1);
+});
+
+test('选用创作稿最后一次异步校验期间切换预设仍拒绝旧稿',async t=>{
+ const f=fixture(t),{s,id}=f,r=await report(f);
+ await s.invoke('createReferenceScript',{id,runId:r.id,brief:'整理桌面，只给观察建议'});
+ const created=s.store.data.runs[0],before=structuredClone(s.store.draft(id));let release,notify;
+ const started=new Promise(resolve=>notify=resolve);
+ s.references.source.unchanged=async()=>{notify();return new Promise(resolve=>release=resolve);};
+ const pending=s.invoke('useReferenceScript',{id,runId:created.id,kind:'created'});
+ await started;await s.invoke('saveCreativePreset',{id,selection:{mode:'manual',presetId:'story'}});release(true);
+ await assert.rejects(pending,/创作预设.*变化/);
+ assert.equal(s.store.draft(id).sourceText,before.sourceText);assert.equal(s.store.draft(id).referenceSelection,undefined);
+});

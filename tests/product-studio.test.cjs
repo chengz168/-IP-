@@ -309,3 +309,22 @@ test('商品模式未生成视频时自动流程给出商品步骤提示，不�
   assert.match(plan.issues[0], /第四步商品宣传.*生成并选用商品视频/);
   assert.doesNotMatch(plan.issues.join(''), /数字人|口型|配音服务|形象视频/);
 });
+
+
+test('商品脚本明确质量问题只纠正一次，采用实际纠正响应并保留请求证据', async t=>{
+ const {service,id}=fixture(t),valid=JSON.parse((await service.providers.text()).text),bad=structuredClone(valid),requests=[];
+ for(const shot of bad.shots)shot.action='无主体动作变化，仅展示静止外观';
+ service.providers.text=async(system,user)=>{requests.push({system,user});return {text:JSON.stringify(requests.length===1?bad:valid)};};
+ const result=await service.invoke('createProductScript',{id});
+ assert.equal(requests.length,2);assert.match(requests[1].user,/全部镜头缺少主体动作/);assert.equal(result.evidence.attempts.length,2);
+ assert.equal(result.shots[0].action,valid.shots[0].action);assert.equal(result.qualityAccepted,false);
+});
+test('商品纠正后仍全静态时拒绝，旧脚本与媒体不改，失败记录保留两次响应', async t=>{
+ const {service,id}=fixture(t),bad=JSON.parse((await service.providers.text()).text),d=service.store.draft(id);
+ d.product.shots=[{text:'原脚本'}];d.voice.audioId='保留声音';d.video.assetId='保留视频';const before=structuredClone(d);
+ for(const shot of bad.shots)shot.action='无主体动作变化，仅展示静止外观';let calls=0;
+ service.providers.text=async()=>{calls++;return {text:JSON.stringify(bad)};};
+ await assert.rejects(service.invoke('createProductScript',{id}),/商品脚本未通过检查.*旧脚本保留/);
+ assert.equal(calls,2);assert.deepEqual(service.store.draft(id),before);
+ const run=service.store.data.runs[0];assert.equal(run.status,'failed');assert.equal(run.failureOutput.attempts.length,2);assert.equal(run.failureOutput.qualityAccepted,false);
+});
