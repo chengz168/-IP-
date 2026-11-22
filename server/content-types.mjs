@@ -1,5 +1,5 @@
 // 统一来源和内容类型画像。它只做可解释的路由建议，不把类型猜测当成内容事实。
-export const contentTypeVersion='2026-11-22.1';
+export const contentTypeVersion='2026-11-22.2';
 
 const definitions=[
  {id:'talking-head',name:'口播表达',presetId:'general',outputMode:'spoken',aliases:['口播','讲解','出镜'],requires:['已确认正文','可选人物视频或配音'],pipeline:['script','rewrite','voice','avatar','subtitle','edit'],rules:['台词是主叙事，画面只承担人物表达、示范或辅助信息。']},
@@ -15,12 +15,12 @@ const definitions=[
 ];
 
 const normalize=value=>String(value||'').trim().toLowerCase();
-const textOf=input=>[input?.title,input?.description,input?.brief,input?.text,input?.sourceText,input?.transcript?.text,input?.analysis?.summary].filter(value=>typeof value==='string').join('\n');
+const textOf=input=>[...new Set([input?.title,input?.description,input?.brief,input?.text,input?.sourceText,input?.transcript?.text,input?.analysis?.summary].filter(value=>typeof value==='string'))].join('\n');
 const scoreDefinition=(definition,text,input)=>{
  let score=0;const hits=[];for(const alias of definition.aliases){if(text.includes(normalize(alias))){score+=alias.length>2?3:1;hits.push(alias);}}
- if(definition.id==='product-promo'&&(input?.sourceKind==='product-page'||input?.hasProductFacts||input?.product))score+=20;
- if(definition.id==='non-verbal-visual'&&['music-visual','visual'].includes(input?.analysis?.contentType))score+=20;
- if(definition.id==='talking-head'&&input?.analysis?.contentType==='spoken')score+=4;
+ if(definition.id==='product-promo'&&(input?.sourceKind==='product-page'||input?.hasProductFacts===true)){score+=20;hits.push('商品资料来源');}
+ if(definition.id==='non-verbal-visual'&&['music-visual','visual'].includes(input?.analysis?.contentType)){score+=20;hits.push('画面主体分析');}
+ if(definition.id==='talking-head'&&input?.analysis?.contentType==='spoken'){score+=4;hits.push('主体台词分析');}
  if(definition.id==='lifestyle-vlog'&&input?.analysis?.contentType==='mixed')score+=2;
  return {id:definition.id,score,hits:[...new Set(hits)]};
 };
@@ -30,25 +30,34 @@ export function contentTypeById(id){const item=definitions.find(row=>row.id===id
 export function detectContentProfile(input={}){
  if(!input||typeof input!=='object'||Array.isArray(input))throw Error('内容类型输入无效');
  const sourceKind=input.sourceKind||'text';
- const text=normalize(textOf(input));
+ // 配乐歌词不能成为题材判断依据；只用经过依据校验的画面分析摘要。
+ const visual=['music-visual','visual'].includes(input?.analysis?.contentType);
+ const text=normalize(visual?input?.analysis?.summary:textOf(input));
  const ranked=definitions.map(item=>scoreDefinition(item,text,input)).sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));
  const top=ranked[0],second=ranked[1];
  // 没有任何命中依据时使用通用口播候选，避免按字母排序误判为数据解读。
  const fallback=definitions.find(item=>item.id==='talking-head')||definitions[0];
- const definition=top.score>0?definitions.find(item=>item.id===top.id)||fallback:fallback;
- const confidence=top.score===0?'low':top.score>=20||top.score>second.score*1.8?'high':top.score>second.score?'medium':'low';
+ const definition=input.sourceKind==='product-page'||input.hasProductFacts===true?definitions.find(item=>item.id==='product-promo'):visual?definitions.find(item=>item.id==='non-verbal-visual'):top.score>0?definitions.find(item=>item.id===top.id)||fallback:fallback;
+ const selected=ranked.find(item=>item.id===definition.id);
+ const explicitSource=input.sourceKind==='product-page'||input.hasProductFacts===true||visual;
+ // 单个弱关键词只能给低置信度；领先分数不能凭空增加命中证据。
+ const confidence=explicitSource?'high':top.score>=4&&top.hits.length>=2&&top.score>second.score*1.8?'high':top.score>=2&&top.score>second.score?'medium':'low';
  const candidates=ranked.filter(item=>item.score>0).slice(0,4).map(item=>({id:item.id,name:definitions.find(row=>row.id===item.id).name,score:item.score,hits:item.hits}));
- const reason=top.hits.length?('命中：'+top.hits.join('、')):(input?.analysis?.contentType?('依据参考视频分析类型：'+input.analysis.contentType):'没有命中明确类型词，采用通用候选。');
+ const reason=selected.hits.length?('命中：'+selected.hits.join('、')):(input?.analysis?.contentType?('依据参考视频分析类型：'+input.analysis.contentType):'没有命中明确类型词，采用通用候选。');
  return {version:contentTypeVersion,sourceKind,type:definition.id,name:definition.name,presetId:definition.presetId,outputMode:definition.outputMode,confidence,reason,candidates,requires:[...definition.requires],pipeline:[...definition.pipeline],rules:[...definition.rules],needsUserConfirmation:confidence!=='high'};
 }
 
 export function contentTypePrompt(profile){
  if(!profile)return '';
- return `\n自动识别的内容类型画像（只用于路由建议，不是事实）：${profile.name}（${profile.type}，置信度${profile.confidence}）。\n来源：${profile.sourceKind}。建议制作链路：${profile.pipeline.join('→')}。\n当前类型约束：${profile.rules.join('；')}\n识别结果需由用户确认；如果素材与类型不符，应保留不确定性并要求补充素材。`;
+ const names={script:'文案',rewrite:'改写',voice:'配音',avatar:'人物口型',subtitle:'字幕',edit:'剪辑',shots:'分镜',assets:'资产',episodes:'拆集',image:'图片',video:'视频','product-script':'商品脚本','product-video':'商品视频'};
+ return `\n自动识别的内容类型画像（只用于路由建议，不是事实）：${profile.name}（置信度${{high:'高',medium:'中',low:'低'}[profile.confidence]}）。\n来源：${{'product-page':'商品资料','reference-video':'参考视频',text:'当前正文'}[profile.sourceKind]||'当前资料'}。建议制作链路：${profile.pipeline.map(step=>names[step]||'制作步骤').join('→')}。\n当前类型约束：${profile.rules.join('；')}\n识别结果仍需核对；如果素材与类型不符，应保留不确定性并要求补充素材。`;
 }
 
 export function validateContentProfile(profile){
  if(!profile||profile.version!==contentTypeVersion||!definitions.some(item=>item.id===profile.type)||typeof profile.sourceKind!=='string')throw Error('内容类型画像无效');
  if(!['low','medium','high'].includes(profile.confidence)||!Array.isArray(profile.pipeline)||!Array.isArray(profile.rules))throw Error('内容类型画像缺少路由信息');
+ const definition=definitions.find(item=>item.id===profile.type);
+ for(const key of ['name','presetId','outputMode','pipeline','rules','requires'])if(JSON.stringify(profile[key])!==JSON.stringify(definition[key]))throw Error('内容类型画像与系统类型目录不一致');
+ if(profile.needsUserConfirmation!==(profile.confidence!=='high')||typeof profile.reason!=='string'||!Array.isArray(profile.candidates)||profile.candidates.some(row=>!definitions.some(item=>item.id===row.id&&item.name===row.name)||!Number.isFinite(row.score)||row.score<=0||!Array.isArray(row.hits)||row.hits.some(hit=>typeof hit!=='string')))throw Error('内容类型画像的识别依据无效');
  return structuredClone(profile);
 }

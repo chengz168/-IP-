@@ -36,11 +36,29 @@ watch(()=>({id:draft.value?.id,sourceText:draft.value?.sourceText,rewrite:draft.
 const currentWorkflow=computed(()=>{const job=state.value?.workflowJobs?.find(job=>job.draftId===draft.value?.id);if(!job)return null;const summary=state.value.taskSummaries?.find(task=>task.id===draft.value.id),saved=state.value.drafts.find(task=>task.id===draft.value.id),available=(id,type)=>{if(!id)return false;const stage=type==='image'?summary?.stages[5]:summary?.stages[4],savedId=type==='image'?saved?.cover.assetId:saved?.edit.resultId;if(id===savedId)return !!stage?.available;return state.value.assets.some(asset=>asset.id===id&&asset.type===type&&asset.size>0);};return {...job,view:workflowView(job,draft.value,{available,unsettled:summary?.unknownRuns.length?'unknown':summary?.activeRun?'running':''})};});
 const workflowLocked=computed(()=>['queued','running','stopping'].includes(currentWorkflow.value?.status));
 watch(()=>state.value?.settings.fontSize,value=>applyTypography(value),{immediate:true});
-let saveTimer,toastTimer,pollTimer;let chain=Promise.resolve();let lastSaved='';
+let saveTimer,toastTimer,pollTimer,refreshRequestVersion=0,refreshExplicitVersion=0,refreshExplicitPending=0;let chain=Promise.resolve();let lastSaved='';
 const core=d=>JSON.stringify(d?{...d,updatedAt:undefined}:null);
 function notify(message,type='info'){toast.value={message,type};clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.value=null,7000);}
 function dismissTransientNotice(){if(toast.value&&toast.value.type!=='error'){toast.value=null;clearTimeout(toastTimer);}}
-async function refresh(replace=false){const data=await call('state');state.value=data;environmentPolledAt=Date.now();if(replace||!draft.value||core(draft.value)===lastSaved){const id=replace?data.currentId:draft.value?.id||data.currentId;applyingSavedDraft=true;try{draft.value=structuredClone(data.drafts.find(d=>d.id===id));}finally{applyingSavedDraft=false;}lastSaved=core(draft.value);}return data;}
+async function refresh(replace=false,options={}){
+ const requestVersion=++refreshRequestVersion;
+ const explicit=replace||options.priority==='explicit';
+ const explicitPendingAtStart=refreshExplicitPending;
+ const explicitVersion=explicit?++refreshExplicitVersion:refreshExplicitVersion;
+ if(explicit)refreshExplicitPending=explicitVersion;
+ try{
+  const data=await call('state');
+  // 导航和选用刷新拥有独立优先级；后台轮询不能使显式动作失效。
+  if(explicit){if(explicitVersion!==refreshExplicitVersion)return;}
+  else if(requestVersion!==refreshRequestVersion||explicitVersion!==refreshExplicitVersion||explicitPendingAtStart||refreshExplicitPending)return;
+  // 异步页面动作可指定目标与编辑守卫；检查必须早于任何状态回填。
+  if(options.expectedId!==undefined&&(draft.value?.id!==options.expectedId||!data.drafts?.some(item=>item.id===options.expectedId)))return;
+  if(typeof options.guard==='function'&&!options.guard(data))return;
+  state.value=data;environmentPolledAt=Date.now();
+  if(replace||!draft.value||core(draft.value)===lastSaved){const id=options.expectedId??(replace?data.currentId:draft.value?.id||data.currentId);applyingSavedDraft=true;try{draft.value=structuredClone(data.drafts.find(d=>d.id===id));}finally{applyingSavedDraft=false;}lastSaved=core(draft.value);}
+  return data;
+ }finally{if(explicit&&refreshExplicitPending===explicitVersion)refreshExplicitPending=0;}
+}
 async function save(){for(const flush of [...draftFlushers])await flush();clearTimeout(saveTimer);if(!draft.value)return;const snapshot=JSON.parse(JSON.stringify(draft.value));if(core(snapshot)===lastSaved)return;saveState.value='保存中…';const job=chain.then(async()=>{const saved=await call('saveDraft',snapshot);if(draft.value?.id===saved.id&&core(draft.value)===core(snapshot)){lastSaved=core(saved);draft.value=saved;}saveState.value='已保存';});chain=job.catch(e=>{saveState.value='保存失败';notify(e.message,'error');});await job;}
 watch(()=>core(draft.value),value=>{if(!draft.value||value===lastSaved)return;clearTimeout(saveTimer);saveState.value='待保存';saveTimer=setTimeout(()=>save().catch(()=>{}),500);});
 async function act(label,fn){if(workflowLocked.value){notify('自动流程正在执行，请先停止后手动生成');return;}if(busy.value){notify('当前操作尚未结束，请稍候');return;}busy.value=label;try{await save();const result=await fn();await refresh();return result;}catch(e){await refresh().catch(()=>{});notify(e.message,'error');return undefined;}finally{busy.value='';}}

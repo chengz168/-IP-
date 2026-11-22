@@ -75,6 +75,37 @@ test('重复提取必须明确复用原资产ID，不能新建同名资产或错
  for(const asset of [{key:'new-person',kind:'character',name:'小明'},{key:'same-person',kind:'prop',name:'水壶'}]){f.responses.push({assets:[{...asset,description:'不应覆盖的描述',prompt:'A kettle'}],bindings:[{shotId:target.shotId,assetKeys:[asset.key]}]});await assert.rejects(f.studio.extractAssets({id:'draft'}),/同名资产|不一致/);assert.deepEqual(f.d.story,before);}
  f.responses.push({assets:[{key:'same-person',kind:'character',name:'小明',description:'新描述不覆盖旧设定',prompt:'Another description'}],bindings:[{shotId:target.shotId,assetKeys:['same-person']}]});await f.studio.extractAssets({id:'draft'});assert.equal(f.d.story.assets.length,1);assert.equal(f.d.story.assets[0].description,'花园里的人');assert.deepEqual(f.d.story.episodes[0].shots[0].assetIds,['same-person']);
 });
+
+test('零资产不再标成功，唯一纠正仍为空时保留旧资产绑定与已选媒体',async()=>{
+ const f=fixture(),target=await oneEpisode(f);f.responses.push({assets:[{key:'person',kind:'character',name:'小明',description:'花园里的人',prompt:'A person'}],bindings:[{shotId:target.shotId,assetKeys:['person']}]});await f.studio.extractAssets({id:'draft'});
+ const assetId=f.d.story.assets[0].id,image=await f.studio.generateImage({id:'draft',assetId});await f.studio.selectImage({id:'draft',assetId,imageId:image.material.id});await imageAndVideo(f,target);
+ const before=structuredClone(f.d.story),calls=f.calls.length,empty={assets:[],bindings:[{shotId:target.shotId,assetKeys:[]}]};f.responses.push(empty,empty,{assets:[]});
+ await assert.rejects(f.studio.extractAssets({id:'draft'}),/未提取到具体实体资产/);assert.deepEqual(f.d.story,before);assert.equal(f.calls.length-calls,2);assert.equal(f.responses.length,1);
+ const run=f.store.data.runs[0];assert.equal(run.status,'failed');assert.equal(run.failureOutput.assetExtraction.attempts.length,2);for(const attempt of run.failureOutput.assetExtraction.attempts){assert.equal(attempt.modelResult.text,JSON.stringify(empty));assert.equal(attempt.validation.status,'failed');assert.equal(attempt.schema.properties.assets.minItems,1);assert.equal(attempt.schema.properties.bindings.items.properties.assetKeys.minItems,1);}
+ assert.match(run.failureOutput.assetExtraction.attempts[1].user,/唯一一次纠正机会/);
+});
+
+test('空资产有界纠正后新实体临时key分配真实ID，完整审计随成功结果保存',async()=>{
+ const f=fixture(),target=await oneEpisode(f);f.responses.push({assets:[],bindings:[{shotId:target.shotId,assetKeys:[]}]},{assets:[{key:'new_person',kind:'character',name:'小明',description:'花园里的人',prompt:'A person'}],bindings:[{shotId:target.shotId,assetKeys:['new_person']}]});
+ const calls=f.calls.length,result=await f.studio.extractAssets({id:'draft'});assert.equal(f.calls.length-calls,2);assert.equal(f.d.story.assets.length,1);assert.notEqual(f.d.story.assets[0].id,'new_person');assert.deepEqual(f.d.story.episodes[0].shots[0].assetIds,[f.d.story.assets[0].id]);assert.deepEqual(result.assetExtraction.attempts.map(a=>a.validation.status),['failed','passed']);assert.equal(f.store.data.runs[0].status,'succeeded');
+ assert.match(f.calls.at(-1).user,/新实体允许唯一临时key/);
+});
+
+test('部分镜头空绑定也整套失败，旧绑定保留且不追加首项新资产',async()=>{
+ const f=await batchFixture(),s=structuredClone(f.d.story),original=s.episodes[0].shots[0];original.assetIds=[f.assetIds[0]];s.episodes[0].shots.push({...structuredClone(original),id:'second-shot'});await f.studio.save({id:'draft',story:s,revision:s.revision});const before=structuredClone(f.d.story),old=f.d.story.assets[0],response={assets:[{key:old.id,kind:old.kind,name:old.name,description:old.description,prompt:old.prompt},{key:'new_kettle',kind:'prop',name:'水壶',description:'金属水壶',prompt:'A metal kettle'}],bindings:[{shotId:f.shotId,assetKeys:[old.id,'new_kettle']},{shotId:'second-shot',assetKeys:[]}]};
+ f.responses.push(response,response);await assert.rejects(f.studio.extractAssets({id:'draft'}),/second-shot/);assert.deepEqual(f.d.story,before);const audit=f.store.data.runs[0].failureOutput.assetExtraction;assert.equal(audit.attempts.length,2);assert(audit.attempts.every(a=>/second-shot/.test(a.validation.error)));
+});
+
+test('纠正响应异常不进行第三次请求，保存首轮空结果与第二轮请求证据',async()=>{
+ const f=fixture(),target=await oneEpisode(f),before=structuredClone(f.d.story);let calls=0;f.studio.providers.text=async()=>{if(++calls===1)return {text:JSON.stringify({assets:[],bindings:[{shotId:target.shotId,assetKeys:[]}]})};throw Error('纠正请求网络失败');};
+ await assert.rejects(f.studio.extractAssets({id:'draft'}),/网络失败/);assert.equal(calls,2);assert.deepEqual(f.d.story,before);const audit=f.store.data.runs[0].failureOutput.assetExtraction;assert.equal(audit.attempts.length,2);assert.equal(audit.attempts[0].validation.status,'failed');assert.equal(audit.attempts[1].phase,'correction');assert.match(audit.attempts[1].user,/输入资料/);assert.match(audit.attempts[1].validation.error,/网络失败/);
+});
+
+test('空结果后取消保留两轮证据，不落盘迟到纠正结果',async()=>{
+ const f=fixture(),target=await oneEpisode(f),before=structuredClone(f.d.story);let calls=0,finish,notify;const ready=new Promise(resolve=>notify=resolve);f.studio.providers.text=async()=>{if(++calls===1)return {text:JSON.stringify({assets:[],bindings:[{shotId:target.shotId,assetKeys:[]}]})};notify();return new Promise(resolve=>finish=resolve);};
+ const pending=f.studio.extractAssets({id:'draft'});await ready;const run=f.store.data.runs[0];f.studio.runtime.cancel(run.id);finish({text:JSON.stringify({assets:[{key:'new_person',kind:'character',name:'小明',description:'花园中的人',prompt:'A person'}],bindings:[{shotId:target.shotId,assetKeys:['new_person']}]})});
+ await assert.rejects(pending,/abort|取消/i);assert.equal(calls,2);assert.equal(run.status,'cancelled');assert.deepEqual(f.d.story,before);assert.equal(run.failureOutput.assetExtraction.attempts.length,2);assert.match(run.failureOutput.assetExtraction.attempts[1].modelResult.text,/new_person/);
+});
 test('镜头图片传递全部确认资产引用，重新生成不自动替换选择，支持导入图片',async()=>{const f=fixture(),target=await oneEpisode(f),s=structuredClone(f.d.story);s.assets=[{id:'char',kind:'character',name:'小明',description:'一人',prompt:'青年',images:[],selectedImageId:''},{id:'scene',kind:'scene',name:'花园',description:'院落',prompt:'绿植',images:[],selectedImageId:''}];s.episodes[0].shots[0].assetIds=['char','scene'];await f.studio.save({id:'draft',story:s,revision:s.revision});await assert.rejects(f.studio.generateImage({id:'draft',...target}),/确认镜头引用资产/);
  for(const assetId of ['char','scene']){const r=await f.studio.generateImage({id:'draft',assetId});assert.equal(f.d.story.assets.find(a=>a.id===assetId).selectedImageId,'');await f.studio.selectImage({id:'draft',assetId,imageId:r.material.id});}
  const r=await f.studio.generateImage({id:'draft',...target});assert.equal(f.calls.at(-1).input.references.length,2);await f.studio.selectImage({id:'draft',...target,imageId:r.material.id});await f.studio.generateImage({id:'draft',...target,instruction:'光线柔和'});assert.equal(f.d.story.episodes[0].shots[0].selectedImageId,r.material.id);f.assets.set('imported',{id:'imported',type:'image'});await f.studio.selectImage({id:'draft',...target,imageId:'imported'});assert.equal(f.d.story.episodes[0].shots[0].selectedImageId,'imported');
@@ -85,6 +116,22 @@ test('共享资产修改仅使引用镜头失效并保留候选历史，镜头�
 test('异步图片迟到存为过期候选，不能覆盖修改或被选用',async()=>{const f=fixture(),target=await oneEpisode(f);let finish;f.generator.image=()=>new Promise(r=>finish=r);const pending=f.studio.generateImage({id:'draft',...target});await new Promise(r=>setImmediate(r));const s=structuredClone(f.d.story);s.episodes[0].shots[0].visual='用户新编辑';await f.studio.save({id:'draft',story:s,revision:s.revision});f.assets.set('late',{id:'late',type:'image'});finish(f.assets.get('late'));const r=await pending;assert(r.stale);assert.equal(f.d.story.episodes[0].shots[0].visual,'用户新编辑');assert.equal(f.d.story.episodes[0].shots[0].images[0].status,'stale');await assert.rejects(f.studio.selectImage({id:'draft',...target,imageId:'late'}),/过期/);});
 test('模型异步文本返回不能覆盖用户当前分集编辑',async()=>{const f=fixture();const start=createStory(f.d);start.episodeCount=2;await f.studio.save({id:'draft',story:start,revision:0});let finish;f.studio.providers.text=()=>new Promise(r=>finish=r);const pending=f.studio.splitEpisodes({id:'draft'});await new Promise(r=>setImmediate(r));let s=f.studio.story('draft');s.episodes=[{id:'manual',title:'人工分集',text:s.sourceText,shots:[],resultId:''}];await f.studio.save({id:'draft',story:s,revision:s.revision});finish({text:JSON.stringify({episodes:[{title:'模型一',endUnit:1},{title:'模型二',endUnit:2}]})});const r=await pending;assert(r.stale);assert.equal(f.d.story.episodes[0].id,'manual');});
 test('上游文案变化阻止旧分镜生成，独立稿模式可保存后重新拆分',async()=>{const f=fixture(),target=await oneEpisode(f);f.d.finalText='修改后的上游';await assert.rejects(f.studio.generateImage({id:'draft',...target}),/上游文案已变化/);let s=structuredClone(f.d.story);s.sourceMode='custom';s.sourceText='独立剧本';await f.studio.save({id:'draft',story:s,revision:s.revision});await assert.rejects(f.studio.generateImage({id:'draft',...target}),/重新拆集/);await f.studio.splitEpisodes({id:'draft'});assert.equal(f.d.story.sourceKind,'custom');});
+
+test('保存和同步剧本时重新建立画像，不复用草稿或客户端旧画像',async()=>{
+ const f=fixture(),{detectContentProfile}=await import('../server/content-types.mjs');
+ f.d.contentProfile=detectContentProfile({sourceKind:'product-page',text:'商品详情'});f.d.tab='product';
+ const s=createStory(f.d);s.sourceMode='custom';s.sourceText='科普光的原理与知识。';s.contentProfile=structuredClone(f.d.contentProfile);
+ await f.studio.save({id:'draft',story:s,revision:0});assert.equal(f.d.story.contentProfile.type,'knowledge');assert.equal(f.d.story.contentProfile.sourceKind,'text');
+ const next=structuredClone(f.d.story);next.sourceText='故事剧情中的角色对白。';await f.studio.save({id:'draft',story:next,revision:next.revision});assert.equal(f.d.story.contentProfile.type,'story-drama');
+ next.sourceMode='upstream';f.d.finalText='安装教程的设置步骤。';await f.studio.save({id:'draft',story:next,revision:f.d.story.revision});assert.equal(f.d.story.contentProfile.type,'tutorial');
+});
+
+test('已选镜头的预设变化后禁止合成或交接旧画像生成的视频',async()=>{
+ const f=fixture(),target=await oneEpisode(f);await imageAndVideo(f,target);await f.studio.composeEpisode({id:'draft',episodeId:target.episodeId});
+ f.d.creativePreset={mode:'manual',presetId:'review',instruction:''};const calls=f.calls.length;
+ await assert.rejects(f.studio.composeEpisode({id:'draft',episodeId:target.episodeId}),/已过期/);
+ await assert.rejects(f.studio.useEpisode({id:'draft',episodeId:target.episodeId}),/已过期/);assert.equal(f.calls.length,calls);
+});
 test('当前集严格选用视频合成并交接剪辑，字幕历史归原视频且不改声音配置',async()=>{const f=fixture(),target=await oneEpisode(f);await assert.rejects(f.studio.composeEpisode({id:'draft',episodeId:target.episodeId}),/未确认/);await imageAndVideo(f,target);const result=await f.studio.composeEpisode({id:'draft',episodeId:target.episodeId});const call=f.calls.at(-1);assert.equal(call.kind,'compose');assert.equal(call.input.shots.length,1);assert.equal(call.input.shots[0].duration,4);assert.equal(call.input.narration,null);await f.studio.useEpisode({id:'draft',episodeId:target.episodeId});assert.equal(f.d.video.assetId,result.material.id);assert.equal(f.d.edit.sourceId,result.material.id);assert.equal(f.d.step,4);assert.equal(f.d.voice.audioId,'narration');assert.equal(f.d.edit.captions.length,0);assert.equal(f.d.artifacts.captionHistory[0].sourceId,'old');});
 test('单集可绑定上游旁白，多集不能静默切整条声音',async()=>{const f=fixture(),target=await oneEpisode(f);await imageAndVideo(f,target);let s=structuredClone(f.d.story);s.narrationMode='upstream';await f.studio.save({id:'draft',story:s,revision:s.revision});await f.studio.composeEpisode({id:'draft',episodeId:target.episodeId});assert.equal(f.calls.at(-1).input.narration.assetId,'narration');s=structuredClone(f.d.story);s.episodes.push({id:'episode-two',title:'第二集',text:'二',shots:[],resultId:''});await f.studio.save({id:'draft',story:s,revision:s.revision});await assert.rejects(f.studio.composeEpisode({id:'draft',episodeId:target.episodeId}),/逐集选择音频/);});
 

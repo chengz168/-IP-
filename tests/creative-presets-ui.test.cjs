@@ -33,12 +33,16 @@ test('内容类型画像展示置信度、命中依据和推荐链路，低置�
   assert.equal(f.vm.contentProfile.value.name,'知识讲解');
   assert.equal(f.vm.contentConfidenceLabel.value,'中');
   assert.equal(f.vm.contentNeedsConfirmation.value,true);
-  assert.deepEqual(f.vm.contentPipeline.value,['script','assets','voice','video','subtitle','edit']);
+  assert.deepEqual(f.vm.contentPipeline.value,['文案','资产提取','配音','视频','字幕','剪辑']);
   assert.deepEqual(f.vm.contentRequires.value,['可核实资料和适用范围']);
   assert.equal(f.vm.contentCandidates.value.length,2);
   f.vm.applyContentProfile();
   assert.equal(f.vm.mode.value,'manual');
   assert.equal(f.vm.presetId.value,'knowledge');
+  assert.equal(f.vm.dirty.value,true);
+  assert.equal(f.calls.filter(row=>row.action==='saveCreativePreset').length,0);
+  assert.match(descriptor.template.content,/填入推荐预设/);
+  assert.doesNotMatch(descriptor.template.content,/请确认类型后再生成/);
   assert.deepEqual(sfc.compileTemplate({id:'creative-presets-content-profile',filename,source:descriptor.template.content}).errors,[]);
  }finally{f.dispose();}
 });

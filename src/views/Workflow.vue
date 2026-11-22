@@ -27,7 +27,8 @@ import {runTextAction} from '../text-action.mjs';
 import {confirmCopyAction} from '../copy-confirmation-action.mjs';
 import {runSpeechAction} from '../speech-action.mjs';
 import {runAvatarAction} from '../avatar-action.mjs';
-import {runExtractAction} from '../extract-action.mjs';
+import ExtractionPanel from '../components/ExtractionPanel.vue';
+import {batchOwnsOperationStatus} from '../extract-batch-ui.mjs';
 import WorkflowStatus from '../components/WorkflowStatus.vue';
 import OperationStatus from '../components/OperationStatus.vue';
 import {call} from '../api';
@@ -53,6 +54,8 @@ const captionSession=ref(null);
 function showCaptionEditor(){captionSession.value=openCaptionSession(captionSession.value,d.value);subtitleModal.value=true;}
 const tabs=[['extract','提取文案'],['ref-analysis','视频拆解'],['product','商品宣传'],['brain','IP大脑'],['topic','爆款选题'],['marketing','营销文案']];
 const activeStep=computed(()=>d.value.step||0);
+const visibleExtractionBatch=ref('');
+const extractionOwnsStatus=computed(()=>batchOwnsOperationStatus({step:activeStep.value,tab:d.value.tab,draftId:d.value.id,batchId:visibleExtractionBatch.value,run:activeRecognition.value,busy:busy.value}));
 const rewritePrompt=computed(()=>resolvePrompt('rewrite',state.value,d.value.template));
 const rewriteTemplate=computed({get:()=>rewritePrompt.value.id,set:id=>d.value.template=id});
 const rewriteOptions=computed(()=>promptsFor('rewrite',state.value).map(p=>({value:p.id,label:p.name})));
@@ -71,10 +74,7 @@ function selectVideoSource(asset){return changeCaptionSource({draft:d,save},asse
 async function selected(asset){const assign=picker.value.assign;picker.value=null;try{await assign(asset);await save();await refresh();}catch(error){notify(error.message,'error');}}
 function openPip(){if(!sourceVideo.value){notify('请先选择视频文件');return;}if(!d.value.edit.captions.length){notify('请先生成或导入字幕');return;}pipModal.value=true;}
 async function confirmPip(rows){const previous=JSON.parse(JSON.stringify(d.value.edit));pipSaving.value=true;try{d.value.edit.captions=rows;d.value.edit.pipMode='captions';d.value.edit.pipEnabled=rows.some(r=>r.pipId)||!!d.value.edit.pipCategory;await save();pipModal.value=false;notify('逐句画中画已保存','success');}catch(error){d.value.edit=previous;notify('画中画保存失败：'+error.message,'error');}finally{pipSaving.value=false;}}
-async function clipboard(){try{d.value.sourceUrl=await navigator.clipboard.readText();}catch{notify('无法读取剪贴板，请直接粘贴到输入框','error');}}
 function textAction(kind){return runTextAction({draft:d,state,save,act,call,notify,showDialog,showLegal:text=>legal.value=text},kind);}
-function extract(asset){return runExtractAction({draft:d,save,act,call,notify},asset);}
-async function openPlatform(platform){try{await window.studio.openPlatformHome(platform);}catch(error){notify('打开平台入口失败：'+error.message,'error');}}
 function confirmCopy(){return confirmCopyAction({draft:d,save,act,call,notify,startWorkflow});}
 async function generate(action,field){if(action==='speech')return runSpeechAction({draft:d,state,save,act,call,notify});if(action==='avatar')return runAvatarAction({draft:d,state,save,act,call,notify});const taskId=d.value.id;const r=await act({render:'剪辑视频'}[action],()=>call(action,{id:taskId}));if(r){if(r.stale||d.value.id!==taskId){notify('输入已变化，新产物已保存到素材库，请重新选择');return;}const [group,key]=field.split('.');d.value[group][key]=r.id;notify('产物已生成并通过媒体格式校验','success');}}
 async function importCaption(asset){const r=await act('导入字幕',async()=>call('importCaptions',{text:await call('assetText',{id:asset.id})}));if(r){d.value.edit.captions=r;d.value.edit.subtitlesEnabled=true;showCaptionEditor();}}
@@ -100,7 +100,7 @@ function formatTime(n){return Number(n||0).toFixed(2);}
     <div v-if="view==='old'" class="legacy-strip"><button v-for="(name,i) in stepNames" :key="i" :class="{active:activeStep===i}" @click="d.step=i">{{i+1}} {{name}}<small>{{i<2?'文案':i<4?'生成':'制作'}}</small></button></div>
     <section class="stage-body" :class="['stage-'+activeStep,{'stage-story':activeStep===3&&['story','product'].includes(d.video.mode)}]" :inert="workflowLocked">
       <template v-if="activeStep===0"><div class="segmented main-tabs"><button v-for="[id,label] in tabs" :key="id" :class="{active:d.tab===id}" @click="d.tab=id">{{label}}</button></div>
-        <div v-if="d.tab==='extract'" class="two-columns extract-columns"><article class="card extract-input"><h3>视频链接</h3><div class="align-right"><button class="text-button danger" @click="d.sourceUrl=''">清空</button></div><div class="link-input"><I name="Link"/><input v-model="d.sourceUrl" placeholder="粘贴视频分享链接或分享文本" aria-label="视频链接"/><button @click="clipboard">粘贴</button></div><div class="or">或</div><button class="upload-zone" @click="choose('all',extract,'从音视频或文本中提取文案')"><I name="Plus" :size="30"/><span><strong>从音频或视频中提取文案</strong><small>点击上传音频/视频，或直接导入已有文本。</small></span></button><button class="primary full" :disabled="!!busy" @click="extract()"><I name="Link"/>提取文案</button><p class="hint">支持直接粘贴分享文本，系统会自动识别有效链接。</p><div class="platform-hints"><span>快捷打开</span><button type="button" aria-label="打开抖音" @click="openPlatform('douyin')">抖</button><button type="button" aria-label="打开快手" @click="openPlatform('kuaishou')">快</button><button type="button" aria-label="打开小红书" @click="openPlatform('xiaohongshu')">红</button></div></article><article class="card text-card"><div class="card-heading"><h3>原文案</h3><button class="text-button" @click="d.sourceText=''">清空</button></div><textarea v-model="d.sourceText" class="large-text" placeholder="提取的文案将在这里显示，也可以直接输入或粘贴。" aria-label="原文案"></textarea><span class="word-count">{{d.sourceText.length}} 字</span></article></div>
+        <ExtractionPanel v-if="d.tab==='extract'" @batch-visible="visibleExtractionBatch=$event"/>
 
         <template v-else-if="d.tab==='ref-analysis'"><CreativePresets stage="analysis" :context="{kind:'reference'}"/><ReferenceAnalysis/></template>
         <ProductStudio v-else-if="d.tab==='product'"/>
@@ -114,7 +114,7 @@ function formatTime(n){return Number(n||0).toFixed(2);}
       <CoverEditor ref="coverEditor" v-else-if="activeStep===5" @choose="(kind,assign,title)=>choose(kind,assign,title)"/>
       <PublishPanel v-else @choose="(kind,assign,title)=>choose(kind,assign,title)" @export="exportPack"/>
     </section>
-    <WorkflowStatus/><footer class="workflow-footer"><div class="progress-track"><div :style="{width:((activeStep+1)/7*100)+'%'}"></div></div><div class="footer-actions"><button class="previous" :disabled="activeStep===0" @click="d.step--">上一步</button><OperationStatus v-if="busy||activeRecognition" inline/><div v-else class="step-status" :class="{ready:status.includes('已')}"><span></span>{{status}}<small v-if="activeStep<2">{{(d.rewrite||d.sourceText).slice(0,40)}}</small></div><button class="primary next" :disabled="activeStep===6||workflowLocked||!!busy" @click="next">{{activeStep===5&&!d.cover.assetId?"生成封面并下一步":"下一步"}}</button></div></footer>
+    <WorkflowStatus/><footer class="workflow-footer"><div class="progress-track"><div :style="{width:((activeStep+1)/7*100)+'%'}"></div></div><div class="footer-actions"><button class="previous" :disabled="activeStep===0" @click="d.step--">上一步</button><OperationStatus v-if="(busy||activeRecognition)&&!extractionOwnsStatus" inline/><div v-else class="step-status" :class="{ready:status.includes('已')}"><span></span>{{status}}<small v-if="activeStep<2">{{(d.rewrite||d.sourceText).slice(0,40)}}</small></div><button class="primary next" :disabled="activeStep===6||workflowLocked||!!busy" @click="next">{{activeStep===5&&!d.cover.assetId?"生成封面并下一步":"下一步"}}</button></div></footer>
   </section>
   <AssetPicker v-if="picker" :kind="picker.kind" :title="picker.title" @close="picker=null" @select="selected"/>
   <PipEditor v-if="pipModal" :key="d.id+sourceVideo" :captions="d.edit.captions" :saving="pipSaving" @close="pipModal=false" @confirm="confirmPip"/>

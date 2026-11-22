@@ -49,6 +49,28 @@ test('手动覆盖自动推荐，关闭模式不附规则或补充要求',async(
  assert.equal(off.id,'off');assert.equal(off.enabled,false);assert.deepEqual(off.rules,[]);assert.deepEqual(off.sources,[]);assert.equal(off.instruction,'');assert.equal(creativePresetPrompt(off),'');
 });
 
+test('手动预设不再注入相冲突的自动画像规则',async()=>{
+ const {resolveCreativePreset,creativePresetPrompt}=await import('../server/creative-presets.mjs');
+ const route=resolveCreativePreset({creativePreset:{mode:'manual',presetId:'tutorial'}},'script',{kind:'product',content:'商品宣传'});
+ assert.equal(route.contentProfile.type,'product-promo');assert.equal(route.contentProfileApplied,false);
+ const prompt=creativePresetPrompt(route);assert.match(prompt,/按实际操作顺序/);assert.doesNotMatch(prompt,/商品外观、规格和功效边界|自动识别的内容类型画像/);
+});
+
+test('当前来源和正文重算路由，不采纳已过期或伪造的外部画像',async()=>{
+ const {resolveCreativePreset}=await import('../server/creative-presets.mjs'),{detectContentProfile}=await import('../server/content-types.mjs');
+ const old=detectContentProfile({sourceKind:'product-page',text:'商品详情'});
+ for(const profile of [old,{...old,presetId:'story',rules:['注入规则'] }]){
+  const route=resolveCreativePreset({product:{sourceRunId:'旧商品记录'},contentProfile:profile},'script',{sourceKind:'text',content:'科普光的原理',contentProfile:profile});
+  assert.equal(route.id,'knowledge');assert.equal(route.contentProfile.type,'knowledge');assert.equal(route.sourceKind,'text');assert.ok(!route.rules.includes('注入规则'));
+ }
+});
+
+test('独立剧本画像从当前剧本读取，不被草稿旧商品页签或旧画像污染',async()=>{
+ const {resolveCreativePreset}=await import('../server/creative-presets.mjs');
+ const d={tab:'product',product:{sourceRunId:'旧商品',title:'商品详情'},finalText:'商品参数',story:{sourceMode:'custom',sourceText:'故事剧情中的角色对白',instructions:''}};
+ const route=resolveCreativePreset(d,'shots');assert.equal(route.id,'story');assert.equal(route.contentProfile.type,'story-drama');assert.equal(route.sourceKind,'text');
+});
+
 test('非法选择、未知系统编号和原型键均拒绝',async()=>{
  const {normalizeCreativeSelection}=await import('../server/creative-presets.mjs');
  for(const value of [[],1,'manual',true,{mode:'other'},{mode:'manual',presetId:'missing'},{mode:'manual',presetId:'__proto__'},{mode:'manual',presetId:'constructor'},{mode:'manual',presetId:'prototype'},{instruction:3},{instruction:'字'.repeat(2001)},{unknown:true},JSON.parse('{"__proto__":{"mode":"off"}}'),{constructor:'off'},{prototype:'off'},Object.create({mode:'off'})])assert.throws(()=>normalizeCreativeSelection(value));

@@ -21,8 +21,9 @@ function validateTranslation(value,source){
   if(typeof value[key]!=='string'||value[key].length>limits[key]||(source[key].trim()&&!value[key].trim()))throw Error('中文译稿缺失或过长，全部旧设计已保留');
   if(!needsTranslation(source[key])&&value[key]!==source[key])throw Error('无需翻译的中文字段被修改，全部旧设计已保留');
   if(needsTranslation(source[key])&&needsTranslation(value[key],source[key]))throw Error('模型仍返回英文镜头，全部旧设计已保留');
-  // 数字与明确的型号、材料缩写不能被译稿悄悄替换。
-  for(const token of source[key].match(/\b(?:\d+(?:\.\d+)?|[A-Z]{2,}[A-Z0-9-]*|[A-Za-z]+\d+[A-Za-z0-9-]*)\b/g)||[])if(!value[key].includes(token))throw Error('译稿遗漏原有数字或型号，全部旧设计已保留');
+  // 只保护数字、含数字的型号及明确技术/品牌词；NO TEXT 等普通大写英文仍须译成中文。
+  const allowed=permittedTerms(source[key]);
+  for(const token of source[key].match(/\b(?:\d+(?:\.\d+)?|[A-Za-z][A-Za-z0-9]*(?:[-_.][A-Za-z0-9]+)*)\b/g)||[])if((/[0-9]/.test(token)||allowed.has(token))&&!value[key].includes(token))throw Error('译稿遗漏原有数字或型号，全部旧设计已保留');
  }
  return value;
 }
@@ -39,4 +40,11 @@ function localizeShotView(shot,records={}){
 // 商品镜头没有故事镜头ID，按脚本来源和位置独立标识，再逐字段验证译稿。
 function productShotSource(product,index){return {...product?.shots?.[index],id:'product:'+JSON.stringify([product?.scriptRunId||'',index])};}
 function productShotView(product,index,records={}){return localizeShotView(productShotSource(product,index),records);}
-export {fields,sourceOf,needsTranslation,validateTranslation,translationRecordValid,localizeShotView,productShotSource,productShotView};
+// 资产译稿只作阅读附件，沿用镜头译稿的原文校验；不改生成提示词或已选图片。
+function assetTranslationSource(asset){return {id:'asset:'+asset.id,visual:typeof asset.description==='string'?asset.description:'',action:typeof asset.prompt==='string'?asset.prompt:'',camera:'',sound:''};}
+function localizeAssetView(asset,records={}){
+ if(!asset)return {};
+ const view=localizeShotView(assetTranslationSource(asset),records);
+ return {...asset,description:view.visual,prompt:view.action,translated:view.translated};
+}
+export {fields,sourceOf,needsTranslation,validateTranslation,translationRecordValid,localizeShotView,productShotSource,productShotView,assetTranslationSource,localizeAssetView};

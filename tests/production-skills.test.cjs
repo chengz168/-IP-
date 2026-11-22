@@ -31,8 +31,8 @@ test('十二项视频工厂方法与八阶段精确匹配，清单不冒充自�
  const copy=productionSkillCatalog();copy[0].rules[0]='错误规则';copy[0].origin.files.length=0;assert.notEqual(productionSkillCatalog()[0].rules[0],'错误规则');assert.equal(productionSkillCatalog()[0].origin.files.length,3);
 });
 test('拆集和资产提取实际文本请求调用对应方法，没有跨阶段结构',async t=>{
- const {s,d}=await shotFixture(t);const calls=[];s.providers.text=async(system,user)=>{calls.push({system,user});return {text:JSON.stringify({assets:[],bindings:[{shotId:d.story.episodes[0].shots[0].id,assetKeys:[]}]})};};
- const assets=await s.stories.extractAssets({id:d.id});assert.equal(assets.creativePreset.stage,'assets');assert.deepEqual(assets.creativePreset.skills.map(s=>s.id),['asset-binding']);assert.match(calls[0].system,/资产识别与复用/);assert.doesNotMatch(calls[0].system,/开头直接进入观众/);
+ const {s,d}=await shotFixture(t);const calls=[];s.providers.text=async(system,user)=>{calls.push({system,user});return {text:JSON.stringify({assets:[{key:'new_person',kind:'character',name:'小明',description:'花园中的小明',prompt:'A person in a garden'}],bindings:[{shotId:d.story.episodes[0].shots[0].id,assetKeys:['new_person']}]})};};
+ const assets=await s.stories.extractAssets({id:d.id});assert.equal(assets.creativePreset.stage,'assets');assert.deepEqual(assets.creativePreset.skills.map(s=>s.id),['asset-binding']);assert.match(calls[0].system,/资产识别与复用/);assert.match(calls[0].system,/新实体使用本次结果内唯一临时key/);assert.match(calls[0].system,/空复用清单不代表不能提取新实体/);assert.doesNotMatch(calls[0].system,/开头直接进入观众/);assert.notEqual(d.story.assets[0].id,'new_person');
  const story=structuredClone(d.story);story.episodeCount=2;await s.stories.save({id:d.id,story,revision:story.revision});s.providers.text=async(system)=>{calls.push({system});return {text:JSON.stringify({episodes:[{title:'进入花园',endUnit:1},{title:'拿起水壶',endUnit:2}]})};};
  const episodes=await s.stories.splitEpisodes({id:d.id});assert.equal(episodes.creativePreset.stage,'episodes');assert.match(calls.at(-1).system,/拆集与分集规划/);assert.doesNotMatch(calls.at(-1).system,/分镜调度与镜间衔接/);assert.equal(d.story.episodes.map(e=>e.text).join(''),d.finalText);
 });

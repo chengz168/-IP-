@@ -2,6 +2,14 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const {spawn}=require('node:child_process');
 const sha=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const maxBytes=200*1024*1024;
+// 只有画面分析显式请求无声视频时，才允许绕过不存在的音轨识别。
+function sourceAudio(info,options={}){
+ if(options.allowSilentVideo!==undefined&&typeof options.allowSilentVideo!=='boolean')throw Error('无声视频选项必须为布尔值');
+ const hasAudio=info.streams.some(stream=>stream.codec_type==='audio'),hasVideo=info.streams.some(stream=>stream.codec_type==='video');
+ if(!hasAudio&&!(options.allowSilentVideo===true&&hasVideo))throw Error('链接对应媒体没有音轨，无法提取口播文案');
+ return hasAudio;
+}
+const silentResult=()=>({text:'',segments:[],timingAvailable:false,unavailableReason:'源视频没有音轨，仅能分析实际可见画面',engine:'none',hasAudio:false});
 function shareLink(value){
  if(typeof value!=='string'||value.length>10000)throw Error('分享文本为空或超过10000字');
  const matches=value.match(/https?:\/\/[^\s<>"'`\u3000-\u303f\uff00-\uffef]+/gi)||[];
@@ -48,6 +56,7 @@ class LocalLinkExtractor{
  async check(ctx={}){const {python,packagePath,worker}=this.options(),result=await runWorker(python,worker,['--package',packagePath,'--mode','check'],ctx,30000);if(result.engine!=='yt-dlp'||typeof result.version!=='string'||!/^\d{4}\.\d{2}\.\d{2}(?:\..+)?$/.test(result.version))throw Error('解析器未返回可验证版本');return {...result,ready:true,platformsVerified:false};}
  async extract(value,ctx={},extractOptions={}){
   if(extractOptions.preferVideo!==undefined&&typeof extractOptions.preferVideo!=='boolean')throw Error('优先视频参数必须为布尔值');
+  if(extractOptions.allowSilentVideo!==undefined&&typeof extractOptions.allowSilentVideo!=='boolean')throw Error('无声视频选项必须为布尔值');
   const url=shareLink(value),{python,packagePath,worker}=this.options(),cookieFile=extractOptions.cookieFile||'',directory=fs.mkdtempSync(path.join(this.store.outputDir(),'.link-input-'));let asset;
   if(cookieFile&&(!path.isAbsolute(cookieFile)||!fs.existsSync(cookieFile)||!fs.statSync(cookieFile).isFile()))throw Error('浏览器会话 Cookie 文件无效');
   const cookieArgs=cookieFile?['--cookies',cookieFile]:[];
@@ -60,16 +69,16 @@ class LocalLinkExtractor{
    if(typeof downloaded.file!=='string'||path.dirname(path.resolve(downloaded.file))!==directory||fs.lstatSync(downloaded.file).isSymbolicLink())throw Error('解析器返回的媒体文件不在本次独立目录');
    const stat=fs.statSync(downloaded.file);if(!stat.isFile()||stat.size<=0||stat.size>maxBytes)throw Error('下载媒体为空或超过200MB');
    const info=await this.media.probe(downloaded.file),duration=Number(info.format.duration);
-   if(!info.streams.some(stream=>stream.codec_type==='audio'))throw Error('链接对应媒体没有音轨，无法提取口播文案');
+   const hasAudio=sourceAudio(info,extractOptions);
    if(!Number.isFinite(duration)||duration<=0||duration>1800)throw Error('链接媒体有效时长须在30分钟以内');
    ctx.signal?.throwIfAborted();
    asset=this.store.addAsset(downloaded.file,{type:info.streams.some(stream=>stream.codec_type==='video')?'video':'audio',origin:'local-link-extract',sourceUrl:url,sourceTitle:metadata.title||'',duration},{persist:false});
    if(!['audio','video'].includes(asset.type))throw Error('解析媒体扩展名不受支持');
-   const source={url,originalShareText:value,title:String(metadata.title||'').slice(0,2000),extractor:metadata.extractor||'',version:metadata.version,assetId:asset.id,sha256:sha(asset.path),bytes:asset.size,duration};
+   const source={url,originalShareText:value,title:String(metadata.title||'').slice(0,2000),extractor:metadata.extractor||'',version:metadata.version,assetId:asset.id,sha256:sha(asset.path),bytes:asset.size,duration,hasAudio};
    ctx.onReferenceAsset?.(asset.id,source.sha256);
-   ctx.progress?.(25,'正在识别链接音轨，下载标题不会作为正文');
-   const result=await this.providers.transcribe(asset.id,ctx);ctx.signal?.throwIfAborted();
-   if(typeof result?.text!=='string'||!result.text.trim())throw Error('链接音轨未识别到有效文案');
+   ctx.progress?.(25,hasAudio?'正在识别链接音轨，下载标题不会作为正文':'无音轨视频已采集，交由画面分析，不生成原片台词');
+   const result=hasAudio?await this.providers.transcribe(asset.id,ctx):silentResult();ctx.signal?.throwIfAborted();
+   if(hasAudio&&(typeof result?.text!=='string'||!result.text.trim()))throw Error('链接音轨未识别到有效文案');
    if(sha(asset.path)!==source.sha256)throw Error('下载媒体在识别期间发生变化，未接收结果');
    this.store.save();return {...result,sourceAssetId:asset.id,linkSource:source};
   }catch(error){if(asset){this.store.data.assets=this.store.data.assets.filter(item=>item.id!==asset.id);fs.rmSync(asset.path,{force:true});try{this.store.save();}catch(saveError){error.cleanupError=saveError.message;}}throw error;}
@@ -80,15 +89,15 @@ class LocalLinkExtractor{
   try{
    if(!fs.existsSync(file)||!fs.statSync(file).isFile()||fs.statSync(file).size<=0||fs.statSync(file).size>maxBytes)throw Error('浏览器返回的媒体文件为空或超过200MB');
    const info=await this.media.probe(file),duration=Number(info.format.duration);
-   if(!info.streams.some(stream=>stream.codec_type==='audio'))throw Error('链接对应媒体没有音轨，无法提取口播文案');
+   const hasAudio=sourceAudio(info,metadata);
    if(!Number.isFinite(duration)||duration<=0||duration>1800)throw Error('链接媒体有效时长须在30分钟以内');
    ctx.signal?.throwIfAborted();
    asset=this.store.addAsset(file,{type:info.streams.some(stream=>stream.codec_type==='video')?'video':'audio',origin:'browser-link-extract',sourceUrl:url,sourceTitle:String(metadata.title||''),duration},{persist:false});
-   const source={url,originalShareText:value,title:String(metadata.title||'').slice(0,2000),extractor:'douyin-browser-session',version:'browser-session',assetId:asset.id,sha256:sha(asset.path),bytes:asset.size,duration};
+   const source={url,originalShareText:value,title:String(metadata.title||'').slice(0,2000),extractor:'douyin-browser-session',version:'browser-session',assetId:asset.id,sha256:sha(asset.path),bytes:asset.size,duration,hasAudio};
    ctx.onReferenceAsset?.(asset.id,source.sha256);
-   ctx.progress?.(25,'正在识别浏览器会话媒体音轨，页面标题不会作为正文');
-   const result=await this.providers.transcribe(asset.id,ctx);ctx.signal?.throwIfAborted();
-   if(typeof result?.text!=='string'||!result.text.trim())throw Error('链接音轨未识别到有效文案');
+   ctx.progress?.(25,hasAudio?'正在识别浏览器会话媒体音轨，页面标题不会作为正文':'无音轨视频已采集，交由画面分析，不生成原片台词');
+   const result=hasAudio?await this.providers.transcribe(asset.id,ctx):silentResult();ctx.signal?.throwIfAborted();
+   if(hasAudio&&(typeof result?.text!=='string'||!result.text.trim()))throw Error('链接音轨未识别到有效文案');
    if(sha(asset.path)!==source.sha256)throw Error('下载媒体在识别期间发生变化，未接收结果');
    this.store.save();return {...result,sourceAssetId:asset.id,linkSource:source};
   }catch(error){if(asset){this.store.data.assets=this.store.data.assets.filter(item=>item.id!==asset.id);fs.rmSync(asset.path,{force:true});try{this.store.save();}catch(saveError){error.cleanupError=saveError.message;}}throw error;}
