@@ -26,6 +26,23 @@ test('预设卡初次读取使用流程上下文，不给旧任务自动写默�
  const f=await fixture();try{assert.deepEqual(f.calls.map(x=>x.action),['creativePresetPreview']);assert.deepEqual(f.calls[0].payload,{id:'one',stage:'script',context:{kind:'product'}});assert.equal(Object.hasOwn(f.draft.value,'creativePreset'),false);assert.equal(f.vm.routeTitle.value,'知识讲解');assert.equal(f.vm.dirty.value,false);assert.equal(f.vm.sourceRows.value[0].version,'r1');assert.deepEqual(sfc.compileTemplate({id:'creative-presets-ui',filename,source:descriptor.template.content}).errors,[]);}finally{f.dispose();}
 });
 
+test('内容类型画像展示置信度、命中依据和推荐链路，低置信度提供确认入口',async()=>{
+ const profile={version:'2026-11-22.1',sourceKind:'reference-video',type:'knowledge',name:'知识讲解',presetId:'knowledge',confidence:'medium',reason:'命中：科普、原理',pipeline:['script','assets','voice','video','subtitle','edit'],requires:['可核实资料和适用范围'],candidates:[{id:'knowledge',name:'知识讲解',score:6},{id:'tutorial',name:'操作教程',score:3}],needsUserConfirmation:true};
+ const f=await fixture(async action=>action==='creativePresetPreview'?{...response(),route:{...response().route,contentProfile:profile}}:{});
+ try{
+  assert.equal(f.vm.contentProfile.value.name,'知识讲解');
+  assert.equal(f.vm.contentConfidenceLabel.value,'中');
+  assert.equal(f.vm.contentNeedsConfirmation.value,true);
+  assert.deepEqual(f.vm.contentPipeline.value,['script','assets','voice','video','subtitle','edit']);
+  assert.deepEqual(f.vm.contentRequires.value,['可核实资料和适用范围']);
+  assert.equal(f.vm.contentCandidates.value.length,2);
+  f.vm.applyContentProfile();
+  assert.equal(f.vm.mode.value,'manual');
+  assert.equal(f.vm.presetId.value,'knowledge');
+  assert.deepEqual(sfc.compileTemplate({id:'creative-presets-content-profile',filename,source:descriptor.template.content}).errors,[]);
+ }finally{f.dispose();}
+});
+
 test('推荐刷新失败保留未保存选择和创作要求，重试也不覆盖编辑',async()=>{
  const f=await fixture();try{f.vm.mode.value='manual';f.vm.presetId.value='knowledge';f.vm.instruction.value='使用生活化例子';f.handler(async()=>{throw Error('服务暂不可用');});await f.vm.loadPreview();assert.match(f.vm.error.value,/服务暂不可用/);assert.equal(f.vm.instruction.value,'使用生活化例子');f.handler(async()=>response('通用表达'));await f.vm.loadPreview();assert.equal(f.vm.routeTitle.value,'通用表达');assert.equal(f.vm.mode.value,'manual');assert.equal(f.vm.presetId.value,'knowledge');assert.equal(f.vm.instruction.value,'使用生活化例子');assert.equal(f.vm.dirty.value,true);}finally{f.dispose();}
 });

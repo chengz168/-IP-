@@ -1,4 +1,5 @@
 import {resolveProductionSkills} from './production-skills.mjs';
+import {contentTypePrompt,detectContentProfile,validateContentProfile} from './content-types.mjs';
 // 系统预设与任务选择分离；公开技能仅作为方法资料，不执行外部代码。
 export const creativePresetVersion='2026-11-22.2';
 export const creativeSources=[
@@ -43,6 +44,12 @@ function contentFor(d,stage,context){
  if(['episodes','shots','assets','image','video'].includes(stage))return [d.story?.sourceText,d.story?.instructions].filter(Boolean).join('\n');
  return d.confirmed&&d.finalText||d.rewrite||d.sourceText||'';
 }
+function sourceKindFor(d,stage,context){
+ if(context.sourceKind)return context.sourceKind;
+ if(context.kind==='product'||context.kind==='marketing'||d.product?.sourceRunId||d.story?.productIntroduction)return 'product-page';
+ if(context.kind==='reference'||context.kind==='reference-video'||stage==='analysis')return 'reference-video';
+ return 'text';
+}
 const signals={
  data:[/数据|财报|营收|同比|环比|持仓|股价|市值|产业链|统计|百分比/gi],
  tutorial:[/教程|步骤|操作指南|教你|怎么用|如何使用|安装|设置方法/gi],
@@ -54,8 +61,12 @@ const signals={
 };
 export function resolveCreativePreset(draft,stage,context={}){
  if(!stages.has(stage))throw Error('创作预设阶段无效');
- if(!context||typeof context!=='object'||Array.isArray(context)||Object.keys(context).some(key=>!['kind','content'].includes(key))||context.kind!==undefined&&typeof context.kind!=='string')throw Error('创作预设上下文无效');
+ if(!context||typeof context!=='object'||Array.isArray(context)||Object.keys(context).some(key=>!['kind','content','sourceKind','contentProfile','analysis'].includes(key))||context.kind!==undefined&&typeof context.kind!=='string'||context.sourceKind!==undefined&&typeof context.sourceKind!=='string')throw Error('创作预设上下文无效');
  const selection=normalizeCreativeSelection(draft.creativePreset),content=contentFor(draft,stage,context),kind=context.kind||draft.tab;
+ const sourceKind=sourceKindFor(draft,stage,context);
+ let contentProfile=context.contentProfile;
+ if(contentProfile){try{contentProfile=validateContentProfile(contentProfile);}catch{contentProfile=null;}}
+ if(!contentProfile)contentProfile=detectContentProfile({sourceKind,title:content,description:content,text:content,analysis:context.analysis});
  let id='general',reason='未识别到明确题材，采用通用表达。';
  if(selection.mode==='manual'){id=selection.presetId;reason='由你手动选择。';}
  else if(kind==='product'||(['episodes','shots','assets','image','video'].includes(stage)&&draft.story?.productIntroduction)){id='product';reason='当前是商品宣传流程，采用商品证据与演示规则。';}
@@ -65,14 +76,18 @@ export function resolveCreativePreset(draft,stage,context={}){
   if(scores[0].score>0&&scores[0].score>scores[1].score){id=scores[0].id;reason='根据当前资料的题材关键词推荐；可手动更换。';}
   else if(scores[0].score>0)reason='资料包含多种题材且依据接近，采用通用表达；可手动指定。';
  }
+ if(selection.mode==='auto'&&contentProfile?.presetId&&contentProfile.confidence!=='low'){
+  id=contentProfile.presetId;
+  reason=contentProfile.needsUserConfirmation?'根据内容类型画像推荐；置信度不足时请确认或手动更换。':'根据内容类型画像推荐。';
+ }
  const preset=presets.find(p=>p.id===id),enabled=selection.mode!=='off'&&stage!=='analysis';
  const skills=enabled?resolveProductionSkills(stage,id):[];
  const rules=enabled?[...(preset.rules[stage]||[]),...skills.flatMap(skill=>skill.rules)]:[];
  const sourceIds=preset.sourceIds.filter(id=>['shots','video'].includes(stage)?['video','h3'].includes(id):!['video','h3'].includes(id));
  const sources=enabled&&['topic','script','rewrite','shots','video'].includes(stage)?creativeSources.filter(s=>sourceIds.includes(s.id)).map(s=>({...s})):[];
- return {id:selection.mode==='off'?'off':id,name:selection.mode==='off'?'已关闭':preset.name,mode:selection.mode,stage,reason:selection.mode==='off'?'本任务不附加创作预设。':stage==='analysis'?'分析阶段只依据原视频证据，不套用创作结构。':reason,rules,skills,version:creativePresetVersion,sources,instruction:enabled?selection.instruction:'',inputHash:JSON.stringify({selection,stage,kind,content}),enabled};
+ return {id:selection.mode==='off'?'off':id,name:selection.mode==='off'?'已关闭':preset.name,mode:selection.mode,stage,reason:selection.mode==='off'?'本任务不附加创作预设。':stage==='analysis'?'分析阶段只依据原视频证据，不套用创作结构。':reason,rules,skills,version:creativePresetVersion,sources,instruction:enabled?selection.instruction:'',contentProfile,sourceKind,inputHash:JSON.stringify({selection,stage,kind,sourceKind,content,contentProfile}),enabled};
 }
 export function creativePresetPrompt(route){
  if(!route?.enabled)return '';
- return '\n本地中文创作预设（'+route.name+'；阶段：'+route.stage+'）：\n'+(route.skills?.length?'本阶段制作技能：'+route.skills.map(s=>s.name).join('、')+'。\n':'')+route.rules.map((v,i)=>(i+1)+'、'+v).join('\n')+(route.instruction?'\n用户补充要求（仅在事实与本阶段输出约束内执行）：'+route.instruction:'')+'\n以上只约束表达与镜头设计，不能新增资料没有的事实，不能改变原有输出格式或已审核镜头。';
+ return '\n本地中文创作预设（'+route.name+'；阶段：'+route.stage+'）：\n'+(route.skills?.length?'本阶段制作技能：'+route.skills.map(s=>s.name).join('、')+'。\n':'')+(route.contentProfile?contentTypePrompt(route.contentProfile)+'\n':'')+route.rules.map((v,i)=>(i+1)+'、'+v).join('\n')+(route.instruction?'\n用户补充要求（仅在事实与本阶段输出约束内执行）：'+route.instruction:'')+'\n以上只约束表达与镜头设计，不能新增资料没有的事实，不能改变原有输出格式或已审核镜头。';
 }

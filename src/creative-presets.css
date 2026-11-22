@@ -11,6 +11,21 @@
 .creative-presets-body{display:grid;gap:13px;padding:15px 18px 17px;min-width:0}
 .creative-presets-body p{margin:0;line-height:1.65;font-size:12px}
 .creative-presets-reason{color:var(--muted,#64748b);overflow-wrap:anywhere}
+.creative-content-profile{display:grid;gap:8px;padding:11px 12px;border:1px solid color-mix(in srgb,var(--accent,#c27aff) 35%,var(--border,#45405d));border-radius:8px;background:color-mix(in srgb,var(--accent,#c27aff) 7%,transparent);min-width:0}
+.creative-content-profile-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+.creative-content-profile-head strong{font-weight:650}
+.creative-content-profile-type{font-weight:600;color:var(--accent,#c27aff)}
+.creative-content-profile-confidence{padding:2px 7px;border:1px solid var(--border,#45405d);border-radius:5px;color:var(--muted,#748094);font-size:11px}
+.creative-content-profile-confidence[data-confidence="high"]{color:#8ee0b0;border-color:#477b5e}
+.creative-content-profile-confidence[data-confidence="low"]{color:#ffd1ad;border-color:#77533c}
+.creative-content-profile-reason,.creative-content-profile-line{margin:0;color:var(--muted,#748094);font-size:12px;line-height:1.65;overflow-wrap:anywhere}
+.creative-content-profile-line strong{color:inherit;font-weight:550}
+.creative-content-profile-candidates{display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:var(--muted,#748094);font-size:12px}
+.creative-content-profile-candidate{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border,#45405d);border-radius:5px;padding:3px 7px;color:inherit}
+.creative-content-profile-candidate small{color:var(--muted,#748094);font-size:10px}
+.creative-content-profile-warning{margin:0!important;padding:7px 9px;color:#ffd1ad;background:#473126;border:1px solid #77533c;border-radius:6px;font-size:12px;line-height:1.6}
+.creative-content-profile-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.creative-content-profile-actions button{min-height:32px;padding:6px 10px;font-size:12px}
 .creative-presets-modes{border:0;margin:0;padding:0;display:flex;align-items:center;gap:10px 22px;flex-wrap:wrap;min-width:0}
 .creative-presets-modes legend{float:left;margin:0 18px 0 0;font-size:12px;color:var(--muted,#64748b)}
 .creative-presets-modes label{display:inline-flex;align-items:center;gap:6px;margin:0!important;font-size:13px;white-space:nowrap}
