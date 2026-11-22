@@ -195,6 +195,7 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
   handlers.prepareProductIntroduction=p=>require('./product-introduction.cjs').prepareIntroduction(service.products,p);
   handlers.proposeProductShotDesign=p=>require('./product-prompt.cjs').proposeProductShotDesign(service.products,p);
   handlers.translateStoryDesign=p=>require('./shot-localization.cjs').translateStoryDesign(service.products,p);
+  handlers.translateProductDesign=p=>require('./shot-localization.cjs').translateProductDesign(service.products,p);
   handlers.creativePresetPreview=({id,stage,context={}})=>{const presets=require('./creative-presets.mjs');return {catalog:presets.creativeCatalog(),selection:presets.normalizeCreativeSelection(store.draft(id).creativePreset),route:presets.resolveCreativePreset(store.draft(id),stage,context)};};
   handlers.saveCreativePreset=({id,selection})=>{service.stories.assertMutable(id);const normalized=require('./creative-presets.mjs').normalizeCreativeSelection(selection),next=structuredClone(store.draft(id));next.creativePreset=normalized;return store.updateDraft(next,{preserveCurrentId:true});};
   handlers.materialDetail=p=>materials.detail(p);

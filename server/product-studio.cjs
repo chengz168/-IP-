@@ -34,7 +34,7 @@ class ProductStudio{
  async collect({id,url}){url=clean(url,'商品链接',3000);return this.locked(id,()=>this.run('product-collect',id,{url},async ctx=>{
   const inputSignature=signature(this.store.draft(id));let product;
   const collectContext={signal:ctx.signal,progress:status=>ctx.progress(12,status.message)};
-  try{product=await collectProduct(url,collectContext);}catch(error){ctx.signal.throwIfAborted();if(!this.pageReader)throw error;ctx.progress(25,'静态页面没有完整商品资料，正在后台读取公开详情页');try{const page=await this.pageReader.read(url,collectContext);product=parseProductHtml(page.html,page.url||url);product.fetchedAt=new Date().toISOString();product.warnings=[...(product.warnings||[]),'资料来自后台公开页面，请核对当前规格、价格和图片。'];}catch(browserError){throw Error('商品页面读取失败：'+browserError.message+'。可上传商品图片并手动补充详情后继续。');}}
+  try{product=await collectProduct(url,collectContext);}catch(error){ctx.signal.throwIfAborted();if(!this.pageReader)throw error;ctx.progress(25,'静态页面没有完整商品资料，正在后台读取公开详情页');try{const page=await this.pageReader.read(url,collectContext);product=parseProductHtml(page.html,page.url||url);product.fetchedAt=new Date().toISOString();product.warnings=[...(product.warnings||[]),'资料来自后台公开页面，请核对当前规格、价格和图片。'];}catch(browserError){throw Object.assign(Error('商品页面读取失败：'+browserError.message.replace(/[。；\s]+$/u,'')+'。'),{code:browserError.code||'PRODUCT_BROWSER_ERROR',evidence:browserError.evidence});}}
   return {product,sourceUrl:url,inputSignature,stale:signature(this.store.draft(id))!==inputSignature};
  }));}
  async imageAssets(id,p,ctx){

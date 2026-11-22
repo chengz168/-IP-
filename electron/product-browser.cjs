@@ -4,6 +4,18 @@ const productSource = require('../server/product-source.cjs');
 
 function problem(message, code) { return Object.assign(new Error(message), { code }); }
 
+function classifyProductPage({text,hasImages,hasProduct}) {
+  const verification = text.match(/(?:请完成.{0,8}验证|滑动.{0,12}完成验证|请先登录后|访问过于频繁|检测到当前环境存在安全风险|verify you are human)/i)?.[0] || '';
+  const appOnly = !hasProduct && /请使用抖音APP扫码/i.test(text);
+  const restriction = verification || (appOnly ? '请使用抖音APP扫码' : '');
+  return {restricted: !!restriction, restriction, ready: !restriction && hasImages && hasProduct};
+}
+
+function browserUserAgent(value) {
+  // 沿用当前 Chromium 的平台和版本，只移除应用标记以兼容普通网页。
+  return value.replace(/\s(?:Electron|super-ip-studio|超级IP智能体)\/[^\s]+/g, '').replace(/[^\x20-\x7e]/g, '').trim();
+}
+
 // 仅采集浏览器实际呈现的公开内容，不读取账号、Cookie 或页面运行时私有变量。
 const snapshotScript = `(() => {
   const text = (document.body?.innerText || '').trim().slice(0, 60000);
@@ -13,7 +25,6 @@ const snapshotScript = `(() => {
     height: image.naturalHeight || image.height
   })).filter(image => /^https?:/.test(image.url) && image.width >= 100 && image.height >= 100).slice(0, 100);
   const title = document.title || '';
-  const restricted = /(?:请完成.{0,8}验证|滑动.{0,12}完成验证|请先登录后|访问过于频繁|安全验证|检测到当前环境存在安全风险|请使用抖音APP扫码|verify you are human)/i.test(text.slice(0, 6000));
   const productJson = [...document.querySelectorAll('script[type="application/ld+json"]')].some(script => {
     try { return /"@type"\\s*:\\s*(?:"Product"|\\[[^\\]]*"Product")/.test(script.textContent || ''); } catch { return false; }
   });
@@ -25,7 +36,8 @@ const snapshotScript = `(() => {
     return match && /^https?:/.test(match[1]) ? {url: match[1], kind: 'main'} : null;
   }).filter(Boolean);
   // 公开页可能隐藏价格，真实商品标题、图片和购买入口已经足以继续采集。
-  return {title, text, images: [...mainImages, ...images], restricted, ready: !restricted && (images.length + mainImages.length) > 0 && (productJson || (commerce && titleCandidates.length > 0)), titleCandidates};
+  const state = (${classifyProductPage.toString()})({text, hasImages: (images.length + mainImages.length) > 0, hasProduct: productJson || (commerce && titleCandidates.length > 0)});
+  return {title, text, images: [...mainImages, ...images], ...state, titleCandidates};
 })()`;
 
 class ProductBrowser {
@@ -67,6 +79,7 @@ class ProductBrowser {
           autoplayPolicy: 'document-user-activation-required', disableDialogs: true, spellcheck: false } });
       this.windows.add(window);
       const contents = window.webContents;
+      contents.setUserAgent(browserUserAgent(contents.getUserAgent()));
       session = contents.session;
       contents.setAudioMuted(true);
       contents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -110,7 +123,7 @@ class ProductBrowser {
         if (!latest.ready && Date.now() - domStarted > 9000) await report();
         if (latest.restricted) {
           await report();
-          throw problem('商品平台限制了当前公开访问，页面要求前往 APP 或完成安全验证，无法继续静默采集。请手动上传商品图并补充资料。', 'PRODUCT_PAGE_RESTRICTED');
+          throw problem('软件本次后台页面显示“'+latest.restriction+'”，尚未取得商品资料。此提示仅反映本次软件读取结果；可在浏览器核对同一链接、重试，或上传商品图片继续创作。', 'PRODUCT_PAGE_RESTRICTED');
         }
         if (latest.ready) {
           stable = latest.images.length === previousImages ? stable + 1 : 0;
@@ -123,7 +136,7 @@ class ProductBrowser {
             await report();
             const html = await guard(contents.executeJavaScript('document.documentElement.outerHTML'));
             if (Buffer.byteLength(html, 'utf8') > 8 * 1024 * 1024) throw problem('商品详情页面过大，请手动上传资料。', 'PRODUCT_SOURCE_TOO_LARGE');
-            return { html, url: contents.getURL() };
+            return { html, url: contents.getURL(), publicPage: {title:latest.title,restriction:latest.restriction,images:latest.images.length} };
           }
         } else if (loadError && !latest.text) {
           await report();
@@ -134,7 +147,9 @@ class ProductBrowser {
       throw active.reason;
     } catch (error) {
       await report();
-      throw active.aborted ? active.reason : error;
+      const failure=active.aborted ? active.reason : error;
+      failure.evidence={...(failure.evidence||{}),productPage:{code:failure.code||'PRODUCT_BROWSER_ERROR',title:latest?.title||'',visibleText:latest?.text?.slice(0,3000)||'',restriction:latest?.restriction||'',imageCount:latest?.images?.length||0,isolatedSession:true,windowShown:window&&!window.isDestroyed()?window.isVisible():false}};
+      throw failure;
     } finally {
       clearTimeout(timer);
       controller.abort(problem('商品采集会话已结束。', 'ABORT_ERR'));
@@ -155,4 +170,4 @@ class ProductBrowser {
   close() { for (const window of this.windows) if (!window.isDestroyed()) window.destroy(); }
 }
 
-module.exports = { ProductBrowser };
+module.exports = { ProductBrowser, classifyProductPage, browserUserAgent, snapshotScript };

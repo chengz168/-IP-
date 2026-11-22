@@ -36,4 +36,7 @@ function localizeShotView(shot,records={}){
  const record=Object.entries(records).find(([key,value])=>key===shot.id+':'+value?.sourceFingerprint&&translationRecordValid(value,shot))?.[1];
  return record?{...shot,...Object.fromEntries(fields.map(key=>[key,record.translation[key]])),translated:true}:{...shot,translated:false};
 }
-export {fields,sourceOf,needsTranslation,validateTranslation,translationRecordValid,localizeShotView};
+// 商品镜头没有故事镜头ID，按脚本来源和位置独立标识，再逐字段验证译稿。
+function productShotSource(product,index){return {...product?.shots?.[index],id:'product:'+JSON.stringify([product?.scriptRunId||'',index])};}
+function productShotView(product,index,records={}){return localizeShotView(productShotSource(product,index),records);}
+export {fields,sourceOf,needsTranslation,validateTranslation,translationRecordValid,localizeShotView,productShotSource,productShotView};

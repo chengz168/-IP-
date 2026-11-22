@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const {fingerprint,sourceOf,needsTranslation,localizeShot,translateStoryDesign}=require('../server/shot-localization.cjs');
+const {fingerprint,sourceOf,needsTranslation,localizeShot,translateStoryDesign,translateProductDesign}=require('../server/shot-localization.cjs');
 const english=id=>({id,visual:'A blue rod on a white table.',action:'Move left once, then stop.',camera:'Static close shot.',sound:'No music.',selectedImageId:'image',selectedVideoId:'video',images:[{id:'image',inputHash:'image-hash'}],videos:[{id:'video',inputHash:'video-hash'}]});
 const chinese=()=>({visual:'蓝色长杆位于白色桌面上。',action:'向左移动一次，然后停止。',camera:'近景固定机位。',sound:'无音乐。'});
 function fixture(){
@@ -121,4 +121,26 @@ test('真实Runtime在翻译格式拒绝时持久化原始响应，失败任务�
  const service={store,runtime:new Runtime(store),stories:{assertMutable:()=>{}},providers:{text:async()=>({text:++count===1?JSON.stringify(chinese()):'raw-invalid-model-response'})}};
  await assert.rejects(translateStoryDesign(new ProductStudio(service),{...f.args,id:draft.id}),/有效JSON/);
  const persisted=new Store(dir),run=persisted.data.runs[0];assert.equal(run.status,'failed');assert.equal(run.failureOutput.translation.responses.length,2);assert.equal(run.failureOutput.translation.responses[1].response.text,'raw-invalid-model-response');assert.equal(run.failureOutput.translation.validatedShots,1);assert.equal(run.failureOutput.translation.translationAttached,false);assert.equal(persisted.draft().artifacts.shotTranslations,undefined);
+});
+
+test('商品未准备故事分镜也能独立转换，来源与位置隔离且原设计和媒体不变',async()=>{
+ const {productShotView}=await import('../server/shot-localization-view.mjs');
+ const f=fixture();delete f.draft.story;f.draft.product={scriptRunId:'script-one',shots:[english('ignored'),english('ignored')]};
+ const before=structuredClone(f.draft),result=await translateProductDesign(f.products,{id:'draft'});
+ assert.equal(result.translated,2);assert.deepEqual(f.draft.product,before.product);assert.deepEqual(f.draft.voice,before.voice);assert.deepEqual(f.draft.video,before.video);
+ assert.equal(productShotView(f.draft.product,0,f.draft.artifacts.shotTranslations).visual,chinese().visual);
+ assert.equal((await translateProductDesign(f.products,{id:'draft'})).skipped,2);assert.equal(f.calls.length,2);
+ f.draft.product.scriptRunId='script-two';assert.equal(productShotView(f.draft.product,0,f.draft.artifacts.shotTranslations).translated,false);
+ f.draft.product.scriptRunId='script-one';f.draft.product.shots[0].camera='New camera.';assert.equal(productShotView(f.draft.product,0,f.draft.artifacts.shotTranslations).translated,false);
+ assert.equal(productShotView(f.draft.product,1,f.draft.artifacts.shotTranslations).translated,true);
+});
+
+test('商品翻译失败、取消或脚本变化均不保存半批译稿',async()=>{
+ for(const change of ['invalid','cancel','script','reorder']){
+  const f=fixture();f.draft.product={scriptRunId:'script',shots:[english('one'),english('two')]};let count=0;
+  f.service.providers.text=async()=>{if(++count===2){if(change==='invalid')return {text:'invalid'};if(change==='cancel')f.controller.abort();if(change==='script')f.draft.product.scriptRunId='new';if(change==='reorder')f.draft.product.shots.reverse();}return {text:JSON.stringify(chinese())};};
+  // 位置相同、四字段相同的镜头互换不影响阅读内容，所以用不同设计验证顺序失效。
+  if(change==='reorder')f.draft.product.shots[1].camera='Wide shot.';
+  await assert.rejects(translateProductDesign(f.products,{id:'draft'}));assert.equal(f.saves,0);assert.equal(f.draft.artifacts.shotTranslations,undefined);
+ }
 });

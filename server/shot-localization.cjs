@@ -1,5 +1,5 @@
 const {hash}=require('./story-contract.cjs');
-const {fields,sourceOf,needsTranslation,validateTranslation,translationRecordValid}=require('./shot-localization-view.mjs');
+const {fields,sourceOf,needsTranslation,validateTranslation,translationRecordValid,productShotSource}=require('./shot-localization-view.mjs');
 function fingerprint(shot){return hash(sourceOf(shot));}
 function localizeShot(shot,records={}){
  const record=records[shot.id+':'+fingerprint(shot)];
@@ -15,9 +15,19 @@ function targets(draft,episodeId,shotId){
 }
 async function translateStoryDesign(products,{id,episodeId,shotId}){
  if(typeof id!=='string'||typeof episodeId!=='string'||shotId!==undefined&&typeof shotId!=='string')throw Error('镜头翻译范围无效');
+ return translateDesign(products,{id,episodeId,shotId},draft=>targets(draft,episodeId,shotId));
+}
+async function translateProductDesign(products,{id}){
+ if(typeof id!=='string'||!id)throw Error('商品镜头翻译范围无效');
+ return translateDesign(products,{id,episodeId:'product',shotId:''},draft=>{
+  if(!draft.product?.shots?.length)throw Error('当前商品镜头不存在，未转换镜头');
+  return draft.product.shots.map((_,index)=>productShotSource(draft.product,index));
+ });
+}
+async function translateDesign(products,{id,episodeId,shotId},getTargets){
  return products.locked(id,async()=>{
   const service=products.service,store=service.store;service.stories.assertMutable(id);
-  const original=targets(store.draft(id),episodeId,shotId).map(sourceOf),signature=hash(original),previous=structuredClone(store.draft(id).artifacts?.shotTranslations||{}),targetSignature=hash(previous);
+  const original=getTargets(store.draft(id)).map(sourceOf),signature=hash(original),previous=structuredClone(store.draft(id).artifacts?.shotTranslations||{}),targetSignature=hash(previous);
   return products.run('story-translation',id,{episodeId,shotId:shotId||'',sourceFingerprint:signature},async ctx=>{
    const pending=[],evidence=[];let skipped=0;
    try{
@@ -36,7 +46,7 @@ async function translateStoryDesign(products,{id,episodeId,shotId}){
    }
    ctx.signal.throwIfAborted();service.stories.assertMutable(id);
    const current=store.draft(id);
-   if(hash(targets(current,episodeId,shotId).map(sourceOf))!==signature||hash(current.artifacts?.shotTranslations||{})!==targetSignature)throw Error('翻译期间镜头或已有译稿发生变化，本次译稿未保存，请重新转换');
+   if(hash(getTargets(current).map(sourceOf))!==signature||hash(current.artifacts?.shotTranslations||{})!==targetSignature)throw Error('翻译期间镜头或已有译稿发生变化，本次译稿未保存，请重新转换');
    if(pending.length){
     const old=current.artifacts,records={...previous};for(const item of pending)records[item.key]=item.value;
     current.artifacts={...(old||{}),shotTranslations:records};
@@ -47,4 +57,4 @@ async function translateStoryDesign(products,{id,episodeId,shotId}){
   });
  });
 }
-module.exports={fields,sourceOf,fingerprint,needsTranslation,localizeShot,validateTranslation,translateStoryDesign};
+module.exports={fields,sourceOf,fingerprint,needsTranslation,localizeShot,validateTranslation,translateStoryDesign,translateProductDesign};

@@ -6,7 +6,7 @@ const vue=require('vue');
 const sfc=require('@vue/compiler-sfc');
 
 // 直接运行真实组件 setup，验证用户操作的前置条件和调用范围。
-async function fixture({existing=false,stale=false,component='ProductStudio',productMode=false,legacy=false}={}){
+async function fixture({existing=false,stale=false,component='ProductStudio',productMode=false,legacy=false,callResult}={}){
  const product={url:'',sourceRunId:'',title:'羽毛玩具',description:'彩色羽毛',brand:'',sku:'',price:'',currency:'',specifications:[],selectedIndices:[],assetIds:['image'],imageRoles:{},duration:12,aspect:'9:16',brief:'',scriptRunId:existing?'script':'',shots:existing?[{text:'看看这款玩具。',visual:'商品近景',imageId:'image',duration:12,action:'羽毛轻轻摆动',camera:'近景'}]:[],narration:true};
  if(legacy)delete product.imageRoles;
  const draft=vue.ref({id:'task',product,confirmed:true,finalText:'看看这款玩具。',language:'zh',voice:{audioId:'audio'},story:{version:1,revision:0,sourceMode:'upstream',sourceText:'看看这款玩具。',episodeCount:1,episodeDuration:12,narrationMode:'upstream',episodes:[],assets:[]}});
@@ -18,13 +18,45 @@ async function fixture({existing=false,stale=false,component='ProductStudio',pro
  const filename=path.resolve(__dirname,'../src/components/'+component+'.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename});
  const compiled=sfc.compileScript(descriptor,{id:'product-intro-ui'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return');
  const helpers={...await import('../src/story-ui.mjs'),...await import('../server/shot-localization-view.mjs')};
- const scope=vue.effectScope(),call=async(action,payload)=>{calls.push({action,payload});return {stale,story:JSON.parse(JSON.stringify(draft.value.story))};};
+ const scope=vue.effectScope(),call=async(action,payload)=>{calls.push({action,payload});return callResult||{stale,story:JSON.parse(JSON.stringify(draft.value.story))};};
  const names=['computed','inject','ref','watch','nextTick','onBeforeUnmount','I','MediaPreview','StoryStudio','AssetPicker','Modal','StoryModelSettings','CreativePresets','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)];
  const values=[vue.computed,()=>studio,vue.ref,vue.watch,vue.nextTick,()=>{},{},{},{},{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
  const componentObject=new Function(...names,compiled)(...values),vm=scope.run(()=>componentObject.setup({phase:'video',productMode},{expose(){}}));
  await vue.nextTick();
  return {vm,draft,state,calls,notices,descriptor,filename,initialDraftJson,dispose:()=>scope.stop()};
 }
+
+test('第一步商品摘要使用独立中文译稿，第四步编辑需显式采用，不污染原设计',async()=>{
+ const f=await fixture({existing:true});try{
+  const {productShotSource}=await import('../server/shot-localization-view.mjs'),{sourceOf,fingerprint}=require('../server/shot-localization.cjs');
+  Object.assign(f.draft.value.product.shots[0],{visual:'A blue rod.',action:'Move left.',camera:'Static shot.'});
+  const before=JSON.stringify(f.draft.value.product),source=sourceOf(productShotSource(f.draft.value.product,0)),translation={visual:'一根蓝色长杆。',action:'向左移动。',camera:'固定机位。',sound:''};
+  assert.equal(f.vm.untranslatedShots.value,1);
+  f.draft.value.artifacts={shotTranslations:{[source.id+':'+fingerprint(source)]:{shotId:source.id,sourceFingerprint:fingerprint(source),source,translation}}};
+  assert.equal(f.vm.displayShots.value[0].visual,translation.visual);assert.equal(f.vm.untranslatedShots.value,0);assert.equal(JSON.stringify(f.draft.value.product),before);
+  assert.match(f.descriptor.template.content,/product-shot-summaries"><article v-for="\(shot,index\) in displayShots"/);
+  f.vm.editChineseDesign(0);assert.equal(f.draft.value.product.shots[0].visual,translation.visual);assert.equal(f.vm.needsChineseDesign(f.draft.value.product.shots[0]),false);assert.equal(f.draft.value.product.shots[0].imageId,'image');assert.equal(f.draft.value.product.scriptRunId,'script');assert.equal(f.draft.value.voice.audioId,'audio');assert.equal(f.calls.length,0);
+ }finally{f.dispose();}
+});
+
+test('商品中文转换入口发送当前任务，保存刷新后无需重复转换，中文字段不调用模型',async()=>{
+ const f=await fixture({existing:true});try{
+  await f.vm.translateProductShots();assert.equal(f.calls.length,0);
+  f.draft.value.product.shots[0].visual='A blue rod.';await f.vm.translateProductShots();assert.deepEqual(f.calls,[{action:'translateProductDesign',payload:{id:'task'}}]);
+ }finally{f.dispose();}
+});
+
+test('已存在脚本时再次读取先核对资料，明确采用才重置脚本，切换链接丢弃旧候选',async()=>{
+ const result={runId:'new-source',product:{title:'新商品',images:[{url:'https://example.com/image.jpg'}],specifications:[]}};
+ const f=await fixture({existing:true,callResult:result});try{
+  f.draft.value.product.url='https://example.com/item';await vue.nextTick();const before=JSON.stringify(f.draft.value.product);
+  await f.vm.collect();assert.equal(JSON.stringify(f.draft.value.product),before);assert.equal(f.vm.pendingCollection.value.product.title,'新商品');
+  f.draft.value=JSON.parse(JSON.stringify(f.draft.value));await vue.nextTick();assert.equal(f.vm.pendingCollection.value.product.title,'新商品');
+  assert.match(f.descriptor.template.content,/保留现有脚本/);assert.match(f.descriptor.template.content,/使用新资料，重新制作脚本/);
+  f.draft.value.product.url='https://example.com/other';await vue.nextTick();assert.equal(f.vm.pendingCollection.value,null);await f.vm.applyCollection();assert.equal(f.draft.value.product.scriptRunId,'script');
+  await f.vm.collect();await f.vm.applyCollection();assert.equal(f.draft.value.product.title,'新商品');assert.equal(f.draft.value.product.sourceRunId,'new-source');assert.deepEqual(f.draft.value.product.shots,[]);assert.equal(f.draft.value.product.scriptRunId,'');
+ }finally{f.dispose();}
+});
 
 test('新商品采用动态介绍，旧商品展示任务保留原方式，初始化不提交模型',async()=>{
  for(const existing of [false,true]){const f=await fixture({existing});try{assert.equal(f.vm.renderMode.value,existing?'presentation':'introduction');assert.equal(Object.hasOwn(f.draft.value.product,'renderMode'),false);assert.equal(JSON.stringify(f.draft.value),f.initialDraftJson);assert.equal(f.calls.length,0);assert.deepEqual(sfc.compileTemplate({id:'product-intro-ui',filename:f.filename,source:f.descriptor.template.content}).errors,[]);}finally{f.dispose();}}

@@ -47,6 +47,14 @@ function confirm(service, id, text) {
   const d = service.store.draft(id);
   Object.assign(d, { sourceText: text, rewrite: text, finalText: text, confirmed: true });
 }
+
+test('商品后台读取失败保留可见页面凭据和错误码，原脚本不被服务端改写',async t=>{
+ const {service,id}=fixture(t),before=structuredClone(service.store.draft(id).product);
+ const evidence={productPage:{code:'PRODUCT_PAGE_RESTRICTED',visibleText:'检测到当前环境存在安全风险',imageCount:0}};
+ service.products.pageReader={read:async()=>{throw Object.assign(Error('软件本次后台页面显示安全风险。'),{code:'PRODUCT_PAGE_RESTRICTED',evidence});}};
+ await assert.rejects(service.invoke('collectProduct',{id,url:'https://localhost/item'}),error=>error.code==='PRODUCT_PAGE_RESTRICTED'&&!error.message.includes('。。'));
+ assert.deepEqual(service.store.draft(id).product,before);const run=service.store.data.runs[0];assert.equal(run.status,'failed');assert.deepEqual(run.failureOutput,evidence);
+});
 function audioAsset(service, id, request) {
   const file = path.join(service.store.root, 'third-step.wav');
   fs.writeFileSync(file, '音频契约测试占位，未调用真实模型');
