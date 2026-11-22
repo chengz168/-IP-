@@ -2,10 +2,11 @@
 import {computed,inject,ref,watch} from 'vue';
 import I from './Icon.vue';
 import Modal from './Modal.vue';
+import CreativeSkillLibrary from './CreativeSkillLibrary.vue';
 import {call} from '../api';
 import {promptCatalog,resolvePrompt} from '../../server/prompt-catalog.mjs';
 const {state,busy,act,notify}=inject('studio');
-const type=ref('copy'),editing=ref(null),deleting=ref(null),error=ref(''),titleText=ref('');
+const type=ref('skills'),editing=ref(null),deleting=ref(null),error=ref(''),titleText=ref('');
 const all=computed(()=>promptCatalog(state.value));
 const entries=computed(()=>all.value.filter(p=>p.type===type.value));
 const current=computed(()=>resolvePrompt(type.value==='title'?'title':'rewrite',state.value));
@@ -19,9 +20,10 @@ async function saveTitle(){const item=current.value;if(!titleText.value.trim()){
 </script>
 <template>
  <div class="prompt-manager">
-  <nav class="prompt-type-tabs" aria-label="提示词用途"><button :class="{active:type==='copy'}" :aria-pressed="type==='copy'" @click="type='copy'"><I name="PencilLine" :size="16"/>文案写作提示词</button><button :class="{active:type==='title'}" :aria-pressed="type==='title'" @click="type='title'"><I name="Type" :size="16"/>标题写作提示词</button></nav>
+  <nav class="prompt-type-tabs" aria-label="提示词用途"><button :class="{active:type==='skills'}" :aria-pressed="type==='skills'" @click="type='skills'"><I name="Library" :size="16"/>创作技能库</button><button :class="{active:type==='copy'}" :aria-pressed="type==='copy'" @click="type='copy'"><I name="PencilLine" :size="16"/>文案写作提示词</button><button :class="{active:type==='title'}" :aria-pressed="type==='title'" @click="type='title'"><I name="Type" :size="16"/>标题写作提示词</button></nav>
   <p v-if="error&&!editing&&!deleting" class="prompt-error" role="alert">{{error}}</p>
-  <section v-if="type==='title'" class="prompt-title-editor">
+  <CreativeSkillLibrary v-if="type==='skills'"/>
+  <section v-else-if="type==='title'" class="prompt-title-editor">
    <h3><I name="Lightbulb" :size="24"/>标题生成提示词</h3><p>用于AI自动生成视频标题的提示词模板</p>
    <label class="sr-only" for="title-prompt-content">标题提示词内容</label><textarea id="title-prompt-content" v-model="titleText" aria-label="标题提示词内容" maxlength="500"/><span class="prompt-count">{{titleText.length}} / 500</span>
    <p class="prompt-advice"><I name="Lightbulb" :size="16"/>提示：可以在提示词中使用 {content} 占位符代表原始内容</p><p class="prompt-advice">建议：明确标题的长度要求和风格特点</p>

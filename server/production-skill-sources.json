@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "checkedDate": "2026-11-22",
+  "project": "视频工厂",
+  "revision": "815f29ff9a17e89c68e9c7a479237a5ba56e2b32",
+  "sourceFiles": [
+    {
+      "path": "src/storage/skills-store.js",
+      "sha256": "dd3b45d95b6314cb9100fd0c4b8f9620e43438d6a28917392c9f31784ed744ae"
+    },
+    {
+      "path": "src/storage/production-skills.js",
+      "sha256": "046dca391c14870bf74fb72d9b73a352a98b6ac0ca7a624cbfbcd7c19c5df6b3"
+    },
+    {
+      "path": "src/storage/production-resources.js",
+      "sha256": "924fafd98c5405882ae471e2c7fc883f9d65857e567fe15c9ac4d15767ef0ac6"
+    }
+  ],
+  "adaptation": "仅复用项目内制作方法并按当前应用重新编写，不执行外部代码，不包含视频工厂P02/P04/P07等专用输出契约。",
+  "externalSources": "原工程引用的公开文档仅作来源线索，不宣称本批重新核验其全部内容或再分发许可。",
+  "automaticStages": [
+    "topic",
+    "script",
+    "rewrite",
+    "episodes",
+    "shots",
+    "assets",
+    "image",
+    "video"
+  ],
+  "manualChecklists": [
+    "voice",
+    "subtitles",
+    "compose",
+    "review"
+  ]
+}

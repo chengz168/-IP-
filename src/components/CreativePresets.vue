@@ -2,20 +2,21 @@
 import {computed,inject,onBeforeUnmount,ref,watch} from 'vue';
 import {call} from '../api';
 import '../creative-presets.css';
+import {creativeStageNames} from '../../server/production-skills.mjs';
 
 const props=defineProps({stage:{type:String,default:'script'},context:{type:Object,default:()=>({})},disabled:Boolean});
 const {draft:d,state,busy,workflowLocked,save,refresh}=inject('studio');
 const catalog=ref([]),route=ref(null),mode=ref('auto'),presetId=ref(''),instruction=ref(''),error=ref(''),loading=ref(false),saving=ref(false);
 const saved=ref(''),loaded=ref(false);
 let requestToken=0,saveToken=0,refreshTimer;
-const stageNames={script:'文案',rewrite:'改写',shots:'分镜',video:'视频镜头',analysis:'参考拆解',topic:'选题'};
+const stageNames={...creativeStageNames,analysis:'参考拆解'};
 const selection=()=>({mode:mode.value,presetId:presetId.value,instruction:instruction.value});
 const normalize=value=>({mode:['auto','manual','off'].includes(value?.mode)?value.mode:'auto',presetId:String(value?.presetId||''),instruction:String(value?.instruction||'')});
 const dirty=computed(()=>JSON.stringify(selection())!==saved.value);
 const locked=computed(()=>props.disabled||!!busy?.value||!!workflowLocked?.value||saving.value);
 const options=computed(()=>catalog.value.filter(item=>item.stages?.includes(props.stage)));
 const manualMismatch=computed(()=>mode.value==='manual'&&!!presetId.value&&!options.value.some(item=>item.id===presetId.value));
-const actual=computed(()=>state.value.runs?.find(run=>run.draftId===d.value.id&&run.output?.creativePreset&&run.output.creativePreset.stage===props.stage)?.output.creativePreset);
+const actual=computed(()=>state.value.runs?.find(run=>run.draftId===d.value.id&&run.output?.creativePreset&&run.output.modelExecuted!==false&&run.output.creativePreset.stage===props.stage)?.output.creativePreset);
 const sourceRows=computed(()=>(route.value?.sources||[]).map(source=>typeof source==='string'?{name:source,url:''}:{name:source.name||source.title||source.id||'公开资料',url:source.url||source.sourceUrl||'',version:source.version||source.revision||'',license:source.license||''}));
 const rules=computed(()=>Array.isArray(route.value?.rules)?route.value.rules:route.value?.rules?[String(route.value.rules)]:[]);
 const routeTitle=computed(()=>route.value?.mode==='off'?'已关闭':route.value?.name||'等待推荐');
@@ -68,7 +69,8 @@ onBeforeUnmount(()=>{clearTimeout(refreshTimer);requestToken++;saveToken++;});
    <div class="creative-presets-actions"><p>{{dirty?'尚未保存，生成仍使用已保存设置。':'设置随当前任务保存，系统预设内容保持独立。'}}</p><button type="button" :disabled="locked||loading" @click="loadPreview">刷新推荐</button><button type="button" class="primary" :disabled="locked||!loaded||!dirty||(mode==='manual'&&(!presetId||manualMismatch))" @click="persist">{{saving?'保存中…':'保存预设'}}</button></div>
    <p v-if="error" class="creative-presets-error" role="alert">{{error}}</p>
    <details v-if="route" class="creative-presets-rules"><summary>查看已保存设置的阶段规则与来源</summary><p class="creative-presets-help">{{routeTitle}}<template v-if="route.version"> · 版本 {{route.version}}</template>。推荐用于本阶段，实际采用情况以生成记录为准。</p><ul v-if="rules.length"><li v-for="(rule,index) in rules" :key="index">{{rule}}</li></ul><p v-else class="creative-presets-help">{{route.mode==='off'?'当前已关闭创作预设。':'此预设当前阶段没有附加规则，沿用原有生成要求。'}}</p><div v-if="sourceRows.length" class="creative-presets-sources"><p>公开方法来源（可核查资料地址）</p><div v-for="(source,index) in sourceRows" :key="index"><strong>{{source.name}}</strong><small v-if="source.version">{{source.version}}</small><small v-if="source.license">许可：{{source.license}}</small><code v-if="source.url">{{source.url}}</code></div></div></details>
-   <p v-if="actual" class="creative-presets-actual">最近生成实际采用：{{actual.name||actual.id||'创作预设'}}<template v-if="actual.version"> · 版本 {{actual.version}}</template>。</p>
+   <p v-if="route?.skills?.length" class="creative-presets-help">本阶段将组合：{{route.skills.map(skill=>skill.name).join('、')}}。详情可在设置 → 提示词管理 → 创作技能库查看。</p>
+   <p v-if="actual" class="creative-presets-actual">最近生成实际采用：{{actual.name||actual.id||'创作预设'}}<template v-if="actual.version"> · 版本 {{actual.version}}</template><template v-if="actual.skills?.length"> · {{actual.skills.map(skill=>skill.name).join('、')}}</template>。</p>
   </div>
  </details>
 </template>
