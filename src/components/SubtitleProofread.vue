@@ -13,7 +13,7 @@ function stopAtEnd(){if(playEnd.value!==null&&player.value.currentTime>=playEnd.
 </script>
 <template>
  <Modal title="按文案校对字幕" variant="proofread" wide @close="emit('close')">
-  <p class="proofread-intro">依据第二步{{draft.finalText?.trim()?'最终文案':'改写文案'}}提出建议，保留现有时间轴。请回听后逐条选择，数字和否定变化需特别核对。</p>
+  <p class="proofread-intro">依据当前已交接单集，或已确认且与视频配音记录一致的正文提出建议，保留现有时间轴。导入视频没有对应讲稿凭据时，请手工回听校对。数字和否定变化需逐条确认。</p>
   <video v-if="source" ref="player" class="proofread-player" :src="mediaUrl(source)" controls preload="metadata" @timeupdate="stopAtEnd"/>
   <p v-else class="hint">当前没有可播放的视频源，请先选择对应视频。</p>
   <p v-if="error" class="proofread-error" role="alert">{{error}}</p>

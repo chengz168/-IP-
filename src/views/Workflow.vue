@@ -38,7 +38,6 @@ import {alignRowsToReference} from '../caption-script.mjs';
 import {changeCaptionSource} from '../caption-source.mjs';
 import {openCaptionSession} from '../caption-edit-session.mjs';
 import {getSubtitleTemplate} from '../../server/subtitle-templates.mjs';
-import {downstreamText} from '../../server/story-source.mjs';
 import {workflowOutputStatus} from '../workflow-output-status.mjs';
 import ReferenceAnalysis from '../components/ReferenceAnalysis.vue';
 import ProductStudio from '../components/ProductStudio.vue';
@@ -81,11 +80,11 @@ async function importCaption(asset){const r=await act('导入字幕',async()=>ca
 async function analyzeSilence(){const r=await act('检测视频静音',()=>call('analyzeSilence',{id:d.value.id}));if(r)silenceReport.value=r;}
 async function transcribe(){
  if(!sourceVideo.value||busy.value)return;
- const snapshot=recognitionSnapshot(d.value,'transcribe'),assetId=sourceVideo.value,duration=Number(currentAsset.value?.duration);
+ const snapshot=recognitionSnapshot(d.value,'transcribe',state.value),assetId=sourceVideo.value,duration=Number(currentAsset.value?.duration);
  const r=await act('生成字幕',()=>call('transcribe',{id:snapshot.id,assetId}));
  if(!r)return;
- if(r.stale||!canApplyRecognition(snapshot,d.value)){notify('视频源、字幕、识别配置或任务已变化，本次识别结果保留在执行记录中，未覆盖当前字幕');return;}
-  try{const rows=alignRowsToReference(recognitionRows(r,Number.isFinite(duration)&&duration>0?duration:Number(r.duration),recognitionOptions(d.value.edit)),downstreamText(d.value));if(r.sourceAssetId&&r.sourceAssetId!==assetId)throw Error('识别结果的视频源不符，当前字幕已保留');d.value.edit.captions=rows;d.value.edit.subtitlesEnabled=true;await save();if(d.value.id===snapshot.id&&sourceVideo.value===assetId&&activeStep.value===4)showCaptionEditor();}
+ if(r.stale||!canApplyRecognition(snapshot,d.value,state.value)||JSON.stringify(r.referenceInput)!==JSON.stringify(snapshot.referenceInput)){notify('视频源、字幕、识别配置、讲稿或任务已变化，本次识别结果保留在执行记录中，未覆盖当前字幕');return;}
+  try{const rows=alignRowsToReference(recognitionRows(r,Number.isFinite(duration)&&duration>0?duration:Number(r.duration),recognitionOptions(d.value.edit)),r.reference?.text||'');if(r.sourceAssetId&&r.sourceAssetId!==assetId)throw Error('识别结果的视频源不符，当前字幕已保留');d.value.edit.captions=rows;d.value.edit.subtitlesEnabled=true;await save();if(d.value.id===snapshot.id&&sourceVideo.value===assetId&&activeStep.value===4)showCaptionEditor();}
  catch(error){notify(error.message,'error');}
 }
 async function openSubtitleEditor(){if(busy.value||workflowLocked.value)return;try{await save();}catch(error){notify(error.message,'error');return;}if(!sourceVideo.value){notify('请先选择视频');return;}showCaptionEditor();}

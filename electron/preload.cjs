@@ -3,7 +3,7 @@ const {contextBridge,ipcRenderer,webUtils}=require('electron');
 const actions=new Set(['state','saveDraft','saveAppearance','listSubtitleFonts','subtitleSourceSize','previewSubtitle','generateEditTitle','saveSubtitleStyle','newDraft','selectDraft','deleteDraft','saveSettings','testConnection','checkLocalAsr','checkLocalSpeech','checkMedia','importFile','assetText','updateAsset','deleteAsset','saveResource','deleteResource','addCategory','text','extract','speech','testSpeech','trainVoice','avatar','render','transcribe','frame','imageData','coverVideo','importCaptions','exportCaptions','saveCover','exportPackage','publish','cancelRun','backup','restoreBackup','systemVoices','analyzeSilence']);
 for(const action of ['startExtractBatch','extractBatchStatus','cancelExtractBatch','useExtractBatchItem','reconcileExtractBatch','confirmExtractBatchTerminated'])actions.add(action);
 actions.add('materialDetail');actions.add('analyzeMaterial');actions.add('applyMaterialAnalysis');
-for(const action of ['analyzeReferenceVideo','createReferenceScript','useReferenceScript'])actions.add(action);
+for(const action of ['analyzeReferenceVideo','createReferenceScript','useReferenceScript','confirmReferenceVisualFacts','detachReferenceSource'])actions.add(action);
 for(const action of ['collectProduct','createProductScript','useProductScript','syncProductShots','generateProductVideo','useProductVideo'])actions.add(action);
 actions.add('prepareProductIntroduction');actions.add('proposeProductShotDesign');
 for(const action of ['translateStoryDesign','translateProductDesign','creativePresetPreview','saveCreativePreset'])actions.add(action);

@@ -73,7 +73,7 @@ test('资产提取使用唯一key到ID映射，非法绑定失败保留旧镜头
 test('重复提取必须明确复用原资产ID，不能新建同名资产或错配旧ID',async()=>{
  const f=fixture(),target=await oneEpisode(f),s=structuredClone(f.d.story);s.assets=[{id:'same-person',kind:'character',name:'小明',description:'花园里的人',prompt:'A person',images:[],selectedImageId:''}];await f.studio.save({id:'draft',story:s,revision:s.revision});const before=structuredClone(f.d.story);
  for(const asset of [{key:'new-person',kind:'character',name:'小明'},{key:'same-person',kind:'prop',name:'水壶'}]){f.responses.push({assets:[{...asset,description:'不应覆盖的描述',prompt:'A kettle'}],bindings:[{shotId:target.shotId,assetKeys:[asset.key]}]});await assert.rejects(f.studio.extractAssets({id:'draft'}),/同名资产|不一致/);assert.deepEqual(f.d.story,before);}
- f.responses.push({assets:[{key:'same-person',kind:'character',name:'小明',description:'新描述不覆盖旧设定',prompt:'Another description'}],bindings:[{shotId:target.shotId,assetKeys:['same-person']}]});await f.studio.extractAssets({id:'draft'});assert.equal(f.d.story.assets.length,1);assert.equal(f.d.story.assets[0].description,'花园里的人');assert.deepEqual(f.d.story.episodes[0].shots[0].assetIds,['same-person']);
+ f.responses.push({assets:[{key:'same-person',kind:'character',name:'小明',description:'本次修订后的实体描述',prompt:'Another description'}],bindings:[{shotId:target.shotId,assetKeys:['same-person']}]});await f.studio.extractAssets({id:'draft'});assert.equal(f.d.story.assets.length,1);assert.equal(f.d.story.assets[0].description,'本次修订后的实体描述');assert.deepEqual(f.d.story.episodes[0].shots[0].assetIds,['same-person']);
 });
 
 test('零资产不再标成功，唯一纠正仍为空时保留旧资产绑定与已选媒体',async()=>{
@@ -277,4 +277,32 @@ test('查询连接失败或结果仍未知不改变原unknown目标，不解除�
 
 test('恢复终态落盘失败回滚原unknown记录，不能在未保存时解除防重',async()=>{
  const f=await batchFixture();f.generator.image=async(input,ctx)=>{ctx.remote('keep-original',{kind:'story-comfy-image-v1',input,submissionState:'accepted'});throw Object.assign(Error('待确认'),{unknown:true});};await assert.rejects(f.studio.generateAssetImages({id:'draft',assetIds:f.assetIds}),/待确认/);const run=f.store.data.runs[0],before=structuredClone(run);f.generator.recover=async()=>{throw Object.assign(Error('服务端确认失败'),{remoteConfirmed:true});};let fail=false;f.store.save=()=>{if(!fail&&run.status==='failed'){fail=true;throw Error('终态保存失败');}};await assert.rejects(f.studio.recover({runId:run.id}),/保存失败/);assert.deepEqual(run,before);await assert.rejects(f.studio.generateImage({id:'draft',assetId:f.assetIds[0]}),/不能直接重交/);
+});
+
+
+test('参考实体核对贯穿分镜、资产、图片、视频输入，未确认或改版阻止提交并保留旧候选',async()=>{
+ const f=fixture();let review={revision:1,reviewSha256:'facts1',facts:[{name:'接砂盒',color:'米白色',structure:'光滑无筛孔',use:'接取结块'}]};f.d.referenceSelection={sourceRunId:'reference',visualFactsRequired:true};f.studio.service={references:{selectionFacts:()=>{if(!review)throw Error('事实尚未确认');return structuredClone(review);}}};
+ const initial=createStory(f.d);initial.episodeDuration=4;await f.studio.save({id:'draft',story:initial,revision:0});await f.studio.splitEpisodes({id:'draft'});const e=f.d.story.episodes[0];f.responses.push({shots:[{endUnit:2,visual:'接砂盒',action:'放下盒子',camera:'近景固定',sound:'环境声',imagePrompt:'米白接砂盒',videoPrompt:'放下盒子'}]});await f.studio.splitShots({id:'draft',episodeId:e.id});const target={episodeId:e.id,shotId:f.d.story.episodes[0].shots[0].id};assert.match(f.calls.at(-1).user,/光滑无筛孔/);
+ f.responses.push({assets:[{key:'box',kind:'prop',name:'接砂盒',description:'米白光滑盒内无孔',prompt:'接砂盒'}],bindings:[{shotId:target.shotId,assetKeys:['box']}]});const extracted=await f.studio.extractAssets({id:'draft'});assert.equal(extracted.stale,false);assert.match(f.calls.at(-1).user,/光滑无筛孔/);const assetId=f.d.story.assets[0].id;
+ const a=await f.studio.generateImage({id:'draft',assetId});assert.match(f.calls.at(-1).input.prompt,/光滑无筛孔/);await f.studio.selectImage({id:'draft',assetId,imageId:a.material.id});await imageAndVideo(f,target);assert.match(f.calls.find(call=>call.kind==='video').input.prompt,/光滑无筛孔/);
+ const history=structuredClone(f.d.story),count=f.calls.length;review={...review,revision:2,reviewSha256:'facts2',facts:[{...review.facts[0],color:'浅米白'}]};await assert.rejects(f.studio.generateImage({id:'draft',assetId}),/重新提取资产/);await assert.rejects(f.studio.generateVideo({id:'draft',...target}),/重新提取资产/);assert.equal(f.calls.length,count);assert.deepEqual(f.d.story,history);
+ f.responses.push({assets:[{key:assetId,kind:'prop',name:'接砂盒',description:'保留原设定',prompt:'接砂盒'}],bindings:[{shotId:target.shotId,assetKeys:[assetId]}]});await f.studio.extractAssets({id:'draft'});assert.equal(f.d.story.assets[0].selectedImageId,'');assert.equal(f.d.story.assets[0].images.length,history.assets[0].images.length);assert.equal(f.d.story.episodes[0].shots[0].selectedVideoId,'');assert.equal(f.d.story.episodes[0].shots[0].videos.length,history.episodes[0].shots[0].videos.length);
+ review=null;await assert.rejects(f.studio.extractAssets({id:'draft'}),/尚未确认/);assert.equal(f.d.story.episodes[0].shots[0].videos.length,history.episodes[0].shots[0].videos.length);
+});
+test('参考事实在图片生成途中修改时只附着过期候选，不能覆盖当前选用',async()=>{
+ const f=fixture(),target=await oneEpisode(f);let review={reviewSha256:'one',facts:[{name:'水壶',color:'红色',structure:'带壶嘴',use:'浇花'}]};f.d.referenceSelection={sourceRunId:'ref',visualFactsRequired:true};f.studio.service={references:{selectionFacts:()=>structuredClone(review)}};f.responses.push({assets:[{key:'a',kind:'prop',name:'水壶',description:'红色',prompt:'红壶'}],bindings:[{shotId:target.shotId,assetKeys:['a']}]});await f.studio.extractAssets({id:'draft'});const assetId=f.d.story.assets[0].id;let finish;f.generator.image=()=>new Promise(resolve=>finish=resolve);const pending=f.studio.generateImage({id:'draft',assetId});while(!finish)await new Promise(resolve=>setImmediate(resolve));review={...review,reviewSha256:'two'};finish({id:'late',type:'image'});const out=await pending;assert.equal(out.stale,true);assert.equal(out.candidate.status,'stale');assert.equal(f.d.story.assets[0].selectedImageId,'');assert.equal(f.d.story.assets[0].images.at(-1).id,'late');
+});
+
+
+test('重新提取复用实体会更新错误描述并撤销旧候选，保留ID与媒体历史',async()=>{
+ const f=fixture(),target=await oneEpisode(f);f.responses.push({assets:[{key:'box',kind:'prop',name:'接砂盒',description:'黑色有筛孔盒',prompt:'黑色有孔盒'}],bindings:[{shotId:target.shotId,assetKeys:['box']}]});await f.studio.extractAssets({id:'draft'});
+ const assetId=f.d.story.assets[0].id,image=await f.studio.generateImage({id:'draft',assetId});await f.studio.selectImage({id:'draft',assetId,imageId:image.material.id});await imageAndVideo(f,target);
+ const history=structuredClone(f.d.story);f.responses.push({assets:[{key:assetId,kind:'prop',name:'接砂盒',description:'米白色，盒内壁光滑无孔',prompt:'米白色内壁光滑无孔接砂盒'}],bindings:[{shotId:target.shotId,assetKeys:[assetId]}]});const result=await f.studio.extractAssets({id:'draft'});
+ assert.equal(result.stale,false);const asset=f.d.story.assets[0],shot=f.d.story.episodes[0].shots[0];assert.equal(asset.id,assetId);assert.equal(asset.description,'米白色，盒内壁光滑无孔');assert.match(asset.prompt,/无孔/);assert.equal(asset.selectedImageId,'');assert.equal(asset.images.length,history.assets[0].images.length);assert(asset.images.every(c=>c.status==='stale'));assert.equal(shot.selectedVideoId,'');assert.equal(shot.videos.length,history.episodes[0].shots[0].videos.length);assert(shot.videos.every(c=>c.status==='stale'));
+});
+
+
+test('修改已交接集稿后撤销旧成片的可信字幕来源，历史视频保留',async()=>{
+ const f=fixture(),target=await oneEpisode(f);await imageAndVideo(f,target);await f.studio.composeEpisode({id:'draft',episodeId:target.episodeId});await f.studio.useEpisode({id:'draft',episodeId:target.episodeId});const {trustedSubtitleReference}=require('../server/subtitle-reference.mjs'),sha=require('../server/subtitle-proofread.cjs').hash;
+ assert.equal(trustedSubtitleReference(f.d,[],sha).kind,'story-episode');const before=structuredClone(f.d.story),next=structuredClone(before);next.episodes[0].text+='补充说明。';await f.studio.save({id:'draft',story:next,revision:next.revision});assert.equal(trustedSubtitleReference(f.d,[],sha),null);assert.equal(f.d.video.assetId,'');assert.equal(f.d.edit.sourceId,'');assert.deepEqual(f.d.story.episodes[0].results,before.episodes[0].results);
 });

@@ -10,7 +10,7 @@ function fixture(options={}){
  const studio={draft,state,busy,workflowLocked,save:options.save||(async()=>{}),notify:(...args)=>notices.push(args),refresh:async replace=>{refreshes.push(replace);if(options.refresh)await options.refresh(state,draft,replace);},act:async(label,work)=>{busy.value=label;try{return await work();}catch{return undefined;}finally{busy.value='';}}};
  const call=async(action,payload)=>{calls.push({action,payload});if(options.call)return options.call(action,payload,{draft,state});if(action==='analyzeReferenceVideo'){const output=report();state.value.runs.unshift({id:'analysis-1',draftId:'draft',type:'reference-analysis',status:'succeeded',snapshot:{sourceUrl:draft.value.sourceUrl},parameters:payload,output});return output;}if(action==='createReferenceScript'){const output={text:'这是根据我自己的主题和事实生成的一份可编辑文案，采用先提出问题、再逐条解释的结构。',sourceRunId:payload.runId,inputSignature:'signature',brief:payload.brief,qualityAccepted:false,stale:false};state.value.runs.unshift({id:'script-1',draftId:'draft',type:'reference-script',status:'succeeded',output});return output;}return true;};
  const source=compileScript(descriptor,{id:'reference-analysis-test'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return');
- const component=new Function('computed','inject','ref','watch','onBeforeUnmount','I','AssetPicker','call',source)(computed,()=>studio,ref,watch,()=>{},{},{},call);
+ const component=new Function('computed','inject','ref','watch','onBeforeUnmount','I','AssetPicker','call','mediaUrl',source)(computed,()=>studio,ref,watch,()=>{},{},{},call,id=>'/media/'+id);
  const vm=component.setup({}, {expose(){}});return {vm,draft,state,busy,workflowLocked,calls,refreshes,notices};
 }
 
@@ -73,4 +73,24 @@ test('真实来源和观察状态用中文，未知状态保留，画面采样�
  for(const [name,value] of [['basisLabel','new-basis'],['sourceBasisLabel','new-source'],['visualStatusLabel','new-status']])assert.equal(vm[name](value),value);
  assert.equal(vm.structureTimeLabel({basis:'visual',start:1.25,end:3.5}),'采样范围：1.25s — 3.50s');assert.equal(vm.structureTimeLabel({basis:'transcript',start:1.25,end:3.5}),'1.25s — 3.50s');
  assert.match(descriptor.template.content,/音轨识别未提供有效逐句时间轴/);assert.match(descriptor.template.content,/不代表镜头切换边界/);assert.match(descriptor.template.content,/采样点/);assert.match(descriptor.template.content,/sourceBasisLabel\(currentReport.source\?\.basis\)/);assert.match(descriptor.template.content,/visualStatusLabel\(currentReport.visual\?\.status\)/);
+});
+
+
+test('实体核对保留原观察、逐项关联采样，保存反馈和未保存状态准确',async()=>{
+ const {vm,state,calls}=fixture({history:true,call:async(action,payload)=>({revision:1,facts:payload.facts,reviewSha256:'verified'})});
+ const row=vm.historicalReports.value[0],output={...row.output,visual:{status:'succeeded',observations:[{time:0,description:'模型误认猫砂铲'},{time:7,description:'米白结块'}]}};vm.restoreReport({...row,output});
+ vm.addVisualFact();assert.equal(vm.visualFacts.value.length,1);assert.equal(vm.factsComplete.value,false);Object.assign(vm.visualFacts.value[0],{name:'接砂盒',color:'米白色',structure:'内壁光滑无筛孔',use:'接取猫砂结块'});assert.equal(vm.factsComplete.value,true);assert.equal(vm.factsDirty.value,true);
+ await vm.confirmVisualFacts();assert.equal(calls[0].action,'confirmReferenceVisualFacts');assert.equal(calls[0].payload.runId,'analysis-1');assert.equal(vm.factsDirty.value,false);assert.match(vm.factsStatus.value,/第 1 版/);assert.equal(vm.currentReport.value.visual.observations[0].description,'模型误认猫砂铲');
+ vm.visualFacts.value[0].structure='有待核对';assert.equal(vm.factsDirty.value,true);vm.removeVisualFact(0);assert.equal(vm.factsComplete.value,false);
+});
+
+
+test('从响应式历史报告恢复已核对实体，不对Vue代理直接structuredClone',()=>{
+ const {vm,state}=fixture({history:true});state.value.runs[0].output.visualFactsReview={revision:1,facts:[{id:'entity',sample:0,name:'接砂盒',color:'米白',structure:'无孔',use:'接砂'}]};vm.restoreReport(vm.historicalReports.value[0]);assert.equal(vm.visualFacts.value[0].name,'接砂盒');vm.visualFacts.value[0].color='新值';assert.equal(state.value.runs[0].output.visualFactsReview.facts[0].color,'米白');
+});
+
+
+test('实体采样跳转只定位暂停帧，解除参考冻结期间阻止重复操作',async()=>{
+ let release;const {vm,draft,calls}=fixture({history:true,call:async(action)=>new Promise(resolve=>release=resolve)});let paused=0;vm.report.value.visual={status:'succeeded',observations:[{time:2.75,description:'盒子'}]};vm.factsPlayer.value={pause(){paused++;},currentTime:0};vm.seekSample(0);assert.equal(paused,1);assert.equal(vm.factsPlayer.value.currentTime,2.75);vm.seekSample(99);assert.equal(paused,1);
+ draft.value.referenceSelection={sourceRunId:'analysis-1'};const pending=vm.detachReference();await Promise.resolve();assert.equal(vm.detaching.value,true);assert.equal(vm.locked.value,true);await vm.detachReference();assert.equal(calls.length,1);assert.equal(calls[0].action,'detachReferenceSource');release({});await pending;assert.equal(vm.locked.value,false);
 });

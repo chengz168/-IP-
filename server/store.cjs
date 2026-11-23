@@ -20,10 +20,14 @@ class Store{
   updateDraft(input,options={}){
     const index=this.data.drafts.findIndex(d=>d.id===input.id);if(index<0)throw new Error('任务不存在');
     const before=this.data.drafts[index],next=structuredClone(input);
+    // 参考选用凭据仅由专用服务写入，普通草稿不能伪造或覆盖事实核对。
+    if(!options.referenceSelection){if(before.referenceSelection)next.referenceSelection=structuredClone(before.referenceSelection);else delete next.referenceSelection;}
     // 分集资产由带版本校验的专用服务写入，普通草稿保存不得覆盖异步产物。
     if(before.story)next.story=structuredClone(before.story);else delete next.story;
     // 翻译属于服务端结果，旧界面保存和客户端输入不能覆盖或伪造译稿。
     next.artifacts??={};if(before.artifacts?.shotTranslations)next.artifacts.shotTranslations=structuredClone(before.artifacts.shotTranslations);else delete next.artifacts.shotTranslations;
+    // 解除参考的历史由专用服务维护，旧界面保存不得擦除或伪造。
+    if(before.artifacts?.referenceDetachments)next.artifacts.referenceDetachments=structuredClone(before.artifacts.referenceDetachments);else delete next.artifacts.referenceDetachments;
     if(next.creativePreset!==undefined)next.creativePreset=require('./creative-presets.mjs').normalizeCreativeSelection(next.creativePreset);
     if(this.data.runs.some(r=>r.draftId===input.id&&r.type==='publish'&&['running','queued'].includes(r.status))&&require('./publish-jobs.cjs').signature(before)!==require('./publish-jobs.cjs').signature(next))throw Error('发布正在执行，请先停止并核对平台结果后修改发布内容');
     const {workflowActive,workflowInput}=require('./workflow-state.cjs'),active=workflowActive(this.data,input.id);
@@ -34,7 +38,7 @@ class Store{
     if((before.sourceText!==next.sourceText||before.rewrite!==next.rewrite)&&!confirmedCopy)next.confirmed=false;
     // 辅助文本仅属于生成时的原文，改字后不能沿用旧译文或旧关键词。
     for(const row of next.edit.captions||[])if(row.auxiliary&&row.auxiliary.sourceText!==row.text)delete row.auxiliary;
-    if(next.edit.subtitleProofread){const proof=next.edit.subtitleProofread,{hash}=require('./subtitle-proofread.cjs');if(hash(JSON.stringify(next.edit.captions))!==proof.captionsSha256||hash(require('./story-source.mjs').downstreamText(next))!==proof.referenceSha256||(next.edit.sourceId||next.video.assetId)!==proof.sourceId)delete next.edit.subtitleProofread;}
+    if(next.edit.subtitleProofread){const proof=next.edit.subtitleProofread,{hash}=require('./subtitle-proofread.cjs'),reference=require('./subtitle-reference.mjs').trustedSubtitleReference(next,this.data,hash);if(!reference||hash(JSON.stringify(next.edit.captions))!==proof.captionsSha256||hash(reference.text)!==proof.referenceSha256||(next.edit.sourceId||next.video.assetId)!==proof.sourceId)delete next.edit.subtitleProofread;}
     next.createdAt=before.createdAt;next.updatedAt=new Date().toISOString();
     const without=(value,keys)=>JSON.stringify(Object.fromEntries(Object.entries(value).filter(([k])=>!keys.includes(k))));
     // 上游参数变化会使下游产物失效；素材库中的实际文件仍予以保留。

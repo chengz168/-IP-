@@ -83,3 +83,36 @@ test('选用创作稿最后一次异步校验期间切换预设仍拒绝旧稿',
  await assert.rejects(pending,/创作预设.*变化/);
  assert.equal(s.store.draft(id).sourceText,before.sourceText);assert.equal(s.store.draft(id).referenceSelection,undefined);
 });
+
+
+const verifiedFacts=()=>[{id:'box',sample:0,name:'接砂盒',color:'米白色',structure:'盒内壁光滑，无筛孔',use:'接取猫砂结块'}];
+async function visualReport(f){f.collected.visual={status:'succeeded',observations:[{time:0,description:'模型误认猫砂铲'}],limitation:'只采样一帧'};return report(f);}
+test('独立实体核对保留原观察并关联来源哈希、执行ID与修订历史，普通草稿不能伪造凭据',async t=>{
+ const f=fixture(t),{s,id}=f,r=await visualReport(f),original=structuredClone(r.output.visual);
+ const review=await s.invoke('confirmReferenceVisualFacts',{id,runId:r.id,facts:verifiedFacts()});assert.equal(review.analysisRunId,r.id);assert.equal(review.sourceSha256,r.output.source.sha256);assert.equal(review.revision,1);assert.deepEqual(r.output.visual,original);assert.equal(r.output.qualityAccepted,false);
+ const used=await s.invoke('useReferenceScript',{id,runId:r.id,kind:'transcript'});assert.equal(used.referenceSelection.visualFactsRequired,true);assert.equal(s.references.selectionFacts(s.store.draft(id)).facts[0].name,'接砂盒');
+ const forged=structuredClone(s.store.draft(id));forged.referenceSelection.visualFactsRequired=false;forged.referenceSelection.sourceSha256='fake';s.store.updateDraft(forged);assert.equal(s.store.draft(id).referenceSelection.sourceSha256,review.sourceSha256);
+ const changed=verifiedFacts();changed[0].color='浅米白色';const second=await s.invoke('confirmReferenceVisualFacts',{id,runId:r.id,facts:changed});assert.equal(second.revision,2);assert.equal(r.output.visualFactsHistory.length,1);assert.deepEqual(r.output.visualFactsHistory[0],review);assert.equal(s.references.selectionFacts(s.store.draft(id)).reviewSha256,second.reviewSha256);
+});
+test('未确认画面不能作为生成事实，来源链接、原文件和核对内容变化均使凭据失效',async t=>{
+ const f=fixture(t),{s,id}=f,r=await visualReport(f);await s.invoke('useReferenceScript',{id,runId:r.id,kind:'transcript'});assert.throws(()=>s.references.selectionFacts(s.store.draft(id)),/尚未确认/);
+ await s.invoke('confirmReferenceVisualFacts',{id,runId:r.id,facts:verifiedFacts()});const d=s.store.draft(id),url=d.sourceUrl;d.sourceUrl='https://example.com/other';assert.throws(()=>s.references.selectionFacts(d),/失效/);d.sourceUrl=url;
+ r.output.visualFactsReview.facts[0].color='被篡改';assert.throws(()=>s.references.selectionFacts(d),/尚未确认/);r.output.visualFactsReview.facts[0].color='米白色';
+ fs.writeFileSync(s.store.asset(r.output.source.assetId).path,'changed');assert.throws(()=>s.references.selectionFacts(d),/文件已变化/);await assert.rejects(s.invoke('confirmReferenceVisualFacts',{id,runId:r.id,facts:verifiedFacts()}),/文件内容已变化/);
+});
+test('实体核对字段及采样严格校验，落盘失败回滚修订和已选用凭据',async t=>{
+ const f=fixture(t),{s,id}=f,r=await visualReport(f);for(const facts of [[],[{...verifiedFacts()[0],sample:99}],[{...verifiedFacts()[0],color:''}],[...verifiedFacts(),...verifiedFacts()]])await assert.rejects(s.invoke('confirmReferenceVisualFacts',{id,runId:r.id,facts}));
+ await s.invoke('confirmReferenceVisualFacts',{id,runId:r.id,facts:verifiedFacts()});await s.invoke('useReferenceScript',{id,runId:r.id,kind:'transcript'});const before=structuredClone(r.output),selection=structuredClone(s.store.draft(id).referenceSelection),save=s.store.save;s.store.save=()=>{throw Error('ENOSPC');};const facts=verifiedFacts();facts[0].color='浅米白';await assert.rejects(s.invoke('confirmReferenceVisualFacts',{id,runId:r.id,facts}),/ENOSPC/);s.store.save=save;assert.deepEqual(r.output,before);assert.deepEqual(s.store.draft(id).referenceSelection,selection);
+});
+
+
+test('脱离参考归档凭据保留文案素材，撤销旧选用，普通保存不能恢复关联',async t=>{
+ const f=fixture(t),{s,id}=f,r=await visualReport(f);await s.invoke('confirmReferenceVisualFacts',{id,runId:r.id,facts:verifiedFacts()});await s.invoke('useReferenceScript',{id,runId:r.id,kind:'transcript'});
+ const d=s.store.draft(id);d.video.assetId='old';d.edit.sourceId='old';d.edit.captions=[{start:0,end:1,text:'旧字幕'}];d.story=require('../server/story-contract.cjs').createStory(d);d.story.referenceFacts=s.references.selectionFacts(d);const before=structuredClone(d),assets=structuredClone(s.store.data.assets),settings=structuredClone(s.store.data.settings);
+ d.sourceUrl='https://example.com/other';const result=await s.invoke('detachReferenceSource',{id});assert.equal(result.referenceSelection,undefined);assert.equal(s.references.selectionFacts(result),null);assert.equal(result.story.referenceFacts,undefined);assert.equal(result.sourceText,before.sourceText);assert.equal(result.video.assetId,'');assert.equal(result.edit.sourceId,'');assert.deepEqual(s.store.data.assets,assets);assert.deepEqual(s.store.data.settings,settings);assert.deepEqual(result.artifacts.referenceDetachments[0].selection,before.referenceSelection);
+ const forged=structuredClone(result);forged.referenceSelection=before.referenceSelection;delete forged.artifacts.referenceDetachments;s.store.updateDraft(forged);assert.equal(s.store.draft(id).referenceSelection,undefined);assert.deepEqual(s.store.draft(id).artifacts.referenceDetachments,result.artifacts.referenceDetachments);
+});
+test('脱离参考保存失败完整回滚，未结束的任务拒绝解除',async t=>{
+ const f=fixture(t),{s,id}=f,r=await visualReport(f);await s.invoke('confirmReferenceVisualFacts',{id,runId:r.id,facts:verifiedFacts()});await s.invoke('useReferenceScript',{id,runId:r.id,kind:'transcript'});const before=structuredClone(s.store.draft(id)),save=s.store.save;s.store.save=()=>{throw Error('ENOSPC');};await assert.rejects(s.invoke('detachReferenceSource',{id}),/ENOSPC/);s.store.save=save;assert.deepEqual(s.store.draft(id),before);
+ s.store.data.runs.push({id:'pending',draftId:id,type:'story-video',status:'unknown'});await assert.rejects(s.invoke('detachReferenceSource',{id}),/处理或结果待确认/);assert.deepEqual(s.store.draft(id),before);
+});

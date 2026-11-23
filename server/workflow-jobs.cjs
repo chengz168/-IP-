@@ -70,15 +70,14 @@ else if(stage.action==='reuse'){const d=current();stage.assetId={speech:d.voice.
       case'speech':output=await op('speech',ctx=>this.service.providers.speech(d,ctx));this.check(job,signal);this.commit(job,next=>next.voice.audioId=output.id);break;
       case'avatar':{const {avatarContext,avatarCurrent}=require('./avatar-request.cjs'),context=avatarContext(this.store,d);output=await op('avatar',async ctx=>{const asset=await this.service.providers.avatar(d,ctx,context);return avatarCurrent(context.input,this.store,this.store.draft(job.draftId))?asset:{...asset,stale:true};},{input:context.input});this.check(job,signal);if(output.stale)throw Error('视频服务、形象或驱动音频已变化，新产物仅保留在素材库，未进入后续剪辑');this.commit(job,next=>next.video.assetId=output.id);break;}
       case'transcribe':{
-       const {asrInput,asrCurrent}=require('./asr-request.cjs'),sourceId=d.edit.sourceId||d.video.assetId,input=asrInput(this.store,sourceId);
+       const {asrInput,asrCurrent}=require('./asr-request.cjs'),{subtitleReferenceInput,trustedSubtitleReference}=require('./subtitle-reference.mjs'),hash=require('./subtitle-proofread.cjs').hash,sourceId=d.edit.sourceId||d.video.assetId,input=asrInput(this.store,sourceId),reference=trustedSubtitleReference(d,this.store.data,hash),referenceSignature=hash(JSON.stringify(subtitleReferenceInput(d,this.store.data)));
        output=await op('transcribe',async ctx=>{
         const result=await this.service.providers.transcribe(sourceId,ctx),info=await this.service.media.probe(this.store.asset(sourceId).path),duration=Number(info.format?.duration);
         if(!Number.isFinite(duration)||duration<=0)throw Error('无法核对字幕源视频时长，请检查素材后重试');
-        const {recognitionRows,recognitionOptions}=await import('./caption-recognition.mjs'),{alignRowsToReference}=await import('../src/caption-script.mjs'),segments=alignRowsToReference(recognitionRows(result,duration,recognitionOptions(d.edit)),downstreamDraft(d).finalText||d.rewrite||d.sourceText);
-        if(!asrCurrent(this.store,input))throw Error('识别配置或视频文件已变化，本次字幕未写入');
+        const {recognitionRows,recognitionOptions}=await import('./caption-recognition.mjs'),{alignRowsToReference}=await import('../src/caption-script.mjs'),segments=alignRowsToReference(recognitionRows(result,duration,recognitionOptions(d.edit)),reference?.text||'');
         // 分组字幕供剪辑使用，原始词级结果单独留存，便于核对真实断句边界。
-        return {...result,segments,input,rawRecognition:result};
-       });this.check(job,signal);this.commit(job,next=>next.edit.captions=output.segments);break;
+        return {...result,segments,input,reference,referenceSignature,rawRecognition:result,...(!asrCurrent(this.store,input)||referenceSignature!==hash(JSON.stringify(subtitleReferenceInput(this.store.draft(job.draftId),this.store.data)))?{stale:true}:{})};
+       });this.check(job,signal);if(output.stale)throw Error('识别配置、视频或讲稿已变化，原始识别已保留在执行记录，本次字幕未写入');this.commit(job,next=>next.edit.captions=output.segments);break;
       }
       case'render':output=await op('render',ctx=>this.service.pipMatching?this.service.pipMatching.render(d,ctx):this.service.media.render(d,ctx));this.check(job,signal);this.commit(job,next=>next.edit.resultId=output.id);break;
       case'title':output=await op('title',ctx=>require('./title-copy.cjs').generateCoverTitle(this.service.providers,d,this.store.data,ctx));this.check(job,signal);if(output.quality?.status==='rejected')throw Error('标题未通过内容检查：'+output.quality.issues.join('；'));if(!(await import('./text-input.mjs')).textInputMatches(output.input,this.store.draft(job.draftId),'title',this.store.data))throw Error('标题提示词或输入已变化，原标题保留');this.commit(job,next=>{next.cover.title=output.text.trim();if(next.cover.scene){const main=next.cover.scene.layers.find(l=>l.id==='main');if(main){main.text=next.cover.title;main.binding='title';}}});break;
