@@ -1,7 +1,8 @@
 import {resolveProductionSkills} from './production-skills.mjs';
+import {githubProductionSkillSources} from './github-production-skills.mjs';
 import {contentTypePrompt,detectContentProfile} from './content-types.mjs';
 // 系统预设与任务选择分离；公开技能仅作为方法资料，不执行外部代码。
-export const creativePresetVersion='2026-11-22.3';
+export const creativePresetVersion='2026-11-23.1';
 export const creativeSources=[
  {id:'copywriting',name:'Marketing Skills · 文案写作',url:'https://github.com/coreyhaines31/marketingskills/tree/5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1/skills/copywriting',revision:'5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1',license:'MIT'},
  {id:'copy-editing',name:'Marketing Skills · 文案编辑',url:'https://github.com/coreyhaines31/marketingskills/tree/5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1/skills/copy-editing',revision:'5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1',license:'MIT'},
@@ -9,7 +10,8 @@ export const creativeSources=[
  {id:'social',name:'Marketing Skills · 社交短内容',url:'https://github.com/coreyhaines31/marketingskills/blob/5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1/skills/social/SKILL.md',revision:'5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1',license:'MIT'},
  {id:'video',name:'Marketing Skills · 视频创意',url:'https://github.com/coreyhaines31/marketingskills/blob/5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1/skills/video/SKILL.md',revision:'5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1',license:'MIT'},
  {id:'ad-creative',name:'Marketing Skills · 广告创意',url:'https://github.com/coreyhaines31/marketingskills/blob/5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1/skills/ad-creative/SKILL.md',revision:'5b2b400eec1e7e1cec76245a715d0b0d4fd2a9c1',license:'MIT'},
- {id:'h3',name:'MiniMax H3 · 官方镜头设计',url:'https://github.com/MiniMax-AI/MiniMax-H3/blob/199b7d0e1fd95e7b3eafa8c15eca692534142427/skills/h3-prompt-writing/SKILL.md',revision:'199b7d0e1fd95e7b3eafa8c15eca692534142427',license:'仅参考方法；不随包分发原文'}
+ {id:'h3',name:'MiniMax H3 · 官方镜头设计',url:'https://github.com/MiniMax-AI/MiniMax-H3/blob/199b7d0e1fd95e7b3eafa8c15eca692534142427/skills/h3-prompt-writing/SKILL.md',revision:'199b7d0e1fd95e7b3eafa8c15eca692534142427',license:'仅参考方法；不随包分发原文'},
+ ...githubProductionSkillSources
 ];
 const writing=['开头直接进入观众关心的问题或可核实特点，不用空泛问候、夸张承诺或编造冲突。','每段只推进一个信息，使用具体动词和自然短句；重要条件随结论一起说，结尾承接正文。'];
 const shooting=['一镜只承担一个清晰目标：明确主体、场景、起始状态、一个主要动作和可见终态；动作在实际镜头时长内完成。','连续镜头内不要求切镜或拼贴；保持参考主体数量、外观和场景连续，文字和精确图表交给后期。'];
@@ -83,7 +85,8 @@ export function resolveCreativePreset(draft,stage,context={}){
  const skills=enabled?resolveProductionSkills(stage,id):[];
  const rules=enabled?[...(preset.rules[stage]||[]),...skills.flatMap(skill=>skill.rules)]:[];
  const sourceIds=preset.sourceIds.filter(id=>['shots','video'].includes(stage)?['video','h3'].includes(id):!['video','h3'].includes(id));
- const sources=enabled&&['topic','script','rewrite','shots','video'].includes(stage)?creativeSources.filter(s=>sourceIds.includes(s.id)).map(s=>({...s})):[];
+ const actualSourceIds=new Set([...(['topic','script','rewrite','shots','video'].includes(stage)?sourceIds:[]),...skills.flatMap(skill=>skill.sourceIds)]);
+ const sources=enabled?creativeSources.filter(source=>actualSourceIds.has(source.id)).map(source=>({...source})):[];
  const contentProfileApplied=enabled&&(selection.mode!=='manual'||contentProfile.presetId===id);
  return {id:selection.mode==='off'?'off':id,name:selection.mode==='off'?'已关闭':preset.name,mode:selection.mode,stage,reason:selection.mode==='off'?'本任务不附加创作预设。':stage==='analysis'?'分析阶段只依据原视频证据，不套用创作结构。':reason,rules,skills,version:creativePresetVersion,sources,instruction:enabled?selection.instruction:'',contentProfile,contentProfileApplied,sourceKind,inputHash:JSON.stringify({selection,stage,kind,sourceKind,content,contentProfile}),enabled};
 }

@@ -37,8 +37,11 @@ class ComfyH3{
  observe(remote,ctx={},details={}){return observeComfy({baseUrl:localBase(remote.baseUrl),clientId:remote.clientId,graph:remote.graph,signal:ctx.signal,onActivity:ctx.activity,...details});}
  sequence(){if(!this.sequenceRunner){const {H3Sequence}=require('./h3-sequence.cjs');this.sequenceRunner=new H3Sequence(this.store,this.media,this);}return this.sequenceRunner;}
  async request(base,route,options={},ctx={}){
-   await this.store.localEnvironment?.ensureComfy(base,ctx);
-  const address=localBase(base),deadline=AbortSignal.timeout(20000),signal=ctx.signal?AbortSignal.any([ctx.signal,deadline]):deadline;
+  const address=localBase(base);
+  // 原任务查询和产物收取直接访问原服务，避免繁忙时的额外健康检查阻断查询或重新拉起进程。
+  const readingResult=(!options.method||options.method==='GET')&&/^\/(?:queue(?:\?|$)|history(?:\/|\?|$)|view\?)/.test(route);
+  if(!readingResult)await this.store.localEnvironment?.ensureComfy(address,ctx);
+  const deadline=AbortSignal.timeout(20000),signal=ctx.signal?AbortSignal.any([ctx.signal,deadline]):deadline;
   try{return await fetch(address+route,{...options,signal});}
   catch(cause){
    // 这里只说明连接阶段；提交是否可能生效仍由submit及原任务凭据判断。

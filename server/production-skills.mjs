@@ -1,5 +1,6 @@
-// 从视频工厂制作方法适配；只提供中文规则，不执行第三方脚本或复制上游节点契约。
-export const productionSkillsVersion='2026-11-22.3';
+import {githubProductionSkillCatalog,resolveGithubProductionSkills} from './github-production-skills.mjs';
+// 从已核实来源适配中文规则，不执行第三方脚本或复制上游节点契约。
+export const productionSkillsVersion='2026-11-23.1';
 export const creativeStageNames={topic:'选题',script:'文案',rewrite:'改写',episodes:'拆集',shots:'分镜',assets:'资产提取',image:'图片',video:'视频',voice:'配音',subtitles:'字幕',compose:'剪辑合成',review:'交付复核'};
 const origin={project:'视频工厂',revision:'815f29ff9a17e89c68e9c7a479237a5ba56e2b32',files:['src/storage/production-skills.js','src/storage/production-resources.js','src/storage/skills-store.js'],usage:'项目内制作方法的中文适配；未复制上游输出字段，不执行外部代码。'};
 const skill=(id,name,description,stages,rules,sourceIds=[],typeIds=[],execution='prompt')=>({id,name,description,stages,rules,sourceIds,typeIds,execution,version:productionSkillsVersion,origin});
@@ -18,5 +19,5 @@ const skills=[
  skill('delivery-proof','制作证据与交付复核','分别审查技术规格与内容质量，列出未检查项。',['review'],['分别核对内容完整、角色服装、道具动作、非预期文字、声音字幕与技术规格。没有实际看图、看视频或听音的项目必须标未检查，文件存在和请求成功不能代表作品质量通过。保留人工确认，不自动发布。'],['builtin-production-quality-evidence','builtin-production-delivery-proof'],[],'checklist')
 ];
 skills[0].stageRules={topic:['标题是一句明确的选题；开头钩子只写一句可直接说给观众的话，不写“资料提到”“模型”“创作要求”等后台说明。人设角度用一句简短制作方向，不能自称助手或把人设解释写成旁白。不虚构“很多同事问我”“我亲测”等经历。']};
-export function productionSkillCatalog(){return structuredClone(skills);}
-export function resolveProductionSkills(stage,typeId){return productionSkillCatalog().filter(s=>s.execution==='prompt'&&s.stages.includes(stage)&&(!s.typeIds.length||s.typeIds.includes(typeId))).map(s=>({...s,rules:[...s.rules,...(s.stageRules?.[stage]||[])]}));}
+export function productionSkillCatalog(){return [...structuredClone(skills),...githubProductionSkillCatalog()];}
+export function resolveProductionSkills(stage,typeId){return [...structuredClone(skills).filter(s=>s.execution==='prompt'&&s.stages.includes(stage)&&(!s.typeIds.length||s.typeIds.includes(typeId))).map(s=>({...s,rules:[...s.rules,...(s.stageRules?.[stage]||[])]})),...resolveGithubProductionSkills(stage,typeId)];}

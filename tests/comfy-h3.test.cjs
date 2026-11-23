@@ -54,6 +54,16 @@ test('H3 任务断开后保存输入与图，可沿原任务查询而不调用�
  assert.equal((await service.avatarRecovery.query({runId:run.id})).status,'pending');assert.equal(queryCount,1);assert.equal(run.status,'unknown');
 });
 
+test('繁忙服务的原任务查询及产物收取不触发启动探测，新提交仍先检查环境',async t=>{
+ let probes=0;const calls=[];
+ const server=http.createServer((req,res)=>{calls.push(req.url);res.setHeader('Content-Type','application/json');res.end(JSON.stringify(req.url.startsWith('/history/')?{id:{status:{status_str:'success'},outputs:{'16':{images:[{filename:'own.mp4',type:'output'}]}}}}:{}));});
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>server.close());
+ const base='http://127.0.0.1:'+server.address().port,h3=new ComfyH3({localEnvironment:{ensureComfy:async()=>{probes++;throw Error('模拟健康检查繁忙超时');}}},{});
+ assert.equal((await h3.query('id',{baseUrl:base})).status,'succeeded');
+ for(const route of ['/queue','/history?max_items=1000','/view?filename=own.mp4'])assert.equal((await h3.request(base,route)).status,200);
+ assert.equal(probes,0);await assert.rejects(h3.submit(base,{},'client',{}),/健康检查繁忙超时/);assert.equal(probes,1);assert(!calls.includes('/prompt'));
+});
+
 test('H3 提交回包缺少ID或中途断开均保留未知，不把已接收请求标成可重试失败',async t=>{
  let mode='missing',count=0;
  const server=http.createServer((req,res)=>{count++;req.resume();if(mode==='disconnect'){req.socket.destroy();return;}res.setHeader('Content-Type','application/json');if(mode==='reject'){res.statusCode=400;res.end(JSON.stringify({error:'模型缺失测试夹具'}));return;}res.end(JSON.stringify(mode==='success'?{prompt_id:'only-once'}:{}));});

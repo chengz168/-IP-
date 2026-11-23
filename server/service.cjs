@@ -181,6 +181,8 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
     return handlers[action](p);
   },importPath:async file=>{if(backups.busy)throw new Error('备份或恢复正在进行，请稍候');return importAsset(file);}};
   service.batchExtraction=new (require('./batch-link-extraction.cjs').BatchLinkExtraction)(service);
+  const productionReview=new(require('./production-review.cjs').ProductionReview)(service);
+  handlers.getProductionReview=p=>productionReview.get(p);handlers.saveProductionReview=p=>productionReview.save(p);
   for(const [action,method] of Object.entries({startExtractBatch:'start',extractBatchStatus:'status',cancelExtractBatch:'cancel',useExtractBatchItem:'use',reconcileExtractBatch:'reconcile',confirmExtractBatchTerminated:'confirmTerminated'}))handlers[action]=p=>service.batchExtraction[method](p);
   service.pipMatching=new (require('./pip-matching.cjs').PipMatching)(service);
   const voiceDesign=new (require('./voice-design.cjs').VoiceDesign)(service);service.voiceDesign=voiceDesign;

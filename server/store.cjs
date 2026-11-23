@@ -26,6 +26,8 @@ class Store{
     if(before.story)next.story=structuredClone(before.story);else delete next.story;
     // 翻译属于服务端结果，旧界面保存和客户端输入不能覆盖或伪造译稿。
     next.artifacts??={};if(before.artifacts?.shotTranslations)next.artifacts.shotTranslations=structuredClone(before.artifacts.shotTranslations);else delete next.artifacts.shotTranslations;
+    // 复核记录只能由版本校验后的专用服务写入，普通保存不能伪造或擦除历史。
+    if(before.artifacts?.productionReviews)next.artifacts.productionReviews=structuredClone(before.artifacts.productionReviews);else delete next.artifacts.productionReviews;
     // 解除参考的历史由专用服务维护，旧界面保存不得擦除或伪造。
     if(before.artifacts?.referenceDetachments)next.artifacts.referenceDetachments=structuredClone(before.artifacts.referenceDetachments);else delete next.artifacts.referenceDetachments;
     if(next.creativePreset!==undefined)next.creativePreset=require('./creative-presets.mjs').normalizeCreativeSelection(next.creativePreset);

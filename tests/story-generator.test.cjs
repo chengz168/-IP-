@@ -24,3 +24,36 @@ test('本地多绑定必须明确主参考，只上传选定图并留存其余�
 async function realFixture(t){const value=fixture(t),{root,store,generator}=value;store.data.settings.ffmpegPath=process.env.FFMPEG_PATH||'F:/Software/轻语IP智能体/aigc-human/resources/ffmpeg/bin/ffmpeg.exe';store.data.settings.ffprobePath=process.env.FFPROBE_PATH||'F:/Software/轻语IP智能体/aigc-human/resources/ffmpeg/bin/ffprobe.exe';try{await generator.media.check();}catch(error){t.skip('FFmpeg未配置：'+error.message);return;}for(const [id,color,freq] of [['red','red',440],['blue','blue',880]]){const file=path.join(root,id+'.mp4');await runProcess(generator.media.binaries().ffmpeg,['-v','error','-y','-f','lavfi','-i',`color=c=${color}:s=64x48:r=24`,'-f','lavfi','-i',`sine=frequency=${freq}:sample_rate=48000`,'-t','1','-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac',file]);store.data.assets.push({id,type:'video',path:file});}return value;}
 test('真实FFmpeg顺序合成保留两段实际音轨，源hash不变，不代表真实模型生成',async t=>{const fixture=await realFixture(t);if(!fixture)return;const {generator,root,store}=fixture,before=store.data.assets.map(row=>fs.readFileSync(row.path)),shots=[{shotId:'one',assetId:'red',duration:1},{shotId:'two',assetId:'blue',duration:1}];const result=await generator.compose({draftId:'d',episodeId:'e',aspect:'16:9',shots,inputHash:'hash',revision:1});assert(result.duration>=1.99&&result.duration<=2.15);assert(result.hasAudio);assert.equal(result.storyGeneration.qualityAccepted,false);assert.deepEqual(result.storyGeneration.shots.map(row=>row.shotId),['one','two']);const pixels=path.join(root,'colors.rgb');await runProcess(generator.media.binaries().ffmpeg,['-v','error','-y','-i',result.path,'-vf','select=eq(n\\,0)+eq(n\\,24),scale=1:1','-fps_mode','passthrough','-pix_fmt','rgb24','-f','rawvideo',pixels]);const rgb=fs.readFileSync(pixels);assert.equal(rgb.length,6);assert(rgb[0]>rgb[2]);assert(rgb[5]>rgb[3]);const raw=path.join(root,'audio.f32');await runProcess(generator.media.binaries().ffmpeg,['-v','error','-y','-i',result.path,'-vn','-ac','1','-ar','48000','-f','f32le',raw]);const audio=fs.readFileSync(raw);for(const offset of [24000,72000]){let energy=0;for(let i=offset;i<offset+4000;i++)energy+=audio.readFloatLE(i*4)**2;assert(energy/4000>.0001);}assert(before.every((buffer,i)=>buffer.equals(fs.readFileSync(store.data.assets[i].path))));});
 test('合成拒绝缺镜头、重复ID、错误时长和不匹配上一步旁白',async t=>{const fixture=await realFixture(t);if(!fixture)return;const {generator,store}=fixture,base={aspect:'16:9',shots:[{shotId:'one',assetId:'red',duration:1}]};await assert.rejects(generator.compose({...base,shots:[]}),/没有/);await assert.rejects(generator.compose({...base,shots:[...base.shots,...base.shots]}),/重复/);await assert.rejects(generator.compose({...base,shots:[{shotId:'one',assetId:'red',duration:4}]}),/时长不匹配/);await assert.rejects(generator.compose({...base,shots:[{shotId:'one',assetId:'missing',duration:1}]}),/不存在/);await assert.rejects(generator.compose({...base,shots:[...base.shots,{shotId:'two',assetId:'blue',duration:1}],narration:{assetId:'red'}}),/配音时长/);assert.equal(store.data.assets.length,2);});
+
+// 实际媒体检查会异步返回，模拟检查期间和登记校验期间同路径文件被外部替换。
+test('普通参考生成也拒绝参考图片在解码校验期间变化，不登记候选',async t=>{
+ const {root,store,generator}=fixture(t),reference=path.join(root,'reference.png'),output=path.join(root,'result.png');fs.writeFileSync(reference,'原参考');fs.writeFileSync(output,'结果');store.data.assets.push({id:'reference',type:'image',path:reference});
+ const sha256=require('node:crypto').createHash('sha256').update(fs.readFileSync(reference)).digest('hex');generator.verify=async()=>{fs.writeFileSync(reference,'不同参考');return {width:768,height:1344};};
+ await assert.rejects(generator.register(output,'image',{aspect:'9:16'},{references:[{assetId:'reference',sha256}]}),/参考图片.*变化/);assert.equal(store.data.assets.length,1);assert(fs.existsSync(reference));
+});
+test('通用故事合成真实旁白摘要落盘，检查期间替换同长度旁白被拒绝',async t=>{
+ const value=await realFixture(t);if(!value)return;const {root,store,generator}=value,ffmpeg=generator.media.binaries().ffmpeg,digest=file=>require('node:crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+ const narration=path.join(root,'narration.wav'),alternate=path.join(root,'alternate.wav');for(const [file,frequency] of [[narration,300],[alternate,900]])await runProcess(ffmpeg,['-v','error','-y','-f','lavfi','-i','sine=frequency='+frequency+':sample_rate=48000','-t','2',file]);store.data.assets.push({id:'narration',type:'audio',path:narration});
+ const input={aspect:'16:9',shots:[{shotId:'one',assetId:'red',duration:1},{shotId:'two',assetId:'blue',duration:1}],narration:{assetId:'narration'},inputHash:'frozen',revision:1};
+ const expected=digest(narration),result=await generator.compose(input);assert.equal(result.storyGeneration.narrationSha256,expected);assert.equal(result.storyGeneration.narrationAssetId,'narration');
+ const count=store.data.assets.length,probe=generator.probe.bind(generator);let changed=false;generator.probe=async(file,ctx)=>{const data=await probe(file,ctx);if(file===narration&&!changed){changed=true;fs.copyFileSync(alternate,narration);}return data;};
+ await assert.rejects(generator.compose(input),/检查期间旁白音频已变化/);assert(changed);assert.equal(store.data.assets.length,count);
+});
+test('成片登记解码期间旁白文件变化不落盘，保留输入文件',async t=>{
+ const {root,store,generator}=fixture(t),narration=path.join(root,'narration.wav'),output=path.join(root,'episode.mp4');fs.writeFileSync(narration,'原旁白');fs.writeFileSync(output,'成片');store.data.assets.push({id:'narration',type:'audio',path:narration});const narrationSha256=require('node:crypto').createHash('sha256').update(fs.readFileSync(narration)).digest('hex');
+ generator.verify=async()=>{fs.writeFileSync(narration,'新旁白');return {width:1024,height:576,duration:2};};await assert.rejects(generator.register(output,'video',{aspect:'16:9'},{narrationAssetId:'narration',narrationSha256}),/旁白音频已变化/);assert.equal(store.data.assets.length,1);assert(fs.existsSync(narration));assert(fs.existsSync(output));
+});
+
+test('镜头冻结摘要与实际文件不符或探测期间替换时不开始合成',async t=>{
+ const {root,store,generator}=fixture(t),file=path.join(root,'shot.mp4');fs.writeFileSync(file,'原镜头');store.data.assets.push({id:'shot',type:'video',path:file});
+ const input={aspect:'9:16',shots:[{shotId:'one',assetId:'shot',duration:1,sha256:'wrong'}]};
+ await assert.rejects(generator.compose(input),/镜头视频与当前集冻结内容不一致/);
+ delete input.shots[0].sha256;generator.probe=async()=>{fs.writeFileSync(file,'新镜头');return {streams:[{codec_type:'video'}],format:{duration:1}};};
+ await assert.rejects(generator.compose(input),/检查期间镜头视频已变化/);assert.equal(store.data.assets.length,1);
+});
+
+test('成片解码期间镜头视频变化不登记结果，保护原素材',async t=>{
+ const {root,store,generator}=fixture(t),file=path.join(root,'shot.mp4'),output=path.join(root,'episode.mp4');fs.writeFileSync(file,'原镜头');fs.writeFileSync(output,'成片');store.data.assets.push({id:'shot',type:'video',path:file});
+ const sha256=require('node:crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');generator.verify=async()=>{fs.writeFileSync(file,'新镜头');return {width:576,height:1024,duration:1};};
+ await assert.rejects(generator.register(output,'video',{aspect:'9:16'},{shots:[{assetId:'shot',sha256}]}),/合成期间镜头视频已变化/);assert.equal(store.data.assets.length,1);assert(fs.existsSync(file));
+});

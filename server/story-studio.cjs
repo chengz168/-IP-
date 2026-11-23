@@ -235,14 +235,22 @@ class StoryStudio{
   if(s.narrationMode==='upstream'&&s.episodes.length>1&&!e.narrationAssetId)throw Error('多集旁白需逐集选择音频，不能自动截断整条上游音频');
   if(s.narrationMode==='upstream'&&!narrationId)throw Error('未找到当前集旁白音频');
   if(narrationId&&!['audio','video'].includes(this.store.asset(narrationId).type))throw Error('分集旁白素材必须包含音频');
+  // 内容摘要参与合成版本，避免同一素材编号下替换音频后继续交接旧成片。
+  let narration=null;
+  if(narrationId){
+   const material=this.store.asset(narrationId);
+   try{narration={assetId:narrationId,sha256:require('node:crypto').createHash('sha256').update(require('node:fs').readFileSync(material.path)).digest('hex')};}
+   catch{throw Error('当前集旁白文件不可读取，请重新导入或生成配音后合成');}
+  }
   if(s.productIntroduction&&(!require('./product-introduction.cjs').currentIntroduction({store:this.store},this.store.draft(id),s)||narrationId!==s.productIntroduction.audioId||e.text!==s.sourceText||e.shots.map(sh=>sh.text.replace(/\s/g,'')).join('')!==s.sourceText.replace(/\s/g,'')))throw Error('产品镜头台词与确认稿或旁白不一致，请重新准备分镜，不能使用旧旁白');
-  return {draftId:null,episodeId,aspect:s.aspect,narration:narrationId?{assetId:narrationId}:null,
+  return {draftId:null,episodeId,aspect:s.aspect,narration,
    ...(s.productIntroduction?{productIntroduction:{version:1,productHash:s.productIntroduction.productHash,captions:s.productIntroduction.captions,audioSha256:s.productIntroduction.audioSha256,images:structuredClone(s.productIntroduction.images)}}:{}),
    shots:e.shots.map(sh=>{
     const c=sh.videos.find(c=>c.id===sh.selectedVideoId);if(!sh.selectedImageId||!c||c.status==='stale'||c.inputHash!==hash({shot:shotInput(s,sh),imageId:sh.selectedImageId})||c.creativePreset&&JSON.stringify(c.creativePreset)!==JSON.stringify(resolveCreativePreset(this.store.draft(id),'video')))throw Error('当前集存在未确认或已过期的镜头视频');
     const asset=this.store.asset(c.id);if(asset.type!=='video'||!(asset.duration>0))throw Error('镜头视频缺少有效时长');
     if(s.productIntroduction&&Math.abs(asset.duration-sh.duration)>.15)throw Error('产品镜头与台词计划时长不一致，请重新生成对应镜头');
-    return {shotId:sh.id,assetId:c.id,duration:asset.duration,...(s.productIntroduction?{text:sh.text,sellingPoint:sh.sellingPoint||'',evidence:sh.evidence||'',iconIds:sh.iconIds||[]}:{} )};
+    let sha256;try{sha256=require('./publish-jobs.cjs').hashFile(asset.path);}catch{throw Error('当前集镜头视频文件不可读取，请重新导入或生成后合成');}
+    return {shotId:sh.id,assetId:c.id,sha256,duration:asset.duration,...(s.productIntroduction?{text:sh.text,sellingPoint:sh.sellingPoint||'',evidence:sh.evidence||'',iconIds:sh.iconIds||[]}:{} )};
    })};
  }
  async composeEpisode({id,episodeId}){this.pending(id,'story-compose',input=>input?.episodeId===episodeId);const s=this.ready(id),input=this.composition(s,episodeId,id);input.draftId=id;const inputHash=hash(input);return this.locked(id+':compose:'+episodeId,()=>this.runtime.run('story-compose',id,{input,inputHash},async ctx=>{this.assertMutable(id);const material=await this.generator.compose({...input,inputHash,revision:s.revision},ctx);ctx.signal?.throwIfAborted();if(material?.type!=='video')throw Error('合成未返回有效视频');const current=this.story(id);let now;try{now=this.composition(current,episodeId,id);now.draftId=id;}catch{return {story:current,material,stale:true};}const e=this.episode(current,episodeId),candidate={id:material.id,inputHash,createdAt:new Date().toISOString(),revision:s.revision,status:this.sourceCurrent(id,current)&&hash(now)===inputHash?'ready':'stale'};e.results=e.results||[];e.results.push(candidate);if(candidate.status==='ready'){e.resultId=material.id;e.resultInputHash=inputHash;e.resultNarrationAssetId=input.narration?.assetId||'';}return {story:this.write(id,current,{input,material,candidate}),candidate,material,stale:candidate.status==='stale'};}));}

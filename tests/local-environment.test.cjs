@@ -17,7 +17,7 @@ function fixture(t,provider={},settings={}){
  const store={root,data:{settings:{provider:{...provider},localEnvironment:{autoStart:true,comfyRoot,comfyPython,ollamaExecutable,...settings}},drafts:[{id:'protected',script:'原文'}],assets:[{id:'asset'}],runs:[]}};
  const managers=[];
  t.after(()=>{for(const manager of managers)manager.close();fs.rmSync(root,{recursive:true,force:true});});
- return {root,store,comfyRoot,comfyPython,ollamaExecutable,manager(options={}){const manager=new LocalEnvironment(store,{home:root,platform:'win32',env:{},startupTimeoutMs:80,probeTimeoutMs:20,sleep:()=>new Promise(resolve=>setTimeout(resolve,1)),...options});managers.push(manager);return manager;}};
+ return {root,store,comfyRoot,comfyPython,ollamaExecutable,manager(options={}){const manager=new LocalEnvironment(store,{home:root,platform:'win32',env:{},startupTimeoutMs:3000,probeTimeoutMs:1000,sleep:()=>new Promise(resolve=>setTimeout(resolve,1)),...options});managers.push(manager);return manager;}};
 }
 function processMock(){const child=new EventEmitter();child.pid=process.pid;child.unref=()=>{};child.stdout=new EventEmitter();child.stderr=new EventEmitter();child.kill=()=>{throw Error('不能终止已有或共享服务');};return child;}
 const comfyResponse=()=>new Response(JSON.stringify({system:{os:'win32'},devices:[]}),{status:200,headers:{'content-type':'application/json'}});

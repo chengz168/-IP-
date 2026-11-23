@@ -33,6 +33,7 @@ actions.add('coverFontData');actions.add('saveCoverDefault');
 actions.add('coverSourceSize');
 for(const action of ['saveStory','splitStoryEpisodes','splitStoryShots','extractStoryAssets','generateStoryImage','generateStoryAssetImages','selectStoryImage','generateStoryVideo','selectStoryVideo','composeStoryEpisode','useStoryEpisode','saveStoryModels','checkStoryModels'])actions.add(action);
 actions.add('queryStoryResult');
+actions.add('getProductionReview');actions.add('saveProductionReview');
 actions.add('confirmStoryLost');
 actions.add('listBgmResources');actions.add('previewBgmResource');actions.add('selectBgmResource');
 actions.add('planWorkflow');actions.add('startWorkflow');actions.add('stopWorkflow');for(const action of ['brainStudy','brainReview','brainTopics','brainCopies','selectBrain','useBrainCopy','deleteBrain'])actions.add(action);

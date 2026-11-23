@@ -17,9 +17,9 @@ async function shotFixture(t){
  const e=d.story.episodes[0];s.providers.text=async()=>({text:JSON.stringify({shots:[{endUnit:2,visual:'一人花园浇花',action:'拿起水壶',camera:'中景固定',sound:'环境声',imagePrompt:'一位穿蓝衣的人在花园站立',videoPrompt:'抬起水壶'}]})});await s.stories.splitShots({id:d.id,episodeId:e.id});
  return {...f,target:{episodeId:d.story.episodes[0].id,shotId:d.story.episodes[0].shots[0].id}};
 }
-test('十二项视频工厂方法与八阶段精确匹配，清单不冒充自动执行',()=>{
- const methods=productionSkillCatalog();assert.equal(methods.length,12);assert.equal(new Set(methods.map(s=>s.id)).size,12);
- const expected={topic:['audience-hook'],script:['audience-hook','script-continuity'],rewrite:['rewrite-clarity'],episodes:['episode-planning'],shots:['shot-staging'],assets:['asset-binding'],image:['reference-continuity'],video:['video-motion']};
+test('阶段方法按题材精确匹配，人工清单不冒充自动执行',()=>{
+ const methods=productionSkillCatalog();assert.equal(methods.length,14);assert.equal(new Set(methods.map(s=>s.id)).size,14);
+ const expected={topic:['audience-hook'],script:['audience-hook','script-continuity','product-evidence-mapping'],rewrite:['rewrite-clarity','product-evidence-mapping'],episodes:['episode-planning'],shots:['shot-staging','product-evidence-mapping','visual-story-focus'],assets:['asset-binding'],image:['reference-continuity','visual-story-focus'],video:['video-motion']};
  for(const [stage,ids] of Object.entries(expected)){
   const route=resolveCreativePreset({creativePreset:{mode:'manual',presetId:'product'}},stage);assert.deepEqual(route.skills.map(s=>s.id),ids);
   for(const skill of route.skills){assert.match(creativePresetPrompt(route),new RegExp(skill.name));assert.equal(skill.execution,'prompt');assert.match(skill.origin.revision,/^[a-f0-9]{40}$/);}
@@ -50,7 +50,7 @@ test('图片真实适配器将规则发送给本地模型图，关闭模式不�
  g.comfy.json=async()=>({UNETLoader:{input:{required:{unet_name:[['z_image_turbo_bf16.safetensors']]}}},CLIPLoader:{input:{required:{clip_name:[['qwen_3_4b.safetensors']],type:[['lumina2']]}}},VAELoader:{input:{required:{vae_name:[['ae.safetensors']]}}},KSampler:{input:{required:{sampler_name:[['res_multistep']],scheduler:[['simple']]}}},...Object.fromEntries(['ModelSamplingAuraFlow','CLIPTextEncode','EmptySD3LatentImage','VAEDecode','SaveImage'].map(k=>[k,{}]))});
  g.executeComfy=async remote=>{graphs.push(remote);return {id:'流程夹具'};};
  for(const mode of ['auto','off'])await g.image({prompt:'一只红色水壶放在木桌上',aspect:'9:16',references:[],creativePreset:resolveCreativePreset({creativePreset:{mode}},'image')});
- assert.match(graphs[0].graph['4'].inputs.text,/角色服装与道具一致/);assert.doesNotMatch(graphs[1].graph['4'].inputs.text,/本阶段制作技能/);assert.equal(graphs[0].input.creativePreset.skills[0].id,'reference-continuity');
+ assert.match(graphs[0].graph['4'].inputs.text,/角色服装与道具一致/);assert.match(graphs[0].graph['4'].inputs.text,/叙事画面与单镜焦点/);assert.match(graphs[0].graph['4'].inputs.text,/不能为构图美化而改变真实商品形状/);assert.ok(graphs[0].input.creativePreset.sources.some(source=>source.id==='github-video-design'));assert.doesNotMatch(graphs[1].graph['4'].inputs.text,/本阶段制作技能|叙事画面与单镜焦点/);assert.equal(graphs[0].input.creativePreset.skills[0].id,'reference-continuity');
 });
 test('真实观察到的虚构同事经历和后台说明被拒绝，旧选题与完整失败证据保留',async t=>{
  const {s,d}=fixture(t);d.topic.industry='桌面整理操作教程';const clean=()=>({opportunity:'分享分类和清洁的步骤',topics:Array.from({length:5},(_,i)=>({title:'整理桌面'+i,hook:'先按用途归位，再擦桌面。',personaAngle:'按步骤演示整理动作'}))});s.providers.text=async()=>({text:JSON.stringify(clean())});await s.invoke('copyTopics',{id:d.id});const before=structuredClone(s.store.draft(d.id).copyStudio);

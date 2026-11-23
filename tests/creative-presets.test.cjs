@@ -209,6 +209,7 @@ test('已生成候选在预设变化后拒绝选用，原确认稿与媒体保�
 test('实际路由来源均对应发行包固定提交与文件哈希清单',async()=>{
  const {creativeCatalog,resolveCreativePreset}=await import('../server/creative-presets.mjs');
  const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../server/creative-preset-sources.json'),'utf8'));
+ const githubManifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../server/github-production-skill-sources.json'),'utf8'));
  const approved={
   'marketing-copywriting':'86dc0466493e8ac59ab17a8f28fd1403e2a322921ed2a8f96b2d0c442ad99d01',
   'marketing-copy-editing':'ef6bf9e792edac9ff524576a7eea6980fd13e605e5561736b045136341cde63e',
@@ -221,6 +222,7 @@ test('实际路由来源均对应发行包固定提交与文件哈希清单',asy
  for(const preset of creativeCatalog())for(const stage of ['topic','script','rewrite','shots','video']){
   const route=resolveCreativePreset({creativePreset:{mode:'manual',presetId:preset.id}},stage);
   for(const source of route.sources){
+   if(source.id.startsWith('github-')){const record=githubManifest.sources.find(item=>item.id===source.id);assert.ok(record);assert.equal(source.revision,record.commit);assert.match(record.sha256,/^[a-f0-9]{64}$/);assert.ok(source.url.includes(record.repository));assert.ok(source.url.includes(record.commit));continue;}
    const expected=source.id==='h3'?'h3-prompt-writing':'marketing-'+source.id;
    const record=manifest.sources.find(item=>item.id===expected);
    assert.ok(record,source.id+'需有可发行的来源清单');assert.equal(source.revision,record.commit);assert.equal(record.sha256,approved[expected]);

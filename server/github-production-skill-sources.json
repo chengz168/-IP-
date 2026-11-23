@@ -1,0 +1,31 @@
+{
+  "executedExternalScripts": false,
+  "schemaVersion": 1,
+  "checkedDate": "2026-11-23",
+  "sources": [
+    {
+      "name": "video-design",
+      "url": "https://raw.githubusercontent.com/digitalsamba/claude-code-video-toolkit/5430de721de2d162e0ee5c02e6d824d7e774c359/.claude/skills/video-design/SKILL.md",
+      "id": "github-video-design",
+      "path": ".claude/skills/video-design/SKILL.md",
+      "distribution": "中文方法适配，分发时保留许可通知",
+      "sha256": "162503c80495481d014e785652fce1422f844792b40c436b3f290f1e7c6f5514",
+      "commit": "5430de721de2d162e0ee5c02e6d824d7e774c359",
+      "checkedDate": "2026-11-23",
+      "license": "MIT",
+      "repository": "digitalsamba/claude-code-video-toolkit"
+    },
+    {
+      "name": "ads-creative",
+      "url": "https://raw.githubusercontent.com/AgriciDaniel/claude-ads/fc3908e786c318776df89a3a098333da377364be/skills/ads-creative/SKILL.md",
+      "id": "github-ads-creative",
+      "path": "skills/ads-creative/SKILL.md",
+      "distribution": "中文方法适配，分发时保留许可通知",
+      "sha256": "4cf88555061246505d007be0014f57a5c8df11593599f53aa3d908235c56bfd4",
+      "commit": "fc3908e786c318776df89a3a098333da377364be",
+      "checkedDate": "2026-11-23",
+      "license": "MIT",
+      "repository": "AgriciDaniel/claude-ads"
+    }
+  ]
+}
