@@ -57,3 +57,37 @@ test('成片解码期间镜头视频变化不登记结果，保护原素材',asy
  const sha256=require('node:crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');generator.verify=async()=>{fs.writeFileSync(file,'新镜头');return {width:576,height:1024,duration:1};};
  await assert.rejects(generator.register(output,'video',{aspect:'9:16'},{shots:[{assetId:'shot',sha256}]}),/合成期间镜头视频已变化/);assert.equal(store.data.assets.length,1);assert(fs.existsSync(file));
 });
+
+test('首尾帧图同时绑定两张图且尾帧时点对齐实际网格，缺少映射拒绝',()=>{
+ const value={...input(),duration:5.31,lastFrame:{assetId:'last'}};const graph=videoGraph({input:value,image:'first.png',lastImage:'last.png',seed:0});
+ assert.deepEqual(graph['6'].inputs.first_frame,['17',0]);assert.deepEqual(graph['6'].inputs.last_frame,['18',0]);assert.equal(graph['18'].inputs.image,'last.png');assert.equal(graph['8'].inputs.noise_seed,0);assert.match(graph['6'].inputs.prompt,/Picture 2.*5\.83-second/);assert.match(graph['6'].inputs.prompt,/reaching it at the final frame/);assert.throws(()=>videoGraph({input:value,image:'first.png'}),/缺少/);
+});
+
+test('云视频不静默丢弃尾帧或固定种子，非法种子和不支持节点都在上传前拒绝',async t=>{
+ const {generator,root,store}=fixture(t),file=path.join(root,'ref.png');fs.writeFileSync(file,'参考夹具');store.data.assets.push({id:'image',type:'image',path:file});let submits=0;generator.cloudVideo=async()=>{submits++;};store.data.settings.provider={storyVideoProtocol:'bridge'};
+ for(const extra of [{seed:0},{lastFrame:{assetId:'image'}}])await assert.rejects(generator.video({...input(),...extra}),/未声明支持/);assert.equal(submits,0);
+ store.data.settings.provider={storyVideoProtocol:'comfy-h3'};generator.comfy.json=async()=>({MiniMaxH3ImageToVideo:{input:{optional:{}}}});generator.comfy.upload=async()=>{submits++;};await assert.rejects(generator.video({...input(),lastFrame:{assetId:'image'}}),/节点不支持尾帧/);await assert.rejects(generator.video({...input(),seed:-1}),/种子/);assert.equal(submits,0);
+});
+
+test('真实首尾帧收片保留生成末段，完整时间轴变速而非裁掉尾帧',async t=>{
+ const value=await realFixture(t);if(!value)return;const {root,generator}=value,original=path.join(root,'keyframe-output.mp4'),ffmpeg=generator.media.binaries().ffmpeg;
+ await runProcess(ffmpeg,['-v','error','-y','-f','lavfi','-i','color=c=red:s=64x112:r=24:d=5.875','-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=5.875','-vf',"drawbox=x=0:y=0:w=iw:h=ih:color=blue:t=fill:enable='gte(t,5.5)'",'-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac','-shortest',original]);
+ generator.comfy.request=async()=>({ok:true,arrayBuffer:async()=>fs.readFileSync(original)});
+ const material=await generator.collectComfy({filename:'original.mp4'},'original-task',{baseUrl:'http://127.0.0.1:8188',mediaKind:'video',referenceMode:'first-last-frame',references:[],input:{...input(),duration:5.31,lastFrame:{assetId:'last'}}});
+ assert.equal(material.storyGeneration.frameGridPolicy,'H3-full-keyframe-timeline-retimed-to-planned-duration');assert(Math.abs(material.duration-5.31)<.15);
+ const pixel=path.join(root,'last.rgb');await runProcess(ffmpeg,['-v','error','-y','-sseof','-0.1','-i',material.path,'-frames:v','1','-vf','scale=1:1','-pix_fmt','rgb24','-f','rawvideo',pixel]);const bytes=fs.readFileSync(pixel);assert(bytes[2]>bytes[0]+100,'尾帧蓝色末段必须保留，不能只得到裁剪后的红色前段');
+});
+
+test('商品首尾模式提示时序对齐网格且不沿用裁尾指令',()=>{
+ const {productMotionTiming}=require('../server/product-prompt.cjs');const prompt=productMotionTiming({productIntroduction:{version:1},duration:1.2,lastFrame:{assetId:'tail'}});assert.match(prompt,/4\.42 seconds/);assert.match(prompt,/retimed to 1\.20 seconds/);assert.match(prompt,/no tail will be trimmed/);assert.doesNotMatch(prompt,/this tail will be trimmed/);
+});
+
+
+test('首尾图真实准备后绑定两份上传，固定零种子保持，尾帧上传期间改写首帧拒绝提交',async t=>{
+ const value=await realFixture(t);if(!value)return;const {root,generator,store}=value,ffmpeg=generator.media.binaries().ffmpeg;
+ for(const [id,color]of [['first','red'],['last','blue']]){const file=path.join(root,id+'.png');await runProcess(ffmpeg,['-v','error','-y','-f','lavfi','-i','color=c='+color+':s=64x112','-frames:v','1','-update','1',file]);store.data.assets.push({id,type:'image',path:file});}
+ generator.comfy.json=async()=>({MiniMaxH3ImageToVideo:{input:{optional:{last_frame:['IMAGE']}}}});let uploaded=[],submitted=0;
+ generator.comfy.upload=async(_base,file)=>{uploaded.push(path.basename(file));return {subfolder:'test',name:path.basename(file)};};generator.executeComfy=async remote=>{submitted++;assert.equal(remote.referenceMode,'first-last-frame');assert.equal(remote.graph['8'].inputs.noise_seed,0);assert.deepEqual(remote.references.map(x=>[x.assetId,x.role]),[['first','first-frame'],['last','last-frame']]);assert.equal(remote.graph['18'].inputs.image,'test/last-frame.png');return {id:'mock-result'};};
+ const data={...input(),image:{assetId:'first'},lastFrame:{assetId:'last'},seed:0};await generator.video(data);assert.deepEqual(uploaded,['first-frame.png','last-frame.png']);assert.equal(submitted,1);
+ generator.comfy.upload=async(_base,file)=>{if(path.basename(file)==='last-frame.png')fs.writeFileSync(store.asset('first').path,'准备期间首帧被改写');return {subfolder:'test',name:path.basename(file)};};await assert.rejects(generator.video(data),/上传期间已变化/);assert.equal(submitted,1);
+});

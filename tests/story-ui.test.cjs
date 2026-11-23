@@ -133,3 +133,8 @@ test('窄窗口查看资产定位详情，宽窗口保留位置，均不改变�
   width=1000;await f.vm.viewAsset('shared');assert.equal(f.vm.asset.value.id,'shared');assert.equal(movements.length,2);assert.equal(f.calls.length,0);
  }finally{f.dispose();}
 });
+
+test('首尾控制前端校验支持零种子且云端不静默忽略',async()=>{
+ const {storyVideoControlProblems}=await import('../src/story-ui.mjs');assert.deepEqual(storyVideoControlProblems({videoSeed:0}),[]);assert.deepEqual(storyVideoControlProblems({videoSeed:null},'bridge'),[]);assert.match(storyVideoControlProblems({videoSeed:-1}).join(''),/种子/);assert.match(storyVideoControlProblems({lastFrameId:'last'},'bridge').join(''),/仅支持本地/);
+ const fs=require('node:fs'),source=fs.readFileSync(require('node:path').join(__dirname,'../src/components/StoryStudio.vue'),'utf8');assert.match(source,/choice\.draftId===draft\.value\.id&&choice\.episodeId===episode\.value\?\.id&&choice\.shotId===shot\.value\?\.id/);assert.match(source,/复用此种子对照/);assert.match(source,/清除尾帧/);
+});

@@ -37,6 +37,15 @@ test('复核保存失败回滚，重复旧历史版本不能覆盖新记录',asy
  const f=fixture(t),view=await f.review.get({id:f.d.id}),before=structuredClone(f.d);const original=f.store.save;f.store.save=()=>{throw Error('磁盘不可写');};await assert.rejects(saveReview(f,view),/磁盘不可写/);assert.deepEqual(f.d,before);f.store.save=original;await saveReview(f,view);await assert.rejects(saveReview(f,view,{status:'needs-changes',notes:'旧窗口'}),/复核记录已变化/);assert.equal(f.d.artifacts.productionReviews.length,1);
 });
 
+test('同历史版本同时完成探测的两个提交仅能保存一个',async t=>{
+ const f=fixture(t),view=await f.review.get({id:f.d.id});let waiting=[];
+ f.media.probe=()=>new Promise(resolve=>waiting.push(resolve));
+ const first=saveReview(f,view),second=saveReview(f,view,{status:'needs-changes',notes:'并发旧版本提交'});
+ while(waiting.length<2)await new Promise(resolve=>setImmediate(resolve));
+ for(const resolve of waiting)resolve({streams:[{codec_type:'video'}],format:{duration:'4'}});
+ const results=await Promise.allSettled([first,second]);assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(results.filter(r=>r.status==='rejected').length,1);assert.match(results.find(r=>r.status==='rejected').reason.message,/已变化/);assert.equal(f.d.artifacts.productionReviews.length,1);
+});
+
 test('活动任务及结果待确认禁止保存，探测过程中新增活动也禁止',async t=>{
  for(const status of ['queued','running','unknown']){const f=fixture(t),view=await f.review.get({id:f.d.id});f.store.data.runs.push({id:'active',draftId:f.d.id,status});await assert.rejects(saveReview(f,view),/仍在执行/);assert.equal(f.d.artifacts.productionReviews,undefined);}
  const f=fixture(t),view=await f.review.get({id:f.d.id});f.media.probe=async()=>{f.store.data.runs.push({draftId:f.d.id,status:'running'});return {streams:[{codec_type:'video'}],format:{duration:'4'}};};await assert.rejects(saveReview(f,view),/仍在执行/);
@@ -44,4 +53,14 @@ test('活动任务及结果待确认禁止保存，探测过程中新增活动�
 
 test('真实Service接口可检查且禁止普通草稿伪造，无媒体不能记录通过',async t=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'production-review-service-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const service=require('../server/service.cjs').createService(root),d=service.store.draft();const view=await service.invoke('getProductionReview',{id:d.id});assert.equal(view.status,'unchecked');assert.equal(view.technicalPassed,false);await assert.rejects(service.invoke('saveProductionReview',{id:d.id,fingerprint:view.fingerprint,historyVersion:view.historyVersion,status:'approved',checked:checked(),notes:''}),/待交付视频/);
+});
+
+test('分集尾帧同编号外部替换使既有质量复核失效',async t=>{
+ const f=fixture(t),file=path.join(f.store.root,'tail.png');fs.writeFileSync(file,'尾帧原内容');const tail=f.store.addAsset(file,{type:'image'});f.d.story={activeEpisodeId:'episode',episodes:[{id:'episode',resultId:f.asset.id,shots:[{selectedVideoId:f.asset.id,lastFrameId:tail.id}]}]};
+ const view=await f.review.get({id:f.d.id});assert(view.media.find(row=>row.id===tail.id).roles.includes('镜头尾帧'));await saveReview(f,view);fs.writeFileSync(tail.path,'尾帧新内容');assert.equal((await f.review.get({id:f.d.id})).status,'stale');await assert.rejects(saveReview(f,view),/已变化/);
+});
+
+test('分集剪辑后的交付视频也追踪源分集尾帧，替换后复核过期',async t=>{
+ const f=fixture(t),file=path.join(f.store.root,'tail-edited.png');fs.writeFileSync(file,'尾帧原内容');const tail=f.store.addAsset(file,{type:'image'}),edited=f.store.addAsset(f.asset.path,{type:'video'});f.d.edit.sourceId=f.asset.id;f.d.edit.resultId=edited.id;
+ f.d.story={activeEpisodeId:'episode',episodes:[{id:'episode',resultId:f.asset.id,shots:[{selectedVideoId:f.asset.id,lastFrameId:tail.id}]}]};const view=await f.review.get({id:f.d.id});assert.equal(view.videoId,edited.id);assert(view.media.some(x=>x.id===tail.id));await saveReview(f,view);fs.writeFileSync(tail.path,'尾帧新内容');assert.equal((await f.review.get({id:f.d.id})).status,'stale');
 });

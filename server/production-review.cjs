@@ -20,8 +20,8 @@ class ProductionReview{
   const add=(assetId,role)=>{if(!assetId)return;const prior=refs.get(assetId);if(prior){prior.roles.push(role);return;}let a;try{a=this.store.asset(assetId);}catch{refs.set(assetId,{id:assetId,name:assetId,roles:[role],error:'素材记录不存在'});return;}const row={id:a.id,name:a.name||a.id,type:a.type,roles:[role]};try{row.sha256=fileHash(a.path);row.size=fs.statSync(a.path).size;}catch{row.error='素材文件缺失、为空或不可读取';}refs.set(assetId,row);};
   add(videoId,'待交付视频');add(d.edit?.sourceId||d.video?.assetId,'剪辑源视频');add(d.voice?.audioId,'配音');add(d.video?.audioId,'视频驱动音频');add(d.publish?.coverId||d.cover?.assetId,'封面');
   if(d.edit?.bgmEnabled)add(d.edit.bgmId,'背景音乐');if(d.edit?.sfxEnabled)add(d.edit.sfxId,'音效');if(d.edit?.pipEnabled){add(d.edit.pipId,'画中画');for(const row of d.edit.captions||[])add(row.pipId,'逐句画中画');}
-  const episode=d.story?.episodes?.find(e=>e.id===d.story.activeEpisodeId&&e.resultId===videoId);
-  if(episode){add(episode.resultNarrationAssetId,'分集旁白');for(const sh of episode.shots||[]){add(sh.selectedVideoId,'镜头视频');add(sh.selectedImageId,'镜头首帧');}}
+  const episode=d.story?.episodes?.find(e=>e.id===d.story.activeEpisodeId&&(e.resultId===videoId||e.resultId===(d.edit?.sourceId||d.video?.assetId)));
+  if(episode){add(episode.resultNarrationAssetId,'分集旁白');for(const sh of episode.shots||[]){add(sh.selectedVideoId,'镜头视频');add(sh.selectedImageId,'镜头首帧');add(sh.lastFrameId,'镜头尾帧');}}
   const media=[...refs.values()],input=inputOf(d);return {videoId,media,fingerprint:jsonHash({input,media}),input};
  }
  async get({id}){
@@ -43,7 +43,10 @@ class ProductionReview{
   if(view.fingerprint!==fingerprint||view.historyVersion!==historyVersion)throw Error('作品或复核记录已变化，请刷新后重新检查，本次没有覆盖旧记录');
   if(!view.videoId)throw Error('请先生成或选择待交付视频');
   if(status==='approved'&&(!view.technicalPassed||reviewItems.some(item=>checked[item.id]!==true)))throw Error('请先解决技术检查问题，并逐项完成实际人工审看后再标记通过');
-  const d=this.store.draft(id),prior=structuredClone(d.artifacts),record={id:crypto.randomUUID(),fingerprint,videoId:view.videoId,status,checked:Object.fromEntries(reviewItems.map(item=>[item.id,checked[item.id]===true])),notes:notes.trim(),method:'human-review',reviewedAt:new Date().toISOString(),media:view.media,technicalChecks:view.checks};
+  const d=this.store.draft(id);
+  // 探测后的异步恢复可能晚于另一个提交；最后校验与写盘之间不再让出执行权。
+  if(this.freeze(id).fingerprint!==fingerprint||jsonHash(d.artifacts?.productionReviews||[])!==historyVersion)throw Error('作品或复核记录已变化，请刷新后重新检查，本次没有覆盖旧记录');
+  const prior=structuredClone(d.artifacts),record={id:crypto.randomUUID(),fingerprint,videoId:view.videoId,status,checked:Object.fromEntries(reviewItems.map(item=>[item.id,checked[item.id]===true])),notes:notes.trim(),method:'human-review',reviewedAt:new Date().toISOString(),media:view.media,technicalChecks:view.checks};
   d.artifacts??={};d.artifacts.productionReviews=[record,...(d.artifacts.productionReviews||[])];
   try{this.store.save();}catch(error){if(prior===undefined)delete d.artifacts;else d.artifacts=prior;throw error;}
   return {...view,historyVersion:jsonHash(d.artifacts.productionReviews),currentReview:structuredClone(record),status,history:structuredClone(d.artifacts.productionReviews)};

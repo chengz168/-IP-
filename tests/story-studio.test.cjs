@@ -343,3 +343,34 @@ test('合成返回前旁白同ID内容变化，迟到结果仅作过期候选',a
  const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),root=fs.mkdtempSync(path.join(os.tmpdir(),'story-narration-stale-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const file=path.join(root,'voice.wav');fs.writeFileSync(file,'原旁白内容');
  const f=fixture(),target=await oneEpisode(f);f.assets.get('narration').path=file;await imageAndVideo(f,target);let s=structuredClone(f.d.story);s.narrationMode='upstream';await f.studio.save({id:'draft',story:s,revision:s.revision});let finish;f.generator.compose=()=>new Promise(resolve=>finish=resolve);const pending=f.studio.composeEpisode({id:'draft',episodeId:target.episodeId});while(!finish)await new Promise(resolve=>setImmediate(resolve));fs.writeFileSync(file,'新旁白内容');const material={id:'late-composition',type:'video',duration:4};f.assets.set(material.id,material);finish(material);const result=await pending;assert.equal(result.stale,true);assert.equal(result.candidate.status,'stale');assert.equal(f.d.story.episodes[0].resultId,'');assert(f.assets.has(material.id));
 });
+
+test('首尾帧和种子修改只使动态候选与合成失效，首帧保留且零种子有效',async()=>{
+ const f=fixture(),target=await oneEpisode(f);const video=await imageAndVideo(f,target),before=structuredClone(f.d.story),first=before.episodes[0].shots[0].selectedImageId;
+ await f.studio.composeEpisode({id:'draft',episodeId:target.episodeId});let next=structuredClone(f.d.story),sh=next.episodes[0].shots[0];sh.lastFrameId=first;sh.videoSeed=0;await f.studio.save({id:'draft',story:next,revision:next.revision});
+ sh=f.d.story.episodes[0].shots[0];assert.equal(sh.selectedImageId,first);assert.equal(sh.images[0].status,'ready');assert.equal(sh.selectedVideoId,'');assert.equal(sh.videos[0].status,'stale');assert.equal(f.d.story.episodes[0].resultId,'');
+ const result=await f.studio.generateVideo({id:'draft',...target}),input=f.calls.at(-1).input;assert.equal(input.seed,0);assert.equal(input.lastFrame.assetId,first);assert.match(input.keyframeSha256.last,/^[a-f0-9]{64}$/);assert.equal(result.stale,false);
+ await f.studio.selectVideo({id:'draft',...target,videoId:result.material.id});fixtureFs.writeFileSync(f.assets.get(first).path,'同编号尾帧被改写');await assert.rejects(f.studio.selectVideo({id:'draft',...target,videoId:result.material.id}),/过期/);await assert.rejects(f.studio.composeEpisode({id:'draft',episodeId:target.episodeId}),/过期/);
+ await assert.rejects(f.studio.selectVideo({id:'draft',...target,videoId:video.material.id}),/过期/);
+});
+
+test('尾帧必须为图片，非法种子拒绝且不修改旧稿',async()=>{
+ const f=fixture(),target=await oneEpisode(f);for(const seed of [-1,1.5,4294967296,'5',NaN]){const next=structuredClone(f.d.story);next.episodes[0].shots[0].videoSeed=seed;await assert.rejects(f.studio.save({id:'draft',story:next,revision:next.revision}),/种子/);}
+ const next=structuredClone(f.d.story);next.episodes[0].shots[0].lastFrameId='narration';await assert.rejects(f.studio.save({id:'draft',story:next,revision:next.revision}),/尾帧.*图片/);assert.equal(f.d.story.episodes[0].shots[0].lastFrameId,undefined);
+});
+
+test('首尾帧生成期间改尾帧或种子只保存过期结果',async()=>{
+ const f=fixture(),target=await oneEpisode(f);await imageAndVideo(f,target);let next=structuredClone(f.d.story);next.episodes[0].shots[0].lastFrameId=next.episodes[0].shots[0].selectedImageId;next.episodes[0].shots[0].videoSeed=7;await f.studio.save({id:'draft',story:next,revision:next.revision});
+ const generate=f.generator.video;f.generator.video=async(...args)=>{const material=await generate(...args);const changed=structuredClone(f.d.story);changed.episodes[0].shots[0].videoSeed=8;await f.studio.save({id:'draft',story:changed,revision:changed.revision});return material;};
+ const result=await f.studio.generateVideo({id:'draft',...target});assert.equal(result.stale,true);assert.equal(result.candidate.status,'stale');
+});
+
+test('首尾帧未知任务恢复不重交，尾帧改变时仅留过期候选',async()=>{
+ for(const change of [false,true]){const f=fixture(),target=await oneEpisode(f);await imageAndVideo(f,target);let next=structuredClone(f.d.story),shot=next.episodes[0].shots[0];shot.lastFrameId=shot.selectedImageId;shot.videoSeed=42;await f.studio.save({id:'draft',story:next,revision:next.revision});
+ let submissions=0;f.generator.video=async(input,ctx)=>{submissions++;ctx.remote('only-original',{kind:'story-comfy-video-v1',input,submissionState:'accepted'});throw Object.assign(Error('等待原任务'),{unknown:true});};await assert.rejects(f.studio.generateVideo({id:'draft',...target}),/等待原任务/);const run=f.store.data.runs[0];if(change)fixtureFs.writeFileSync(f.assets.get(shot.lastFrameId).path,'尾帧外部修改');
+ let queried=0;f.generator.recover=async original=>{queried++;assert.equal(original.remoteId,'only-original');assert.equal(original.parameters.input.seed,42);assert.equal(original.parameters.input.lastFrame.assetId,shot.lastFrameId);const output={id:'recovered-keyframes',type:'video'};f.assets.set(output.id,output);return output;};const result=await f.studio.recover({runId:run.id});assert.equal(queried,1);assert.equal(submissions,1);assert.equal(result.stale,change);assert.equal(result.candidate.status,change?'stale':'ready');assert.equal(f.d.story.episodes[0].shots[0].selectedVideoId,'');}
+});
+
+test('生成返回后尾帧丢失仍登记过期候选而不丢掉模型产物',async()=>{
+ const f=fixture(),target=await oneEpisode(f);await imageAndVideo(f,target);let next=structuredClone(f.d.story);next.episodes[0].shots[0].lastFrameId=next.episodes[0].shots[0].selectedImageId;await f.studio.save({id:'draft',story:next,revision:next.revision});
+ const generate=f.generator.video;f.generator.video=async(...args)=>{const output=await generate(...args);fixtureFs.unlinkSync(f.assets.get(next.episodes[0].shots[0].lastFrameId).path);return output;};const result=await f.studio.generateVideo({id:'draft',...target});assert.equal(result.stale,true);assert(f.d.story.episodes[0].shots[0].videos.some(x=>x.id===result.material.id&&x.status==='stale'));assert(fixtureFs.existsSync(result.material.path));
+});

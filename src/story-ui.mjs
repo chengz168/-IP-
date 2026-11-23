@@ -17,6 +17,15 @@ export function storyPrimaryReferenceId(shot){
   return ids.includes(shot?.primaryReferenceAssetId)?shot.primaryReferenceAssetId:ids.length===1?ids[0]:'';
 }
 
+// 控制项不支持时明确阻止提交，避免界面看似生效而服务实际忽略。
+export function storyVideoControlProblems(shot,protocol='comfy-h3'){
+  if(!shot)return [];
+  const reasons=[];
+  if(shot.videoSeed!==undefined&&shot.videoSeed!==null&&(!Number.isSafeInteger(shot.videoSeed)||shot.videoSeed<0||shot.videoSeed>4294967295))reasons.push('固定种子请输入0至4294967295的整数，留空则随机');
+  if(protocol!=='comfy-h3'&&(shot.lastFrameId||shot.videoSeed!==undefined&&shot.videoSeed!==null))reasons.push('尾帧和固定种子目前仅支持本地H3；请清除控制项或切换本地模型');
+  return reasons;
+}
+
 export function storyShotProblems(shot,assets,{video=false,imageProtocol,imageArchitecture}={}){
   if(!shot)return ['请先选择一个镜头'];
   const reasons=[];

@@ -184,3 +184,12 @@
 .story-design-field strong{font-size:var(--app-font-size-caption);color:#b5bed4}
 .story-design-field p{font-size:13px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
 @container(max-width:860px){.story-design-field>div{grid-template-columns:minmax(0,1fr)}.story-design-candidate{padding:12px}}
+
+/* 首尾帧控制保持在镜头视频卡片内部，小窗口允许按钮换行。 */
+.story-keyframe-controls{min-width:0;margin:14px 0;padding:14px;border:1px solid #ffffff1a;border-radius:10px;display:flex;flex-direction:column;gap:12px}
+.story-keyframe-controls>legend{padding:0 6px;color:#c8cde1}
+.story-keyframe-controls>label{display:flex;flex-direction:column;gap:8px;min-width:0}
+.story-keyframe-controls input{min-width:0;width:100%;box-sizing:border-box}
+.story-last-frame{display:flex;align-items:center;gap:12px;min-width:0}
+.story-last-frame img{width:80px;height:112px;object-fit:contain;border-radius:6px;background:#141522}
+.story-last-frame span{min-width:0;overflow-wrap:anywhere;color:#a8afc6;font-size:var(--app-font-size-caption)}

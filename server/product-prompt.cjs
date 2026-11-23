@@ -60,6 +60,11 @@ async function proposeProductShotDesign(products,{id,episodeId,shotId,instructio
 // 只说明真实保留窗口，不伪造时间轴、不延长或重复素材。
 function productMotionTiming(input){
  if(!input.productIntroduction)return '';
+ if(input.lastFrame){
+  const planned=input.duration;if(!Number.isFinite(planned)||planned<=0||planned>15)throw Error('产品介绍单镜头须大于0且不超过15秒');
+  const frames=Math.ceil((Math.ceil(Math.max(4,planned)*24)-5)/17)*17+5,end=(frames-1)/24;
+  return `Develop one continuous physical action from the supplied first frame at 0.00 seconds to the supplied last frame at ${end.toFixed(2)} seconds. Start immediately, keep the approved object geometry and reach the exact final pose in Picture 2. The complete generated timeline will be retimed to ${planned.toFixed(2)} seconds; no tail will be trimmed. No cuts, new events or invented product effects.`;
+ }
  const retained=input.duration,generated=Math.max(4,retained),settle=Math.min(retained,Math.max(.12,retained*.8));
  if(!Number.isFinite(retained)||retained<=0||retained>15)throw Error('产品介绍单镜头须大于0且不超过15秒');
  return `The usable shot is 0.00–${retained.toFixed(2)} seconds. The main physical action begins immediately at 0.00 seconds, is clearly visible before ${settle.toFixed(2)} seconds, and reaches its end state by ${retained.toFixed(2)} seconds. Use only one simple action achievable within this window; no delayed entrance or slow setup. ${generated>retained?`From ${retained.toFixed(2)} to ${generated.toFixed(2)} seconds, continue the same natural settling motion without a new event; this tail will be trimmed.`:'Let the same action settle naturally at the end.'} Keep a continuous shot with the starting composition supplied by the reference; no cuts or sudden background changes.`;
