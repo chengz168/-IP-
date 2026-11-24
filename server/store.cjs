@@ -9,7 +9,25 @@ const defaults=()=>({version:1,currentId:'',drafts:[],assets:[],voices:[],avatar
 class Store{
   constructor(root){this.root=root;fs.mkdirSync(root,{recursive:true});this.file=path.join(root,'studio.json');this.assetDir=path.join(root,'assets');fs.mkdirSync(this.assetDir,{recursive:true});this.data=this.load();if(!['compact','standard','comfortable','large'].includes(this.data.settings.fontSize))this.data.settings.fontSize='comfortable';for(const d of this.data.drafts){const base=createDraft();for(const key of ['brain','voice','video','edit','cover','publish'])d[key]={...base[key],...d[key]};}if(!this.data.drafts.length){const d=createDraft();d.template=selectDefaultCopyId(this.data);this.data.drafts.push(d);this.data.currentId=d.id;}this.recover();this.save();}
   load(){if(!fs.existsSync(this.file))return defaults();try{const base=defaults(),saved=JSON.parse(fs.readFileSync(this.file,'utf8'));return {...base,...saved,settings:{...base.settings,...saved.settings,provider:{...base.settings.provider,...saved.settings?.provider}}};}catch(e){throw new Error('本地数据无法读取，请从备份恢复。原文件已保留：'+e.message);}}
-  recover(){for(const run of this.data.runs){require('./publish-jobs.cjs').recoverPublish(run);if(run.status==='running'||run.status==='queued'){run.status=run.remoteId||(run.remote?.kind?.startsWith('story-')&&run.remote.submissionState==='submitting'&&run.remote.clientId)||(run.remote?.kind==='comfy-h3-v1'&&run.remote?.submissionState==='submitting'&&run.remote?.clientId)?'unknown':'interrupted';run.error='程序在任务完成前退出，请查看详情后恢复。';run.endedAt=new Date().toISOString();}}for(const job of this.data.workflowJobs||[])if(['running','queued','stopping'].includes(job.status)){const unknown=this.data.runs.find(r=>r.parameters?.workflowJobId===job.id&&r.status==='unknown');job.status=unknown?'unknown':'interrupted';job.remoteId=unknown?.remoteId||'';job.error=unknown?'远程结果仍待确认，未自动重交任务。':'程序在自动流程完成前退出，未自动重跑。';job.endedAt=new Date().toISOString();for(const stage of job.stages||[])if(stage.status==='running')stage.status=unknown?'unknown':'interrupted';}}
+  recover(){
+    for(const run of this.data.runs){
+      require('./publish-jobs.cjs').recoverPublish(run);
+      if(run.status==='running'||run.status==='queued'){
+        run.status=run.remoteId||(run.remote?.kind?.startsWith('story-')&&run.remote.submissionState==='submitting'&&run.remote.clientId)||(run.remote?.kind==='comfy-h3-v1'&&run.remote?.submissionState==='submitting'&&run.remote?.clientId)?'unknown':'interrupted';
+        run.error='程序在任务完成前退出，请查看详情后恢复。';run.endedAt=new Date().toISOString();
+      }
+    }
+    // 恢复查询不产生独立生成结果；原任务已确认终态时，结束遗留查询而不改动原任务凭据。
+    for(const run of this.data.runs){
+      if(run.type!=='story-recover'||run.status!=='unknown')continue;
+      const source=this.data.runs.find(item=>item.id===run.parameters?.runId);
+      if(!source||source.draftId!==run.draftId||!['story-image','story-video'].includes(source.type)||!['failed','cancelled'].includes(source.status)||source.terminalConfirmed!==true)continue;
+      run.unresolvedHistory??={error:run.error,endedAt:run.endedAt};run.status='failed';run.error='原任务已确认终态，恢复查询记录已结束。';run.terminalConfirmed=true;run.recoveredAt=new Date().toISOString();run.endedAt=run.endedAt||run.recoveredAt;
+    }
+    for(const job of this.data.workflowJobs||[])if(['running','queued','stopping'].includes(job.status)){
+      const unknown=this.data.runs.find(r=>r.parameters?.workflowJobId===job.id&&r.status==='unknown');job.status=unknown?'unknown':'interrupted';job.remoteId=unknown?.remoteId||'';job.error=unknown?'远程结果仍待确认，未自动重交任务。':'程序在自动流程完成前退出，未自动重跑。';job.endedAt=new Date().toISOString();for(const stage of job.stages||[])if(stage.status==='running')stage.status=unknown?'unknown':'interrupted';
+    }
+  }
   save(){
     const temp=this.file+'.'+crypto.randomUUID()+'.tmp';fs.writeFileSync(temp,JSON.stringify(this.data,null,2));
     // Windows上的扫描器或只读程序可能短暂占用目标文件，保留原文件并有限重试原子替换。

@@ -2,7 +2,14 @@ const crypto=require('node:crypto');
 const hash=value=>crypto.createHash('sha256').update(JSON.stringify(value)??'null').digest('hex');
 const uid=()=>crypto.randomUUID();
 const string=(v,label,max=50000)=>{if(typeof v!=='string'||v.length>max)throw Error(label+'格式无效');return v;};
-function createStory(draft={}){const sourceText=draft.confirmed?draft.finalText||'':'';return {version:1,revision:0,sourceMode:'upstream',sourceKind:'confirmed-finalText',sourceText,sourceHash:hash(sourceText),episodesSourceHash:'',narrationMode:'none',episodeCount:1,episodeDuration:30,aspect:'9:16',style:'',instructions:'',episodes:[],assets:[]};}
+function createStory(draft={}){const sourceText=draft.confirmed?draft.finalText||'':'';return {version:1,revision:0,sourceMode:'upstream',sourceKind:'confirmed-finalText',sourceText,sourceHash:hash(sourceText),episodesSourceHash:'',narrationMode:'none',originalAudioVolume:null,episodeCount:1,episodeDuration:30,aspect:'9:16',style:'',instructions:'',episodes:[],assets:[]};}
+// 缺字段的旧稿保持旧合成输入；null 表示新稿按旁白模式自动选择原声音量。
+function storyAudioMix(story){
+ if(story.productIntroduction||story.originalAudioVolume===undefined)return undefined;
+ const volume=story.originalAudioVolume;
+ if(volume!==null&&(!Number.isFinite(volume)||volume<0||volume>1))throw Error('镜头原声音量请输入0至100%');
+ return {version:1,originalAudioVolume:volume===null?(story.narrationMode==='upstream'?.2:1):volume,limiter:.95};
+}
 function candidate(item){if(!item||typeof item.id!=='string')throw Error('候选素材记录无效');return {...item};}
 // 图标权限来自服务端冻结的商品来源，不采信可编辑资产上的角色标签。
 function frozenProductIcons(productIntroduction){
@@ -13,6 +20,7 @@ function validateStory(value){
  if(!value||value.version!==1||!Number.isSafeInteger(value.revision)||value.revision<0)throw Error('非口播创作版本无效');
  const s=structuredClone(value);string(s.sourceText,'剧本');string(s.style,'视觉风格',3000);string(s.instructions,'补充要求',5000);
  s.sourceMode=s.sourceMode||'upstream';s.narrationMode=s.narrationMode||'none';if(!['upstream','custom'].includes(s.sourceMode)||!['none','upstream'].includes(s.narrationMode))throw Error('剧本来源或旁白模式无效');
+ if(s.originalAudioVolume!==undefined&&s.originalAudioVolume!==null&&(!Number.isFinite(s.originalAudioVolume)||s.originalAudioVolume<0||s.originalAudioVolume>1))throw Error('镜头原声音量请输入0至100%');
  s.sourceKind=s.sourceMode==='custom'?'custom':'confirmed-finalText';s.sourceHash=hash(s.sourceText);
  if(!Number.isSafeInteger(s.episodeCount)||s.episodeCount<1||s.episodeCount>50)throw Error('集数请输入1至50的正整数');
  if(!Number.isFinite(s.episodeDuration)||s.episodeDuration<1||s.episodeDuration>600)throw Error('每集参考时长需为1至600秒');
@@ -42,10 +50,10 @@ function reconcile(before,after){
  for(const a of after.assets){const old=before.assets.find(x=>x.id===a.id);if(old){const same=hash(assetInput(before,old))===hash(assetInput(after,a));a.images=(old.images||[]).map(c=>same?c:{...c,status:'stale'});a.selectedImageId=same?old.selectedImageId:'';}else{a.images=[];a.selectedImageId='';}}
  for(const e of after.episodes){const old=before.episodes.find(x=>x.id===e.id);if(!old){e.resultId='';for(const sh of e.shots){sh.images=[];sh.videos=[];sh.selectedImageId='';sh.selectedVideoId='';}continue;}
   const oldNarration=before.narrationMode==='upstream'?old.narrationAssetId||'':'',newNarration=after.narrationMode==='upstream'?e.narrationAssetId||'':'';
-  let changed=global||e.text!==old.text||newNarration!==oldNarration||before.narrationMode!==after.narrationMode||hash(e.shots.map(x=>x.id))!==hash(old.shots.map(x=>x.id));
+  let changed=global||e.text!==old.text||newNarration!==oldNarration||before.narrationMode!==after.narrationMode||hash(storyAudioMix(before))!==hash(storyAudioMix(after))||hash(e.shots.map(x=>x.id))!==hash(old.shots.map(x=>x.id));
   for(const sh of e.shots){const os=old.shots.find(x=>x.id===sh.id),same=os&&!global&&e.text===old.text&&hash(shotInput(before,os))===hash(shotInput(after,sh));sh.images=(os?.images||[]).map(c=>same?c:{...c,status:'stale'});const sameVideo=same&&hash(videoInput(before,os))===hash(videoInput(after,sh));sh.videos=(os?.videos||[]).map(c=>sameVideo?c:{...c,status:'stale'});sh.selectedImageId=same?os.selectedImageId:'';sh.selectedVideoId=sameVideo?os.selectedVideoId:'';if(!sameVideo)changed=true;}
   e.resultId=changed?'':old.resultId;e.resultInputHash=changed?'':old.resultInputHash;e.resultNarrationAssetId=changed?'':old.resultNarrationAssetId;e.results=old.results||[];
  }
  return after;
 }
-module.exports={hash,uid,createStory,validateStory,assetInput,shotInput,videoInput,validateVideoControls,reconcile,frozenProductIcons};
+module.exports={hash,uid,createStory,validateStory,assetInput,shotInput,videoInput,validateVideoControls,reconcile,frozenProductIcons,storyAudioMix};

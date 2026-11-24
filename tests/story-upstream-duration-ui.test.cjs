@@ -28,6 +28,12 @@ test('真实StoryStudio模板可编译，音频计划面板和两位小数输入
  assert.match(f.descriptor.template.content,/class="story-eyebrow">\{\{props.productMode\?'产品介绍':'非口播创作'\}\}/);assert.doesNotMatch(f.descriptor.template.content,/PRODUCT INTRODUCTION|STORY STUDIO/);
 });
 
+test('真实合成面板原声控制兼容旧稿，自动20%及手动静音不改镜头设计',async t=>{
+ const f=await fixture(t,{withEpisode:true});assert.equal(f.vm.originalAudioMode.value,'custom');assert.equal(f.vm.originalAudioPercent.value,100);assert.equal(f.vm.story.value.originalAudioVolume,undefined);
+ const shots=JSON.parse(JSON.stringify(f.vm.story.value.episodes[0].shots));f.vm.originalAudioMode.value='auto';assert.equal(f.vm.story.value.originalAudioVolume,null);assert.equal(f.vm.originalAudioPercent.value,20);f.vm.story.value.narrationMode='none';assert.equal(f.vm.originalAudioPercent.value,100);f.vm.originalAudioPercent.value=0;assert.equal(f.vm.story.value.originalAudioVolume,0);assert.equal(f.vm.originalAudioMode.value,'custom');assert.deepEqual(f.vm.story.value.episodes[0].shots,shots);
+ f.busy.value='正在处理';f.vm.originalAudioPercent.value=80;assert.equal(f.vm.story.value.originalAudioVolume,0);assert.match(f.descriptor.template.content,/aria-label="镜头原声音量"/);assert.match(f.descriptor.template.content,/降低音量不能单独分离它们/);
+});
+
 test('真实5.30576秒第三步配音明确设置为5.31秒，只改拆集计划，不改变媒体或声音',async t=>{
  const f=await fixture(t);assert.equal(f.vm.upstreamTimingVisible.value,true);assert.equal(f.vm.upstreamNarrationDuration.value,5.30576);assert.equal(f.vm.plannedDurationLabel.value,'60.00 秒');assert.equal(f.vm.canUseUpstreamDuration.value,true);
  const original=JSON.parse(JSON.stringify(f.draft.value));f.vm.useUpstreamDuration();assert.equal(f.vm.story.value.episodeDuration,5.31);assert.equal(f.draft.value.voice.audioId,original.voice.audioId);assert.deepEqual(f.draft.value,original);assert.equal(f.calls.length,0);assert.match(f.notices[0][0],/5.31 秒/);assert.match(f.notices[0][0],/拆集、拆分镜头/);assert.equal(f.vm.canUseUpstreamDuration.value,false);

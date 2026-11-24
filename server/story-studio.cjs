@@ -1,4 +1,4 @@
-const {hash,uid,createStory,validateStory,assetInput,shotInput,videoInput,reconcile}=require('./story-contract.cjs');
+const {hash,uid,createStory,validateStory,assetInput,shotInput,videoInput,reconcile,storyAudioMix}=require('./story-contract.cjs');
 const {resolveCreativePreset,creativePresetPrompt}=require('./creative-presets.mjs');
 const {sourceUnits,restoreRanges}=require('./story-text-ranges.cjs');
 const field={type:'string'},object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false}),array=(items,min=0,max=100)=>({type:'array',items,minItems:min,maxItems:max});
@@ -245,7 +245,7 @@ class StoryStudio{
    catch{throw Error('当前集旁白文件不可读取，请重新导入或生成配音后合成');}
   }
   if(s.productIntroduction&&(!require('./product-introduction.cjs').currentIntroduction({store:this.store},this.store.draft(id),s)||narrationId!==s.productIntroduction.audioId||e.text!==s.sourceText||e.shots.map(sh=>sh.text.replace(/\s/g,'')).join('')!==s.sourceText.replace(/\s/g,'')))throw Error('产品镜头台词与确认稿或旁白不一致，请重新准备分镜，不能使用旧旁白');
-  return {draftId:null,episodeId,aspect:s.aspect,narration,
+  return {draftId:null,episodeId,aspect:s.aspect,narration,...(storyAudioMix(s)?{audioMix:storyAudioMix(s)}:{}),
    ...(s.productIntroduction?{productIntroduction:{version:1,productHash:s.productIntroduction.productHash,captions:s.productIntroduction.captions,audioSha256:s.productIntroduction.audioSha256,images:structuredClone(s.productIntroduction.images)}}:{}),
    shots:e.shots.map(sh=>{
     const c=sh.videos.find(c=>c.id===sh.selectedVideoId);if(!sh.selectedImageId||!c||c.status==='stale'||c.inputHash!==this.videoHash(s,sh)||c.creativePreset&&JSON.stringify(c.creativePreset)!==JSON.stringify(resolveCreativePreset(this.store.draft(id),'video')))throw Error('当前集存在未确认或已过期的镜头视频');

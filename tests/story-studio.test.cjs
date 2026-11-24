@@ -11,6 +11,20 @@ async function oneEpisode(f){const initial=createStory(f.d);initial.episodeDurat
 async function imageAndVideo(f,target){const image=await f.studio.generateImage({id:'draft',...target});await f.studio.selectImage({id:'draft',...target,imageId:image.material.id});const video=await f.studio.generateVideo({id:'draft',...target});await f.studio.selectVideo({id:'draft',...target,videoId:video.material.id});return video;}
 function narrationFile(t,f){const fs=require('node:fs'),path=require('node:path'),directory=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'story-narration-')),file=path.join(directory,'voice.wav');t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));fs.writeFileSync(file,Buffer.from('first-audio-content'));f.assets.get('narration').path=file;return file;}
 
+test('原声控制新稿自动20%且无旁白100%，旧稿合成输入不变，非法值不保存',async t=>{
+ const f=fixture(),target=await oneEpisode(f);narrationFile(t,f);await imageAndVideo(f,target);
+ assert.equal(f.d.story.originalAudioVolume,null);assert.equal(f.studio.composition(f.d.story,target.episodeId,'draft').audioMix.originalAudioVolume,1);
+ let s=structuredClone(f.d.story);s.narrationMode='upstream';await f.studio.save({id:'draft',story:s,revision:s.revision});assert.equal(f.studio.composition(f.d.story,target.episodeId,'draft').audioMix.originalAudioVolume,.2);
+ s=structuredClone(f.d.story);delete s.originalAudioVolume;await f.studio.save({id:'draft',story:s,revision:s.revision});assert(!Object.hasOwn(f.studio.composition(f.d.story,target.episodeId,'draft'),'audioMix'));
+ for(const volume of [-.1,1.1,NaN,'0.2']){s=structuredClone(f.d.story);s.originalAudioVolume=volume;const prior=structuredClone(f.d);await assert.rejects(f.studio.save({id:'draft',story:s,revision:s.revision}),/原声音量/);assert.deepEqual(f.d,prior);}
+});
+
+test('修改原声只使合成与交接失效，保留首帧和动态视频，执行中更改保留过期合成',async t=>{
+ const f=fixture(),target=await oneEpisode(f);narrationFile(t,f);await imageAndVideo(f,target);let s=structuredClone(f.d.story);s.narrationMode='upstream';await f.studio.save({id:'draft',story:s,revision:s.revision});await f.studio.composeEpisode({id:'draft',episodeId:target.episodeId});await f.studio.useEpisode({id:'draft',episodeId:target.episodeId});
+ const old=structuredClone(f.d.story.episodes[0]);s=structuredClone(f.d.story);s.originalAudioVolume=0;await f.studio.save({id:'draft',story:s,revision:s.revision});const e=f.d.story.episodes[0];assert.equal(e.resultId,'');assert.equal(f.d.edit.sourceId,'');assert.equal(e.shots[0].selectedImageId,old.shots[0].selectedImageId);assert.equal(e.shots[0].selectedVideoId,old.shots[0].selectedVideoId);assert.deepEqual(e.shots[0].videos,old.shots[0].videos);
+ const compose=f.generator.compose;f.generator.compose=async(...args)=>{const out=await compose(...args);const changed=structuredClone(f.d.story);changed.originalAudioVolume=.4;await f.studio.save({id:'draft',story:changed,revision:changed.revision});return out;};const result=await f.studio.composeEpisode({id:'draft',episodeId:target.episodeId});assert.equal(result.stale,true);assert.equal(f.d.story.episodes[0].resultId,'');assert.equal(f.d.story.episodes[0].results.at(-1).status,'stale');
+});
+
 test('同编号镜头视频替换后拒绝交接旧成片，执行中替换仅保留过期候选',async()=>{
  const f=fixture(),target=await oneEpisode(f);const video=await imageAndVideo(f,target);await f.studio.composeEpisode({id:'draft',episodeId:target.episodeId});const frozen=f.calls.at(-1).input.shots[0].sha256;assert.match(frozen,/^[a-f0-9]{64}$/);
  fixtureFs.writeFileSync(video.material.path,'新镜头内容');await assert.rejects(f.studio.useEpisode({id:'draft',episodeId:target.episodeId}),/匹配镜头/);

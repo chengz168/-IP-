@@ -28,6 +28,10 @@ const hasOutline=computed(()=>!!currentReport.value?.outline?.text);
 const sourceScriptLabel=computed(()=>hasOutline.value?'画面脚本（分析草案，可编辑）':'原始脚本（可编辑）');
 const contentTypeLabel=computed(()=>({'spoken':'口播或对白','music-visual':'音乐与画面叙事','mixed':'音画混合','uncertain':'类型暂不确定'}[currentReport.value?.analysis?.contentType]||'类型未提供'));
 const audioRoleLabel=computed(()=>{const role=currentReport.value?.analysis?.audioRole??currentReport.value?.audioRole;return typeof role==='string'?role:role?.description||role?.role||'';});
+const sourceAssetName=computed(()=>{const id=currentReport.value?.source?.assetId;const asset=id?state.value.assets.find(item=>item.id===id):null;return String(currentReport.value?.source?.title||asset?.name||currentReport.value?.source?.url||'本地参考视频');});
+const sourceOriginLabel=computed(()=>currentReport.value?.source?.url?'从链接提取':'本地导入');
+const sourceDurationLabel=computed(()=>{const raw=currentReport.value?.source?.duration,duration=Number(raw);return raw!==null&&raw!==undefined&&raw!==''&&Number.isFinite(duration)&&duration>=0?'时长 '+duration.toFixed(2)+' 秒':'时长未提供';});
+const sourceProvenanceLabel=computed(()=>sourceStale.value?'历史报告来源（仅供查看）':'参考原视频');
 const canUseScript=computed(()=>!!currentReport.value&&!factsDirty.value&&!sourceStale.value&&!!currentReportRunId.value&&selectedScript.value.trim().length>=20&&selectedScript.value.trim().length<=20000&&!(scriptMode.value==='created'&&(!createdRunId.value||created.value?.stale))&&!locked.value);
 
 function inputSnapshot(){const snapshot={taskId:d.value.id,sourceUrl:currentSourceUrl.value,assetId:localAsset.value?.id||''};for(const field of SIGNATURE_FIELDS)if(field!=='sourceUrl')snapshot[field]=d.value[field];return snapshot;}
@@ -110,7 +114,15 @@ onBeforeUnmount(()=>{alive=false;stopPolling();});
    <div class="reference-visual"><p class="hint">以下时间为实际画面采样点或采样范围，不代表镜头切换边界。</p><h5>画面观察 · {{visualStatusLabel(currentReport.visual?.status)}}</h5><p>{{currentReport.visual?.limitation||'没有可靠画面观察，不能推断完整剪辑。'}}</p><ul><li v-for="(item,index) in currentReport.visual?.observations||[]" :key="index">采样点 {{item.time==null?'时间未确定':Number(item.time).toFixed(2)+'s'}} · {{item.description}}</li></ul></div>
    <section v-if="currentReport.visual?.status==='succeeded'&&currentReport.visual.observations?.length" class="reference-facts" aria-label="参考实体事实核对">
     <div class="reference-facts-heading"><div><h5>实体事实核对</h5><p>模型可能认错物件、颜色和结构。对照原视频补充事实，原始画面观察继续保留；不确定的字段填写“不确定”。</p></div><span role="status">{{factsStatus}}</span></div>
-    <video v-if="currentReport.source?.assetId" ref="factsPlayer" class="reference-facts-video" :src="mediaUrl(currentReport.source.assetId)" controls preload="metadata" aria-label="用于核对实体的原始参考视频"/>
+    <div v-if="currentReport.source?.assetId" class="reference-facts-media" :class="{'is-stale':sourceStale}">
+     <div class="reference-facts-provenance" role="note" aria-label="参考视频来源说明">
+      <div class="reference-facts-provenance-title"><strong>{{sourceProvenanceLabel}}</strong><span>{{sourceOriginLabel}}</span></div>
+      <p>{{sourceAssetName}}</p>
+      <div class="reference-facts-provenance-meta"><span>{{sourceDurationLabel}}</span><span>用于分析核对，非本次生成结果</span></div>
+      <small v-if="sourceStale">当前输入已变化，此视频仅用于查看历史报告；请重新解析后再选用报告。</small>
+     </div>
+     <video ref="factsPlayer" class="reference-facts-video" :src="mediaUrl(currentReport.source.assetId)" controls preload="metadata" aria-label="用于核对实体的原始参考视频"/>
+    </div>
     <div class="reference-sample-links" aria-label="原片采样跳转"><button v-for="(item,sample) in currentReport.visual.observations" :key="sample" @click="seekSample(sample)">采样 {{sample+1}} · {{Number(item.time).toFixed(2)}} 秒</button></div>
     <div v-for="(fact,index) in visualFacts" :key="fact.id" class="reference-fact-row">
      <header><strong>实体 {{index+1}}</strong><button :disabled="locked||!canReviewFacts" :aria-label="'删除实体 '+(index+1)+' 核对'" @click="removeVisualFact(index)">删除</button></header>

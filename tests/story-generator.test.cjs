@@ -39,6 +39,26 @@ test('通用故事合成真实旁白摘要落盘，检查期间替换同长度�
  const count=store.data.assets.length,probe=generator.probe.bind(generator);let changed=false;generator.probe=async(file,ctx)=>{const data=await probe(file,ctx);if(file===narration&&!changed){changed=true;fs.copyFileSync(alternate,narration);}return data;};
  await assert.rejects(generator.compose(input),/检查期间旁白音频已变化/);assert(changed);assert.equal(store.data.assets.length,count);
 });
+
+test('真实FFmpeg混音按原声比例降低并启用峰值保护，旁白保持原响度',async t=>{
+ const value=await realFixture(t);if(!value)return;const {root,generator}=value,ffmpeg=generator.media.binaries().ffmpeg;
+ const narration=path.join(root,'narration-mix.wav');await runProcess(ffmpeg,['-v','error','-y','-f','lavfi','-i','sine=frequency=300:sample_rate=48000','-t','2',narration]);value.store.data.assets.push({id:'narration-mix',type:'audio',path:narration});
+ const base={aspect:'16:9',shots:[{shotId:'one',assetId:'red',duration:1},{shotId:'two',assetId:'blue',duration:1}],narration:{assetId:'narration-mix'},inputHash:'mix',revision:1};
+ const full=await generator.compose(base),reduced=await generator.compose({...base,audioMix:{version:1,originalAudioVolume:.2,limiter:.95}});
+ assert.deepEqual(reduced.storyGeneration.audioMix,{version:1,originalAudioVolume:.2,limiter:.95});assert.match(reduced.storyGeneration.audioPolicy,/scale-original-and-mix.*limiter/);
+ // 用不同频率区分旁白和原声，避免仅以总响度变小冒充旁白保真。
+ const samples=async(file,channels=1)=>{const raw=path.join(root,path.basename(file)+'.f32');await runProcess(ffmpeg,['-v','error','-y','-i',file,'-vn','-ss','0.2','-t','0.6','-ac',String(channels),'-ar','48000','-f','f32le',raw]);const bytes=fs.readFileSync(raw);return Array.from({length:Math.floor(bytes.length/4)},(_,i)=>bytes.readFloatLE(i*4));};
+ const amplitude=(audio,freq)=>{let re=0,im=0;for(let i=0;i<audio.length;i++){const angle=2*Math.PI*freq*i/48000;re+=audio[i]*Math.cos(angle);im+=audio[i]*Math.sin(angle);}return 2*Math.hypot(re,im)/audio.length;};
+ const fullAudio=await samples(full.path),reducedAudio=await samples(reduced.path),originalRatio=amplitude(reducedAudio,440)/amplitude(fullAudio,440),narrationRatio=amplitude(reducedAudio,300)/amplitude(fullAudio,300);
+ assert(originalRatio>.18&&originalRatio<.22,'原声440Hz应降到20%附近');assert(narrationRatio>.97&&narrationRatio<1.03,'旁白300Hz不应随原声一起变小');
+ const silent=await generator.compose({...base,audioMix:{version:1,originalAudioVolume:0,limiter:.95}}),silentAudio=await samples(silent.path);assert(amplitude(silentAudio,440)<amplitude(fullAudio,440)*.01,'0%应去除镜头原声');assert(amplitude(silentAudio,300)>amplitude(fullAudio,300)*.97);
+ // 构造相同高电平频率，检查相加超载时的峰值，而不是只检查有音轨。
+ const loudNarration=path.join(root,'loud-narration.wav'),loudShot=path.join(root,'loud-shot.mp4');await runProcess(ffmpeg,['-v','error','-y','-f','lavfi','-i','sine=frequency=440:sample_rate=48000','-af','volume=7','-t','1',loudNarration]);await runProcess(ffmpeg,['-v','error','-y','-f','lavfi','-i','color=c=green:s=64x48:r=24','-i',loudNarration,'-t','1','-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac',loudShot]);value.store.data.assets.push({id:'loud-shot',type:'video',path:loudShot},{id:'loud-narration',type:'audio',path:loudNarration});
+ const loud=await generator.compose({aspect:'16:9',shots:[{shotId:'loud-one',assetId:'loud-shot',duration:1}],narration:{assetId:'loud-narration'},audioMix:{version:1,originalAudioVolume:1,limiter:.95},inputHash:'loud',revision:1}),loudAudio=await samples(loud.path,2),peak=Math.max(...loudAudio.map(Math.abs));assert(peak>.8&&peak<1,'逐声道峰值保护经AAC解码后应仍留余量');
+ const noNarration=await generator.compose({...base,narration:null,audioMix:{version:1,originalAudioVolume:0,limiter:.95}}),muted=await samples(noNarration.path);assert(Math.max(...muted.map(Math.abs))<1e-6,'无旁白的0%原声也应静音');
+ t.diagnostic(JSON.stringify({originalRatio,narrationRatio,limitedDecodedPeak:peak,noNarrationMuted:true}));
+ const info=await generator.probe(reduced.path);assert(info.streams.some(row=>row.codec_type==='audio'));assert(Number(info.format.duration)>1.9&&Number(info.format.duration)<2.1);
+});
 test('成片登记解码期间旁白文件变化不落盘，保留输入文件',async t=>{
  const {root,store,generator}=fixture(t),narration=path.join(root,'narration.wav'),output=path.join(root,'episode.mp4');fs.writeFileSync(narration,'原旁白');fs.writeFileSync(output,'成片');store.data.assets.push({id:'narration',type:'audio',path:narration});const narrationSha256=require('node:crypto').createHash('sha256').update(fs.readFileSync(narration)).digest('hex');
  generator.verify=async()=>{fs.writeFileSync(narration,'新旁白');return {width:1024,height:576,duration:2};};await assert.rejects(generator.register(output,'video',{aspect:'16:9'},{narrationAssetId:'narration',narrationSha256}),/旁白音频已变化/);assert.equal(store.data.assets.length,1);assert(fs.existsSync(narration));assert(fs.existsSync(output));

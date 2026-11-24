@@ -8,8 +8,11 @@ export function upstreamStoryText(draft){return String(draft?.finalText||draft?.
 
 export function storyEditorValue(draft){
   const saved=draft?.story||{};
-  return copy({version:1,revision:0,sourceMode:'upstream',sourceText:upstreamStoryText(draft),episodeCount:1,episodeDuration:30,aspect:'9:16',style:'自然写实',instructions:'',narrationMode:'none',episodes:[],assets:[],...saved});
+  return copy({version:1,revision:0,sourceMode:'upstream',sourceText:upstreamStoryText(draft),episodeCount:1,episodeDuration:30,aspect:'9:16',style:'自然写实',instructions:'',narrationMode:'none',...(!draft?.story?{originalAudioVolume:null}:{}),episodes:[],assets:[],...saved});
 }
+
+// 旧稿未设置时显示原有100%，不在读取界面时自动迁移或使旧成片过期。
+export function storyOriginalAudioPercent(story){return Math.round((story.originalAudioVolume===undefined?1:story.originalAudioVolume===null?(story.narrationMode==='upstream'?.2:1):story.originalAudioVolume)*100);}
 
 // 单资产可直接作为本地主参考；多资产必须显式选择仍在绑定中的资产。
 export function storyPrimaryReferenceId(shot){
