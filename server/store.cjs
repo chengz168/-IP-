@@ -3,11 +3,11 @@ const path=require('node:path');
 const crypto=require('node:crypto');
 const {selectDefaultCopyId}=require('./prompt-default.mjs');
 
-const createDraft=()=>({id:crypto.randomUUID(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),step:0,tab:'extract',title:'新建创作任务',mode:'manual',sourceUrl:'',sourceText:'',rewrite:'',rewriteRequirements:'',finalText:'',confirmed:false,language:'中文',template:'default',wordLimit:'200',brain:{url:'',mode:'shallow'},topic:{industry:'',persona:'通用个人IP',audience:'',bio:''},marketing:{name:'',audience:'',selling:'',persona:'',offer:''},voice:{profile:'',model:'fast',speed:1,emotion:'',strength:0.5,prosodyReferenceId:'',audioId:''},video:{mode:'single',avatarId:'',audioId:'',model:'v2',shots:[],assetId:''},edit:{sourceId:'',volume:1,speed:1,titleEnabled:false,title:'',subtitle:'',titleStyle:'yellow',subtitlesEnabled:true,captions:[],cardEnabled:false,cardName:'',cardDescription:'',sfxEnabled:false,sfxId:'',bgmEnabled:false,bgmId:'',bgmVolume:0.3,pipEnabled:false,pipMode:'continuous',pipId:'',pipSize:0.35,pipPosition:'bottom-right',cutSilence:false,silenceThreshold:-35,silenceMinimum:.35,silencePadding:.09,subtitleStyle:'white',subtitleFontSize:48,subtitlePosition:'bottom',subtitleMargin:.055,subtitleMaxChars:18,resultId:''},cover:{template:'V0',backgroundId:'',frameTime:0,title:'',subtitle:'',color:'#ffffff',fontSize:76,y:0.5,mask:0.3,blur:0,layers:[],assetId:''},publish:{videoId:'',coverId:'',title:'',description:'',tags:[],accountIds:[],mode:'draft',recordId:''},artifacts:{}});
+const createDraft=()=>({id:crypto.randomUUID(),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),step:0,tab:'extract',title:'新建创作任务',mode:'manual',sourceUrl:'',sourceText:'',rewrite:'',rewriteRequirements:'',finalText:'',confirmed:false,language:'中文',template:'default',wordLimit:'200',brain:{url:'',mode:'shallow'},topic:{industry:'',persona:'通用个人IP',audience:'',bio:''},marketing:{name:'',audience:'',selling:'',persona:'',offer:''},voice:{profile:'',model:'fast',speed:1,emotion:'',strength:0.5,prosodyReferenceId:'',audioId:''},video:{mode:'single',routing:{policy:'auto',mode:'single',sourceHash:'',confidence:'low',reason:'等待确认最终文案后自动判断。',cues:[]},avatarId:'',audioId:'',model:'v2',shots:[],assetId:''},edit:{sourceId:'',volume:1,speed:1,titleEnabled:false,title:'',subtitle:'',titleStyle:'yellow',subtitlesEnabled:true,captions:[],cardEnabled:false,cardName:'',cardDescription:'',sfxEnabled:false,sfxId:'',bgmEnabled:false,bgmId:'',bgmVolume:0.3,pipEnabled:false,pipMode:'continuous',pipId:'',pipSize:0.35,pipPosition:'bottom-right',cutSilence:false,silenceThreshold:-35,silenceMinimum:.35,silencePadding:.09,subtitleStyle:'white',subtitleFontSize:48,subtitlePosition:'bottom',subtitleMargin:.055,subtitleMaxChars:18,resultId:''},cover:{template:'V0',backgroundId:'',frameTime:0,title:'',subtitle:'',color:'#ffffff',fontSize:76,y:0.5,mask:0.3,blur:0,layers:[],assetId:''},publish:{videoId:'',coverId:'',title:'',description:'',tags:[],accountIds:[],mode:'draft',recordId:''},artifacts:{}});
 const defaults=()=>({version:1,currentId:'',drafts:[],assets:[],voices:[],avatars:[],brains:[],accounts:[],runs:[],publishRecords:[],categories:['全部素材'],prompts:[{id:'default',name:'默认文案写作提示词',type:'copy',content:'根据用户提供的原文与要求改写文案。保留事实，不虚构数据，输出可直接用于口播的正文。',active:true}],settings:{theme:'default',fontSize:'comfortable',view:'new',mode:'cloud',outputDir:'',ffmpegPath:'',ffprobePath:'',provider:{textProtocol:'compatible',textMaxTokens:'2048',textContextTokens:'',ttsProtocol:'compatible',systemVoice:'',baseUrl:'',model:'',ttsModel:'',asrModel:'',asrProtocol:'compatible',asrPythonPath:'',asrModelPath:'',asrLanguage:'zh',voice:'',avatarUrl:'',cloneUrl:'',extractUrl:'',brainUrl:'',publishUrl:'',embeddingUrl:''}}});
 
 class Store{
-  constructor(root){this.root=root;fs.mkdirSync(root,{recursive:true});this.file=path.join(root,'studio.json');this.assetDir=path.join(root,'assets');fs.mkdirSync(this.assetDir,{recursive:true});this.data=this.load();if(!['compact','standard','comfortable','large'].includes(this.data.settings.fontSize))this.data.settings.fontSize='comfortable';for(const d of this.data.drafts){const base=createDraft();for(const key of ['brain','voice','video','edit','cover','publish'])d[key]={...base[key],...d[key]};}if(!this.data.drafts.length){const d=createDraft();d.template=selectDefaultCopyId(this.data);this.data.drafts.push(d);this.data.currentId=d.id;}this.recover();this.save();}
+  constructor(root){this.root=root;fs.mkdirSync(root,{recursive:true});this.file=path.join(root,'studio.json');this.assetDir=path.join(root,'assets');fs.mkdirSync(this.assetDir,{recursive:true});this.data=this.load();if(!['compact','standard','comfortable','large'].includes(this.data.settings.fontSize))this.data.settings.fontSize='comfortable';for(const d of this.data.drafts){const base=createDraft(),legacy=!d.video?.routing;for(const key of ['brain','voice','video','edit','cover','publish'])d[key]={...base[key],...d[key]};if(legacy)d.video.routing={policy:'manual',mode:d.video.mode,reason:'保留历史制作方式，可恢复自动识别。',cues:[]};}if(!this.data.drafts.length){const d=createDraft();d.template=selectDefaultCopyId(this.data);this.data.drafts.push(d);this.data.currentId=d.id;}this.recover();this.save();}
   load(){if(!fs.existsSync(this.file))return defaults();try{const base=defaults(),saved=JSON.parse(fs.readFileSync(this.file,'utf8'));return {...base,...saved,settings:{...base.settings,...saved.settings,provider:{...base.settings.provider,...saved.settings?.provider}}};}catch(e){throw new Error('本地数据无法读取，请从备份恢复。原文件已保留：'+e.message);}}
   recover(){
     for(const run of this.data.runs){
@@ -51,11 +51,29 @@ class Store{
     if(next.creativePreset!==undefined)next.creativePreset=require('./creative-presets.mjs').normalizeCreativeSelection(next.creativePreset);
     if(this.data.runs.some(r=>r.draftId===input.id&&r.type==='publish'&&['running','queued'].includes(r.status))&&require('./publish-jobs.cjs').signature(before)!==require('./publish-jobs.cjs').signature(next))throw Error('发布正在执行，请先停止并核对平台结果后修改发布内容');
     const {workflowActive,workflowInput}=require('./workflow-state.cjs'),active=workflowActive(this.data,input.id);
-    if(active&&options.workflowJobId!==active.id&&workflowInput(before)!==workflowInput(next))throw new Error('此任务的自动流程正在执行，请先停止后修改生产输入');
+    if(active&&options.workflowJobId!==active.id&&(workflowInput(before)!==workflowInput(next)||(before.video.routing?.policy||'manual')!==(next.video?.routing?.policy||before.video.routing?.policy||'manual')))throw new Error('此任务的自动流程正在执行，请先停止后修改生产输入');
     if(typeof next.sourceText!=='string'||typeof next.finalText!=='string'||!next.edit||!next.cover||!next.voice||!next.video||!next.publish)throw new Error('任务数据不完整');
     // 普通编辑撤销旧确认；服务端选用候选时可原子确认与当前稿完全一致的最终文案。
     const confirmedCopy=options.confirmCopy===true&&next.confirmed===true&&!!next.finalText.trim()&&next.finalText===(next.rewrite?.trim()?next.rewrite:next.sourceText);
     if((before.sourceText!==next.sourceText||before.rewrite!==next.rewrite)&&!confirmedCopy)next.confirmed=false;
+    // 老草稿无路由来源记录，首次迁移按用户现有选择保留为手动，避免悄悄切换制作方式。
+    if(!before.video.routing)next.video.routing={policy:'manual',mode:before.video.mode||'single',sourceHash:'',confidence:'low',reason:'沿用历史手动选择；可在视频页开启自动识别。',cues:[]};
+    else if(!next.video.routing)next.video.routing=structuredClone(before.video.routing);
+    if(!next.video.routing||!['auto','manual'].includes(next.video.routing.policy)||!['single','multi','story','product'].includes(next.video.mode))throw new Error('视频制作方式选择无效');
+    // 兼容旧界面直接切模式；明确切换优先于自动判断，恢复自动必须显式更改策略。
+    if(before.video.routing?.policy===next.video.routing.policy&&(next.video.mode!==before.video.mode||before.video.routing.mode&&before.video.mode!==before.video.routing.mode))next.video.routing.policy='manual';
+    const selectRoute=before.finalText!==next.finalText||!before.confirmed&&next.confirmed||before.video.routing?.policy!==next.video.routing.policy;
+    if(selectRoute||before.video.mode!==next.video.mode)require('./video-routing.cjs').applyVideoRoute(next,{select:selectRoute});
+    if(options.confirmCopy&&['story','product'].includes(next.video.mode)&&!next.video.assetId&&!next.edit.sourceId)next.step=3;
+    // 展示型稿件首次进入分镜时，沿用上游正文及旁白；已有分集和独立剧本绝不重建。
+    if(next.video.mode==='story'&&next.video.routing.policy==='auto'&&!before.story){
+      next.story=require('./story-contract.cjs').createStory(next);
+      if(next.video.routing.kind==='demonstration'||next.video.routing.kind==='narrative'){
+        next.story.narrationMode='upstream';
+        const audio=before.finalText===next.finalText?this.data.assets.find(asset=>asset.id===next.voice.audioId&&asset.type==='audio'):null;
+        if(Number.isFinite(audio?.duration)&&audio.duration>=4&&audio.duration<=600)next.story.episodeDuration=audio.duration;
+      }
+    }
     // 辅助文本仅属于生成时的原文，改字后不能沿用旧译文或旧关键词。
     for(const row of next.edit.captions||[])if(row.auxiliary&&row.auxiliary.sourceText!==row.text)delete row.auxiliary;
     if(next.edit.subtitleProofread){const proof=next.edit.subtitleProofread,{hash}=require('./subtitle-proofread.cjs'),reference=require('./subtitle-reference.mjs').trustedSubtitleReference(next,this.data,hash);if(!reference||hash(JSON.stringify(next.edit.captions))!==proof.captionsSha256||hash(reference.text)!==proof.referenceSha256||(next.edit.sourceId||next.video.assetId)!==proof.sourceId)delete next.edit.subtitleProofread;}
@@ -66,8 +84,12 @@ class Store{
     if(voiceChanged)next.voice.audioId='';
     const independentStory=before.video.mode==='story'&&next.video.mode==='story'&&!require('./story-links.cjs').usesUpstreamNarration(next);
     const storyVideoFields=['assetId','avatarId','audioId','model','shots'];
-    const videoChanged=(!independentStory&&(voiceChanged||before.voice.audioId!==next.voice.audioId))||without(before.video,independentStory?storyVideoFields:['assetId'])!==without(next.video,independentStory?storyVideoFields:['assetId']);
+    const videoChanged=(!independentStory&&(voiceChanged||before.voice.audioId!==next.voice.audioId))||without(before.video,independentStory?[...storyVideoFields,'routing']:['assetId','routing'])!==without(next.video,independentStory?[...storyVideoFields,'routing']:['assetId','routing']);
     if(videoChanged)next.video.assetId='';
+    // 自动切换制作链路时撤销上一次生成视频的剪辑源，避免旧口播跳过新分镜。
+    if(videoChanged&&before.video.mode!==next.video.mode&&next.edit.sourceId&&[before.video.assetId,before.edit.resultId].filter(Boolean).includes(next.edit.sourceId)){
+      next.edit.sourceId='';next.cover.assetId='';next.cover.videoId='';next.publish.videoId='';next.publish.coverId='';
+    }
     require('./story-links.cjs').invalidateStoryHandoff(before,next);
     // 商品成片绑定确认稿、商品资料与配音，修改上游后撤销旧交接，媒体文件仍留在素材库。
     if(before.productSelection&&(before.finalText!==next.finalText||!next.confirmed||before.language!==next.language||before.voice.audioId!==next.voice.audioId||without(before.voice,['audioId'])!==without(next.voice,['audioId'])||JSON.stringify(before.product)!==JSON.stringify(next.product)||before.video.mode!==next.video.mode)){

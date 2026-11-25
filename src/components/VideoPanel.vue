@@ -27,11 +27,34 @@ const total=computed(()=>shotTotal(d.value.video.shots));
 // 生成前明确提示缺失输入，与原版无驱动音频时的禁用状态一致。
 const generationReason=computed(()=>!audioId.value?'请先选择驱动音频':d.value.video.mode==='multi'?!d.value.video.shots.length?'请先配置镜头':d.value.video.shots.some(shot=>!shot.avatarId)?'请为每个镜头选择形象':'':!d.value.video.avatarId?'请先选择形象':'');
 const selectedAvatar=computed(()=>state.value.avatars.find(avatar=>avatar.id===d.value.video.avatarId)||null);
+const routeNames={single:'单形象口播',multi:'多镜头口播',story:'分镜创作',product:'商品宣传'};
+const routeLabel=computed(()=>d.value.video.routing?.policy==='manual'?'手动选择：'+routeNames[d.value.video.mode]:'自动选择：'+routeNames[d.value.video.mode]);
+const routeConfidence=computed(()=>({high:'依据较明确',medium:'建议核对',low:'类型待核对'})[d.value.video.routing?.confidence]||'等待识别');
 function mode(value){if(locked.value)return;d.value.video.mode=value;if(value==='multi'&&!d.value.video.shots.length)d.value.video.shots=[{avatarId:d.value.video.avatarId||state.value.avatars[0]?.id||'',duration:10}];}
+async function automaticRouting(){if(locked.value)return;const id=d.value.id,previous=structuredClone(JSON.parse(JSON.stringify(d.value.video.routing||{})));d.value.video.routing={...previous,policy:'auto'};try{await save();}catch(error){if(d.value.id===id)d.value.video.routing=previous;notify(error.message,'error');}}
+function manualRouting(){if(locked.value)return;d.value.video.routing={...(d.value.video.routing||{}),policy:'manual',mode:d.value.video.mode};}
 async function editShots(){if(locked.value)return;try{await save();shotSignature.value=shotInputSignature(d.value);shotEditor.value=true;}catch(e){notify(e.message,'error');}}
 </script>
 <template>
-  <div class="video-mode-toolbar"><div class="segmented" role="tablist" aria-label="视频创作方式"><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='single'" :class="{active:d.video.mode==='single'}" @click="mode('single')">单形象</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='multi'" :class="{active:d.video.mode==='multi'}" @click="mode('multi')">多镜头口播</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='story'" :class="{active:d.video.mode==='story'}" @click="mode('story')">非口播创作</button><button :disabled="locked" role="tab" :aria-selected="d.video.mode==='product'" :class="{active:d.video.mode==='product'}" @click="mode('product')">商品宣传</button></div><p v-if="d.video.mode==='story'">文案 → 分集分镜 → 资产图片 → 镜头视频 → 后续剪辑</p><p v-else-if="d.video.mode==='product'">商品详情与素材 → 确认脚本 → 配音 → 动态产品镜头 → 后续剪辑</p></div>
+  <div class="video-mode-toolbar">
+    <div class="segmented" role="tablist" aria-label="视频创作方式">
+      <button :disabled="locked" role="tab" :aria-selected="d.video.mode==='single'" :class="{active:d.video.mode==='single'}" @click="mode('single');manualRouting()">单形象</button>
+      <button :disabled="locked" role="tab" :aria-selected="d.video.mode==='multi'" :class="{active:d.video.mode==='multi'}" @click="mode('multi');manualRouting()">多镜头口播</button>
+      <button :disabled="locked" role="tab" :aria-selected="d.video.mode==='story'" :class="{active:d.video.mode==='story'}" @click="mode('story');manualRouting()">非口播创作</button>
+      <button :disabled="locked" role="tab" :aria-selected="d.video.mode==='product'" :class="{active:d.video.mode==='product'}" @click="mode('product');manualRouting()">商品宣传</button>
+    </div>
+    <p v-if="d.video.mode==='story'">文案 → 分集分镜 → 资产图片 → 镜头视频 → 后续剪辑</p>
+    <p v-else-if="d.video.mode==='product'">商品详情与素材 → 确认脚本 → 配音 → 动态产品镜头 → 后续剪辑</p>
+    <div class="video-route-note" role="status" aria-label="文案制作方式识别">
+      <div><strong>{{routeLabel}}</strong><span v-if="d.video.routing?.policy==='auto'"> · {{routeConfidence}}</span>
+        <p>{{d.video.routing?.reason||'确认最终文案后自动识别。'}}</p>
+        <small v-if="d.video.routing?.policy==='manual'&&d.video.routing?.suggestion">自动建议：{{routeNames[d.video.routing.recommendedMode]}} · {{d.video.routing.suggestion}}</small>
+        <small v-if="d.video.routing?.cues?.length">依据：{{d.video.routing.cues.join('；')}}</small>
+      </div>
+      <button v-if="d.video.routing?.policy==='manual'" :disabled="locked" @click="automaticRouting">恢复自动识别</button>
+      <button v-else :disabled="locked" @click="manualRouting">手动调整</button>
+    </div>
+  </div>
   <StoryStudio v-if="d.video.mode==='story'" :key="d.id"/>
   <ProductStudio v-else-if="d.video.mode==='product'" :key="d.id" phase="video"/>
   <template v-else>

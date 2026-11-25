@@ -12,6 +12,8 @@ class WorkflowJobs{
  available(id,type){try{const a=this.store.asset(id);return a.type===type&&fs.statSync(a.path).size>0;}catch{return false;}}
  plan(id){
   const d=this.store.draft(id),p=this.store.data.settings.provider,stages=[],issues=[];
+  const route=require('./video-routing.cjs').effectiveVideoRoute(d);
+  if(route.policy==='auto'&&['story','product'].includes(route.mode)&&!this.available(d.edit.sourceId||d.video.assetId,'video'))return {draftId:id,stages,issues:[`当前文案自动选择${route.mode==='story'?'非口播分镜创作':'商品宣传'}，请进入第四步完成镜头并选用成片，再执行后续剪辑。判断依据：${route.reason}`]};
   if(d.video.mode==='story'&&!this.available(d.edit.sourceId||d.video.assetId,'video'))issues.push('请先在第四步非口播创作中完成当前集并选用，再自动执行剪辑、封面与发布信息');
   if(d.video.mode==='product'&&(!d.productSelection||d.productSelection.baseId!==(d.edit.sourceId||d.video.assetId)||!this.available(d.edit.sourceId||d.video.assetId,'video')))return {draftId:id,stages,issues:['请先在第四步商品宣传中生成并选用商品视频，再自动执行剪辑、封面与发布信息']};
   const add=(key,action,reason='')=>stages.push({key,name:names[key],action,reason,status:'pending',runId:'',assetId:'',error:''});

@@ -5,7 +5,7 @@ const stageIndices={speech:2,avatar:3,transcribe:4,render:4,title:5,frame:5,cove
 function ordered(value){if(Array.isArray(value))return value.map(ordered);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().filter(key=>value[key]!==undefined).map(key=>[key,ordered(value[key])]));return value;}
 const signature=value=>JSON.stringify(ordered(value));
 function completedDraft(job){try{const value=JSON.parse(job.expectedInput);return value&&typeof value==='object'&&!Array.isArray(value)?value:null;}catch{return null;}}
-export function productionSignature(draft){const cover={...draft.cover};delete cover.videoId;return signature({confirmed:draft.confirmed,finalText:draft.finalText,voice:draft.voice,video:draft.video,edit:draft.edit,cover});}
+export function productionSignature(draft){const cover={...draft.cover},video={...draft.video};delete cover.videoId;delete video.routing;return signature({confirmed:draft.confirmed,finalText:draft.finalText,voice:draft.voice,video,edit:draft.edit,cover});}
 
 export function skippedVoice(job,draft,videoAvailable){
  const snapshot=completedDraft(job),speech=job?.stages?.find(stage=>stage.key==='speech'),avatar=job?.stages?.find(stage=>stage.key==='avatar');

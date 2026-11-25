@@ -93,7 +93,7 @@ async function transcribe(){
 }
 async function openSubtitleEditor(){if(busy.value||workflowLocked.value)return;try{await save();}catch(error){notify(error.message,'error');return;}if(!sourceVideo.value){notify('请先选择视频');return;}showCaptionEditor();}
 async function exportPack(){const r=await act('导出发布包',()=>call('exportPackage',{id:d.value.id}));if(r){d.value.publish.recordId=r.id;showDialog('发布包已导出',r.directory+'\n已包含真实视频和发布信息，尚未上传到平台。');}}
-async function next(){if(busy.value||workflowLocked.value||stepNavigating.value)return;if(activeStep.value===1){if(!await confirmCopy())return;if(['auto','background'].includes(d.value.mode))return;}if(activeStep.value===5&&!d.value.cover.assetId){const generated=await coverEditor.value?.generate();if(!generated)return;}const generateCoverTitle=activeStep.value===4;if(activeStep.value<6&&!await goStep(activeStep.value+1))return;if(generateCoverTitle){await nextTick();await coverEditor.value?.generateTitle();}}
+async function next(){if(busy.value||workflowLocked.value||stepNavigating.value)return;if(activeStep.value===1){if(!await confirmCopy())return;if(activeStep.value!==1||['auto','background'].includes(d.value.mode))return;}if(activeStep.value===5&&!d.value.cover.assetId){const generated=await coverEditor.value?.generate();if(!generated)return;}const generateCoverTitle=activeStep.value===4;if(activeStep.value<6&&!await goStep(activeStep.value+1))return;if(generateCoverTitle){await nextTick();await coverEditor.value?.generateTitle();}}
 function formatTime(n){return Number(n||0).toFixed(2);}
 </script>
 <template>

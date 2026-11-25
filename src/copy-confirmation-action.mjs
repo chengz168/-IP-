@@ -23,7 +23,14 @@ export async function confirmCopyAction({draft,save,act,call,notify,startWorkflo
   if(result.id!==id||!confirmationMatches(confirmationInput(result),draft.value)||!draft.value.confirmed||draft.value.mode!==mode){
    notify('文案确认已保存，但当前编辑或任务已变化，未启动后续处理，请重新核对');return false;
   }
-  if(['auto','background'].includes(mode))await startWorkflow(mode,id);
+  if(['story','product'].includes(result.video?.mode)&&!result.video.assetId&&!result.edit?.sourceId){
+   // 分镜和商品尚未交接成片时转入对应工作台，不误启动人物口型或把准备步骤报成失败。
+   draft.value.step=3;
+   try{await save();}catch(error){notify('文案已确认，制作步骤保存失败：'+error.message,'error');return false;}
+   if(draft.value.id!==id)return false;
+   notify(result.video.mode==='story'?'文案已确认，已进入分镜创作。请拆分镜头、确认资产并生成镜头视频。':'文案已确认，已进入商品宣传。请核对镜头并生成产品视频。','success');
+  }
+  else if(['auto','background'].includes(mode))await startWorkflow(mode,id);
   else notify('已确认为最终文案','success');
   return true;
  }finally{pending.delete(draft);}

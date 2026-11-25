@@ -7,6 +7,8 @@ function fileStamp(asset){
  return {assetId:asset.id,path:asset.path,type:asset.type,size:stat.size,mtimeMs:stat.mtimeMs};
 }
 function avatarContext(store,draft){
+ const route=require('./video-routing.cjs').effectiveVideoRoute(draft);
+ if(['story','product'].includes(draft.video.mode)||route.policy==='auto'&&['story','product'].includes(route.mode))throw Error(`当前文案使用分镜创作或商品宣传，不能直接走人物口型生成；请先进入对应制作流程，或明确手动选择口播。判断依据：${route.reason}`);
  const avatarUrl=(store.data.settings.provider.avatarUrl||'').trim();
  const muse=store.data.settings.provider.avatarProtocol==='musetalk-local';
  const musetalkHome=String(store.data.settings.provider.musetalkHome||'').trim();
