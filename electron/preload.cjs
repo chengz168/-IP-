@@ -16,6 +16,7 @@ actions.add('checkLocalLipSync');
 for(const action of ['ensureLocalEnvironment','saveLocalEnvironment'])actions.add(action);
 actions.add('discoverModels');actions.add('cancelModelDiscovery');
 actions.add('checkVoiceDesign');actions.add('designVoice');actions.add('saveDesignedVoice');
+actions.add('listVoicePresets');actions.add('prepareVoicePreset');
 actions.add('importVoiceSample');
 actions.add('prepareVoiceSample');actions.add('trimVoiceSample');
 actions.add('queryAvatarResult');

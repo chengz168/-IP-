@@ -4,15 +4,16 @@ import I from './Icon.vue';
 import DropdownSelect from './DropdownSelect.vue';
 import MediaPreview from './MediaPreview.vue';
 import VoiceUpload from './VoiceUpload.vue';
+import VoicePresetLibrary from './VoicePresetLibrary.vue';
 import {useVoiceControls} from '../use-voice-controls.mjs';
 const emit=defineEmits(['generate','choose']);
 const previewAudio=ref();
 const voiceId=useId();
-const {d,state,advanced,upload,voiceError,loading,playing,previewing,capabilities,locked,selected,options,generationReason,emotionItems,stop,preview,loadVoices,generate}=useVoiceControls({emit,previewAudio});
+const {d,state,advanced,upload,presets,voiceError,loading,playing,previewing,capabilities,locked,selected,options,generationReason,emotionItems,stop,preview,loadVoices,generate}=useVoiceControls({emit,previewAudio});
 </script>
 <template>
  <article class="legacy-card legacy-voice">
-  <header><span><I name="Volume2"/></span><h3>3. 声音生成</h3><button class="text-button" :disabled="locked" @click="stop();upload=true">上传声音</button></header>
+  <header><span><I name="Volume2"/></span><h3>3. 声音生成</h3><div class="voice-heading-actions"><button class="text-button" :disabled="locked||!capabilities.local" @click="stop();presets=true">预设声音</button><button class="text-button" :disabled="locked" @click="stop();upload=true">上传声音</button></div></header>
   <div class="legacy-card-body">
    <label :for="voiceId">选择声音</label>
    <div class="legacy-voice-choice"><DropdownSelect :id="voiceId" v-model="selected" :options="options" :disabled="locked||loading" variant="voice" aria-label="旧工作流选择声音"/><button class="legacy-voice-audition" :disabled="(locked&&!playing)||loading||previewing" :aria-label="playing?'停止试听':'试听当前声音'" :title="previewing?'正在合成试听':playing?'停止试听':'试听当前声音'" @click="preview"><I :name="previewing?'LoaderCircle':playing?'Square':'PlayCircle'" :class="{spin:previewing}" :size="19"/></button></div>
@@ -32,4 +33,5 @@ const {d,state,advanced,upload,voiceError,loading,playing,previewing,capabilitie
   <audio ref="previewAudio" class="voice-preview-player" aria-hidden="true" preload="metadata"/>
  </article>
  <VoiceUpload v-if="upload" @close="upload=false"/>
+ <VoicePresetLibrary v-if="presets" @close="presets=false" @select="id=>selected='sample:'+id"/>
 </template>

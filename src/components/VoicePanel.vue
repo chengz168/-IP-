@@ -4,15 +4,16 @@ import I from './Icon.vue';
 import DropdownSelect from './DropdownSelect.vue';
 import MediaPreview from './MediaPreview.vue';
 import VoiceUpload from './VoiceUpload.vue';
+import VoicePresetLibrary from './VoicePresetLibrary.vue';
 import {useVoiceControls} from '../use-voice-controls.mjs';
 const emit=defineEmits(['choose','generate','translate']);
 const previewAudio=ref();
-const {d,state,workflowLocked,advanced,upload,voiceError,loading,playing,previewing,capabilities,locked,selected,options,generationReason,emotionItems,emotionLabel,stop,preview,loadVoices,generate}=useVoiceControls({emit,previewAudio});
+const {d,state,workflowLocked,advanced,upload,presets,voiceError,loading,playing,previewing,capabilities,locked,selected,options,generationReason,emotionItems,emotionLabel,stop,preview,loadVoices,generate}=useVoiceControls({emit,previewAudio});
 </script>
 <template>
  <div class="voice-columns voice-studio">
   <article class="card text-card voice-copy"><div class="card-heading"><h3>最终文案</h3><div class="voice-language"><DropdownSelect v-model="d.language" aria-label="语言" variant="voice" :disabled="locked" :options="['中文','英语','日语','韩语','西班牙语']"/><button :disabled="locked||!d.finalText.trim()" @click="emit('translate')">翻译</button></div></div><div class="voice-copy-editor"><textarea v-model="d.finalText" class="large-text" :readonly="workflowLocked" aria-label="最终文案" placeholder="请输入最终配音文案"></textarea><span class="word-count" :class="{over:d.finalText.length>1500}" :title="'参考界面计数提示；当前引擎实际支持10000字以内'">{{d.finalText.length}} / 1500 字</span></div><p class="hint">配音将使用这里的最终文案生成，修改后会清空旧配音结果。当前引擎最多支持10000字。</p></article>
-  <div class="stack voice-stack"><article class="card voice-config"><div class="card-heading"><h3>声音配置</h3><button class="pill" :disabled="locked" @click="stop();upload=true">上传声音</button></div>
+  <div class="stack voice-stack"><article class="card voice-config"><div class="card-heading"><h3>声音配置</h3><div class="voice-heading-actions"><button class="pill" :disabled="locked||!capabilities.local" :title="capabilities.local?'选择本地预设音色':'本地预设用于本地 IndexTTS 配音'" @click="stop();presets=true">预设声音</button><button class="pill" :disabled="locked" @click="stop();upload=true">上传声音</button></div></div>
    <div class="voice-choice-row"><DropdownSelect v-model="selected" :disabled="locked||loading" :options="options" variant="voice" aria-label="选择声音"/><button class="voice-audition" :disabled="(locked&&!playing)||loading||previewing" :title="playing?'停止试听':previewing?'正在合成试听':'试听当前声音'" :aria-label="playing?'停止试听':'试听当前声音'" @click="preview"><I :name="previewing?'LoaderCircle':playing?'Square':'PlayCircle'" :class="{spin:previewing}" :size="19"/></button></div>
    <p v-if="voiceError" class="voice-error" role="alert">{{voiceError}} <button class="text-button" :disabled="locked" @click="loadVoices">重新读取</button></p>
    <div class="voice-model-row"><strong>生成模型</strong><div class="voice-models" role="group" aria-label="声音生成模型" :title="capabilities.modelRouting?'按设置中的真实模型ID选择':'当前引擎没有两个不同的模型路由'"><button v-for="[id,label] in [['classic','经典模型'],['fast','快速模型']]" :key="id" :class="{active:d.voice.model===id}" :aria-pressed="d.voice.model===id" :disabled="locked||!capabilities.modelRouting" @click="d.voice.model=id">{{label}}</button></div></div>
@@ -24,4 +25,5 @@ const {d,state,workflowLocked,advanced,upload,voiceError,loading,playing,preview
  </div>
  <audio ref="previewAudio" class="voice-preview-player" aria-hidden="true" preload="metadata"/>
  <VoiceUpload v-if="upload" @close="upload=false"/>
+ <VoicePresetLibrary v-if="presets" @close="presets=false" @select="id=>selected='sample:'+id"/>
 </template>

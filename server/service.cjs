@@ -160,7 +160,7 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
   let settingsSaving=false;
   const service={store,media,runtime,providers,handlers,publisher,localEnvironment,renderCover:options.renderCover,extractReferenceSource,async invoke(action,p={}){
     if(!Object.hasOwn(handlers,action))throw new Error('不支持的操作');
-    if(['speech','testSpeech','avatar','avatarOptimize','generateAvatarBackground','designVoice','generateStoryImage','generateStoryAssetImages','generateStoryVideo','startWorkflow','checkLocalLipSync','saveSettings','saveStoryModels','backup','restoreBackup'].includes(action)&&store.data.runs.some(r=>['avatar-optimize','avatar-background'].includes(r.type)&&['running','queued'].includes(r.status)))throw Error('形象优化正在执行，请等待完成或停止后继续');
+    if(['speech','testSpeech','avatar','avatarOptimize','generateAvatarBackground','designVoice','prepareVoicePreset','generateStoryImage','generateStoryAssetImages','generateStoryVideo','startWorkflow','checkLocalLipSync','saveSettings','saveStoryModels','backup','restoreBackup'].includes(action)&&store.data.runs.some(r=>['avatar-optimize','avatar-background'].includes(r.type)&&['running','queued'].includes(r.status)))throw Error('形象优化正在执行，请等待完成或停止后继续');
     if(['speech','testSpeech','avatar','avatarOptimize','generateAvatarBackground','startWorkflow','checkLocalSpeech','checkLocalLipSync','generateStoryImage','generateStoryAssetImages','generateStoryVideo'].includes(action)&&store.data.runs.some(run=>run.type==='voice-design'&&run.status==='running'))throw Error('自主音色模型正在生成，请等待或停止后再使用声音、视频模型');
     if(['saveSettings','backup','restoreBackup','saveStoryModels','saveLocalEnvironment'].includes(action)&&service.batchExtraction.batches().some(batch=>['queued','running','stopping'].includes(batch.status)))throw Error('批量提取正在执行，请先等待完成或停止后修改设置、备份或恢复');
     if(['analyzeReferenceVideo','createReferenceScript','useReferenceScript','confirmReferenceVisualFacts','detachReferenceSource'].includes(action)&&service.batchExtraction.batches().some(batch=>batch.draftId===p.id&&['queued','running','stopping','unknown'].includes(batch.status)))throw Error('该任务批量提取正在执行或结果待确认，请先等待、停止或核对原任务');
@@ -170,7 +170,7 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
     const jobs=store.data.workflowJobs||[],active=jobs.some(j=>['queued','running','stopping'].includes(j.status));
     if(active&&['saveSettings','saveAppearance','backup','restoreBackup'].includes(action))throw new Error('自动流程正在执行，请停止或等待完成后修改设置、备份或恢复');
     const protectedActions=['startExtractBatch','useExtractBatchItem','analyzeReferenceVideo','createReferenceScript','useReferenceScript','confirmReferenceVisualFacts','detachReferenceSource','confirmCopy','copyTopics','copyCandidates','useCopyCandidate','analyzeMaterial','text','extract','speech','trainVoice','avatar','avatarOptimize','render','transcribe','frame','saveCover','coverVideo','importCaptions','saveSubtitleStyle','subtitleAuxiliary','generateEditTitle','brainStudy','brainReview','brainTopics','brainCopies','selectBrain','useBrainCopy','publish','preparePublish','reviewPublish','exportPackage','deleteDraft'];
-    if(p.id&&(protectedActions.includes(action)||['saveVideoShots','testSpeech','prepareVoiceSample','trimVoiceSample','importVoiceSample','importRecording','designVoice','saveDesignedVoice'].includes(action))&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后手动操作');
+    if(p.id&&(protectedActions.includes(action)||['saveVideoShots','testSpeech','prepareVoiceSample','trimVoiceSample','importVoiceSample','importRecording','designVoice','saveDesignedVoice','prepareVoicePreset'].includes(action))&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后手动操作');
     if(p.id&&/Story/.test(action)&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后编辑非口播内容');
     if(['proofreadSubtitles','applySubtitleProofread','restoreCaptionHistory'].includes(action)&&require('./workflow-state.cjs').workflowActive(store.data,p.id))throw new Error('该任务的自动流程正在执行，请先停止后校对或恢复字幕');
     if(['saveSettings','saveAppearance','saveStoryModels','saveLocalEnvironment','saveCoverDefault','restoreBackup'].includes(action)){
@@ -187,6 +187,8 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
   service.pipMatching=new (require('./pip-matching.cjs').PipMatching)(service);
   const voiceDesign=new (require('./voice-design.cjs').VoiceDesign)(service);service.voiceDesign=voiceDesign;
   handlers.checkVoiceDesign=()=>voiceDesign.check();handlers.designVoice=p=>voiceDesign.generate(p);handlers.saveDesignedVoice=p=>voiceDesign.save(p);
+  const voicePresets=new (require('./voice-presets.cjs').VoicePresets)(service);service.voicePresets=voicePresets;
+  handlers.listVoicePresets=()=>voicePresets.list();handlers.prepareVoicePreset=p=>voicePresets.prepare(p);
   const workflows=new (require('./workflow-jobs.cjs').WorkflowJobs)(service);service.workflows=workflows;
   handlers.planWorkflow=async({id})=>workflows.plan(id);
   handlers.startWorkflow=async({id,mode})=>workflows.enqueue(id,mode);
