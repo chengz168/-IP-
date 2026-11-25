@@ -20,6 +20,12 @@ test('兼容文本截断保留原始片段与计费信息，不接受结果或�
   });
 });
 
+test('本地思考用尽上限而没有正文时保留终止证据并说明真实原因',async()=>{
+ const provider=new Providers({data:{settings:{provider:{baseUrl:'http://127.0.0.1:11434/v1',model:'installed',textProtocol:'ollama'}}}},null,{get:async()=>''});
+ provider.request=async()=>({json:async()=>({message:{content:'',thinking:'不写入执行证据的内部思考'},done_reason:'length',prompt_eval_count:110,eval_count:2048})});
+ await assert.rejects(provider.text('要求','原稿',{}, {thinking:true}),error=>{assert.match(error.message,/尚未生成正文/);assert.equal(error.evidence.finishReason,'length');assert.equal(error.evidence.usage.completion_tokens,2048);assert.equal(error.evidence.rawProviderText,'');assert(!JSON.stringify(error.evidence).includes('内部思考'));return true;});
+});
+
 test('截断证据经领域错误合并与运行记录保存仍可查，旧稿保持不变',async t=>{
   const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{Store}=require('../server/store.cjs'),{Runtime}=require('../server/runtime.cjs');
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'provider-truncation-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
@@ -44,4 +50,14 @@ test('系统朗读选择克隆音色时明确拒绝，不静默替代',async()=>
 test('ASS字幕保留画布尺寸、按速度缩放时间，并转义样式注入',()=>{
   const result=toAss([{start:1,end:3,text:'{\\pos(0,0)}正文\n下一行'}],1080,1920,{speed:2,marginV:500});
   assert.match(result,/PlayResX: 1080/);assert.match(result,/PlayResY: 1920/);assert.match(result,/00:00:00.50,00:00:01.50/);assert.ok(!result.includes('{\\pos'));assert.match(result,/正文\\N下一行/);
+});
+
+
+test('本地复杂改写可显式启用思考，执行参数留证且兼容云协议不混入本地字段',async()=>{
+ const config={baseUrl:'http://127.0.0.1:11434/v1',model:'installed',textProtocol:'ollama',textMaxTokens:'2048'};
+ const provider=new Providers({data:{settings:{provider:config}}},null,{get:async()=>''});let body;
+ provider.request=async(url,options)=>{body=JSON.parse(options.body);return {json:async()=>({message:{content:'完整正文'},done_reason:'stop',choices:[{message:{content:'完整正文'},finish_reason:'stop'}]})};};
+ const result=await provider.text('说明','材料',{}, {thinking:true,presencePenalty:0});assert.equal(body.think,true);assert.equal(body.options.presence_penalty,0);assert.equal(result.request.parameters.think,true);assert.equal(result.request.parameters.presence_penalty,0);
+ config.textProtocol='compatible';await provider.text('说明','材料',{}, {thinking:true,presencePenalty:0});assert(!Object.hasOwn(body,'think'));assert(!Object.hasOwn(body,'options'));
+ for(const options of [{thinking:'true'},{presencePenalty:-1},{presencePenalty:NaN}])await assert.rejects(provider.text('说明','材料',{},options));
 });

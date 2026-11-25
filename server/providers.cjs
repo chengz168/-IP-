@@ -32,9 +32,11 @@ class Providers{
     if((local?data.done_reason:data.choices?.[0]?.finish_reason)==='length')throw new Error('视觉模型输出不完整，原描述保留');
     return {text,model,protocol:local?'ollama':'compatible',requestId:data.id||'',usage:local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null};
   }
-  async text(system,user,ctx,{schema,model,temperature,maxTokens}={}){
+  async text(system,user,ctx,{schema,model,temperature,maxTokens,thinking,presencePenalty}={}){
     const config=this.config(),requestedModel=model||config.model;if(!config.baseUrl||!requestedModel)throw new Error('请在设置 → 模型设置中配置文本服务地址和模型名称');
     const local=config.textProtocol==='ollama',transportTimeoutMs=textTimeoutSeconds(config)*1000;
+    if(thinking!==undefined&&typeof thinking!=='boolean')throw Error('本地思考开关需为布尔值');
+    if(presencePenalty!==undefined&&(!Number.isFinite(presencePenalty)||presencePenalty<0||presencePenalty>2))throw Error('重复主题惩罚需在0至2之间');
     const configuredLimit=config.textMaxTokens?Number(config.textMaxTokens):undefined;
     if(maxTokens!==undefined&&(!Number.isInteger(maxTokens)||maxTokens<64||maxTokens>32768))throw new Error('单次文本输出上限需为64至32768的整数');
     if(temperature!==undefined&&(!Number.isFinite(temperature)||temperature<0||temperature>2))throw new Error('文本温度需在0至2之间');
@@ -48,19 +50,24 @@ class Providers{
       const budget=Buffer.byteLength(system+user,'utf8')+(limit||2048)+512;
       if(budget>context)throw new Error('文案超过本地上下文的保守预算，请缩短文案或增大上下文长度');
     }
-    const body=local?{model:requestedModel,messages,stream:false,think:false,...(schema?{format:schema}:{}),options:{num_predict:limit||2048,...(context?{num_ctx:context}:{}),...(temperature!==undefined?{temperature}:schema?{temperature:0}:{})}}:{model:requestedModel,messages,stream:false,...(limit?{max_tokens:limit}:{}),...(temperature!==undefined?{temperature}:{}),...(schema?{response_format:{type:'json_schema',json_schema:{name:'subtitle_auxiliary',strict:true,schema}}}:{})};
+    const body=local?{model:requestedModel,messages,stream:false,think:thinking??false,...(schema?{format:schema}:{}),options:{num_predict:limit||2048,...(context?{num_ctx:context}:{}),...(presencePenalty!==undefined?{presence_penalty:presencePenalty}:{}),...(temperature!==undefined?{temperature}:schema?{temperature:0}:{})}}:{model:requestedModel,messages,stream:false,...(limit?{max_tokens:limit}:{}),...(temperature!==undefined?{temperature}:{}),...(schema?{response_format:{type:'json_schema',json_schema:{name:'subtitle_auxiliary',strict:true,schema}}}:{})};
     const endpoint=local?address(config.baseUrl).replace(/\/v1$/,'')+'/api/chat':address(config.baseUrl)+'/chat/completions';
     const response=await this.request(endpoint,{method:'POST',headers:{...(local?{}:await this.headers('text')),'Content-Type':'application/json'},body:JSON.stringify(body)},ctx,transportTimeoutMs);
     let data;try{data=await response.json();}catch(error){if(ctx?.signal?.aborted)throw Error('请求已停止');if(error.name==='AbortError'||error.name==='TimeoutError')throw Error('模型服务请求超时');throw error;}const text=local?data.message?.content:data.choices?.[0]?.message?.content;
-    if(typeof text!=='string'||!text.trim())throw new Error('模型返回的文案为空或不符合文本接口格式');
     const finishReason=local?data.done_reason:data.choices?.[0]?.finish_reason;
+    if(typeof text!=='string'||!text.trim()){
+      const error=new Error(finishReason==='length'?'模型已达到输出上限，但尚未生成正文；原文案已保留，请调整模型或输出上限后重试':'模型返回的文案为空或不符合文本接口格式');
+      // 只有思考而无正文时也保存真实终止原因，不能当成网络失败或丢失执行证据。
+      error.evidence={rawProviderText:typeof text==='string'?text:'',finishReason,usage:local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null,requestId:data.id||''};
+      throw error;
+    }
     if(finishReason==='length'){
       const error=new Error('模型输出达到长度上限，文案不完整；请提高文本输出上限后重试');
       // 截断结果仍拒绝使用，原始回包只作为失败证据保留，不记录请求头或密钥。
       error.evidence={rawProviderText:text,finishReason,usage:local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null,requestId:data.id||''};
       throw error;
     }
-    return {text,requestId:data.id||'',usage:local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null,request:{model:requestedModel,protocol:local?'ollama':'compatible',transportTimeoutMs,messages,parameters:local?{think:false,...body.options,...(schema?{format:schema}:{})}:{...(limit?{max_tokens:limit}:{}),...(temperature!==undefined?{temperature}:{}),...(schema?{response_format:body.response_format}:{})}},finishReason};
+    return {text,requestId:data.id||'',usage:local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null,request:{model:requestedModel,protocol:local?'ollama':'compatible',transportTimeoutMs,messages,parameters:local?{think:body.think,...body.options,...(schema?{format:schema}:{})}:{...(limit?{max_tokens:limit}:{}),...(temperature!==undefined?{temperature}:{}),...(schema?{response_format:body.response_format}:{})}},finishReason};
   }
   async speech(draft,ctx,context){
     const {speechContext,speechRequest,speechEvidence}=require('./speech-request.cjs');context=context||speechContext(this.store.data);const config=context.provider,request=speechRequest(draft,context);if(config.ttsProtocol==='windows')return new WindowsSpeech(this.store,this.media).synthesize(draft,ctx,config);

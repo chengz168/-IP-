@@ -11,7 +11,7 @@ export async function runTextAction({draft,state,save,act,call,notify,showDialog
  if(result.stale||!textInputMatches(input,draft.value,kind,state.value)){
   notify('文案、模板或任务已经变化，本次结果保留在执行记录中，未覆盖当前内容');return;
  }
- if(result.quality?.status==='rejected'){
+ if(result.quality?.status==='rejected'||(kind==='rewrite'&&result.quality?.targetDeviation>.2)){
   showDialog('本次改写未通过内容检查',(result.quality.issues||[]).join('\n')+'\n完整输出保留在任务执行记录中，当前文案未替换。');return;
  }
  if(kind==='legal')showLegal(result.text);

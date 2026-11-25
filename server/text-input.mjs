@@ -5,7 +5,7 @@ import {resolveCreativePreset} from './creative-presets.mjs';
 export function textInput(draft,kind,data){
  const template=resolvePrompt(kind,data,draft.template);
  const analysis=draft.brain?.analysis||data.brains.find(b=>b.id===draft.brain?.activeId)?.analysis||null;
- const fields=kind==='rewrite'?{sourceText:draft.sourceText,wordLimit:Number(draft.wordLimit),analysis}:
+ const fields=kind==='rewrite'?{sourceText:draft.sourceText,wordLimit:Number(draft.wordLimit),rewriteRequirements:String(draft.rewriteRequirements||''),analysis}:
   kind==='legal'?{rewrite:draft.rewrite}:
   kind==='translate'?{finalText:draft.finalText,language:draft.language}:
   kind==='title'?{text:downstreamText(draft)}:

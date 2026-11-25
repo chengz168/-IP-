@@ -33,6 +33,11 @@ export function adjacentRepetitionWarnings(output){
 export function referenceOpening(source){
  const text=String(source).trim(),sentence=text.match(/^[\s\S]*?[。！？!?](?:[”」』])?/u)?.[0]||text;
  if(sentence.length<=30)return sentence;
+ // 无标点转写中的明确问候可作为完整短句，避免把后面的词语硬切成两半。
+ if(!/[，,；;：:。！？!?\n]/u.test(text)){
+  const greeting=text.match(/^(?:哈喽|嗨)?(?:大家好|各位朋友大家好|朋友们大家好|各位好)/u)?.[0];
+  if(greeting)return greeting+'。';
+ }
  const bounded=text.slice(0,29),boundaries=[...bounded.matchAll(/[，,；;：:]/gu)];
  const cut=boundaries.at(-1)?.index;
  return (cut!==undefined&&cut>0?bounded.slice(0,cut):bounded)+'。';

@@ -4,7 +4,7 @@ import {rewriteNumericFidelity} from './rewrite-numeric-fidelity.mjs';
 export function assessRewrite(source,output,target,template,assembly){
  const clean=text=>String(text).replace(/[\s\p{P}\p{S}]/gu,'');
  const numeric=rewriteNumericFidelity(source,output);
- const issues=[...numeric.issues],warnings=[...(assembly?.lengthWarnings||[]),...numeric.warnings,...adjacentRepetitionWarnings(output)],same=clean(source)===clean(output);
+ const issues=[...numeric.issues,...(assembly?.validationIssues||[])],warnings=[...(assembly?.lengthWarnings||[]),...numeric.warnings,...adjacentRepetitionWarnings(output)],same=clean(source)===clean(output);
  if(same)issues.push('输出与原文相同，未形成有效改写');
  issues.push(...processIssues(source,output));
  // 通用模板也要提示原有限制的缺失或改写；这仍是字面复核，不冒充语义认证。

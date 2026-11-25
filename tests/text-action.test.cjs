@@ -54,3 +54,9 @@ test('拒绝、过期及法务回包不触发结果写入',async()=>{
   await (await import('../src/text-action.mjs')).runTextAction(f.context,kind);assert.equal(saves,1);
  }
 });
+
+
+test('字数偏差超过约定范围时即使没有事实拒绝也不替换当前文案',async()=>{
+ const f=fixture(),before=structuredClone(f.d);f.context.call=async()=>({text:'过短的生成稿',quality:{status:'needs-review',targetDeviation:.7,issues:['输出字数与指定字数相差超过20%，请复核']}});
+ await (await import('../src/text-action.mjs')).runTextAction(f.context,'rewrite');assert.deepEqual(f.d,before);assert.match(f.dialogs[0][1],/指定字数/);
+});

@@ -64,3 +64,6 @@ body{font-family:Avenir,Helvetica,Arial,'Microsoft YaHei',sans-serif}
 .media-preview-loading{position:absolute;top:12px;left:12px;right:12px;display:flex;align-items:center;justify-content:center;gap:8px;padding:7px 10px;border-radius:8px;background:#20222ee8;color:#d7dfed;font-size:var(--app-font-size-caption);pointer-events:none;overflow-wrap:anywhere}
 .media-preview-error{min-width:0;max-width:100%;overflow-wrap:anywhere}
 .media-preview-error>button{margin-top:14px}
+
+.rewrite-requirements{display:flex;flex-direction:column;gap:8px;margin:16px 0 0;min-width:0}
+.rewrite-requirements textarea{min-height:76px;max-height:240px;resize:vertical}
