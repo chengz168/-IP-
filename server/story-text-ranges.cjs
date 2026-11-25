@@ -29,4 +29,22 @@ function restoreRanges(source,units,items,label){
  if(previous!==units.length||result.map(item=>item.text).join('')!==source)throw Error(label+'没有完整覆盖原文，旧结果保留');
  return result;
 }
-module.exports={sourceUnits,restoreRanges};
+function balancedRanges(source,units,count,label='镜头'){
+ if(!Number.isSafeInteger(count)||count<1||count>units.length)throw Error(label+'数量无法按原文单元拆分');
+ const result=[];let start=0;
+ for(let group=0;group<count;group++){
+  const groupsLeft=count-group;
+  if(groupsLeft===1){result.push({endUnit:units.length});break;}
+  const target=units.slice(start).reduce((sum,unit)=>sum+unit.text.length,0)/groupsLeft;
+  const latest=units.length-(groupsLeft-1);let best=start,bestScore=Infinity,length=0;
+  for(let index=start;index<latest;index++){
+   length+=units[index].text.length;
+   const score=Math.abs(length-target);
+   if(score<bestScore){bestScore=score;best=index;}
+   if(length>=target&&index>best)break;
+  }
+  result.push({endUnit:best+1});start=best+1;
+ }
+ return restoreRanges(source,units,result,label);
+}
+module.exports={sourceUnits,restoreRanges,balancedRanges};

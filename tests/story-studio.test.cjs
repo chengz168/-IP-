@@ -85,6 +85,51 @@ test('分镜边界规划后分批设计，完整原文和总时长由程序保�
  assert.equal(shots.length,7);assert.equal(shots.map(sh=>sh.text).join(''),f.d.finalText);assert.equal(shots.reduce((sum,sh)=>sum+Math.round(sh.duration*100),0),6100);assert(shots.every(sh=>sh.duration>=4&&sh.duration<=15));assert.equal(result.batches.length,8);assert.equal(f.calls.length,8);
 });
 
+test('模型重复镜头边界时自动改用原文均分并完成整集设计',async()=>{
+ const real=require('./fixtures/story-shot-boundary-regression.json'),f=fixture();f.d.finalText=real.source;
+ const s=createStory(f.d);s.episodeDuration=real.duration;await f.studio.save({id:'draft',story:s,revision:0});await f.studio.splitEpisodes({id:'draft'});const e=f.d.story.episodes[0];
+ const invalid={shots:real.boundaries.map(endUnit=>({endUnit}))};f.responses.push(invalid,invalid);
+ const originalText=f.studio.providers.text;f.studio.providers.text=async(system,user,ctx,options)=>{if(user.startsWith('按主题和叙事节奏'))return originalText(system,user,ctx,options);const data=JSON.parse(user.slice(user.lastIndexOf('输入资料：')+'输入资料：'.length));return {text:JSON.stringify({shots:[{endUnit:data.shots[0].endUnit,visual:'具体细节镜头'+data.shotNumber,action:'展示一个具体细节',camera:'中近景固定',sound:'现场环境声',imagePrompt:'板材现场的具体细节',videoPrompt:'镜头平稳展示板材细节'}]})};};
+ const result=await f.studio.splitShots({id:'draft',episodeId:e.id}),shots=f.d.story.episodes[0].shots;
+ assert.equal(shots.length,16);assert.equal(shots.map(shot=>shot.text).join(''),e.text);assert.equal(result.batches[1].phase,'ranges-correction');assert.equal(result.batches[2].phase,'ranges-fallback');assert.equal(result.batches[2].shotCount,16);assert.equal(shots.reduce((sum,shot)=>sum+Math.round(shot.duration*100),0),Math.round(real.duration*100));
+});
+
+test('非法规划只纠正一次，合法纠正保留模型分段而不触发本地兜底',async()=>{
+ const f=fixture();f.d.finalText='第一句。第二句。第三句。第四句。';const s=createStory(f.d);s.episodeDuration=20;await f.studio.save({id:'draft',story:s,revision:0});await f.studio.splitEpisodes({id:'draft'});const e=f.d.story.episodes[0];
+ f.responses.push({shots:[{endUnit:4},{endUnit:4}]},{shots:[{endUnit:1},{endUnit:4}]});
+ for(const endUnit of [1,4])f.responses.push({shots:[{endUnit,visual:'画面'+endUnit,action:'展示细节',camera:'固定',sound:'环境声',imagePrompt:'中文图片提示',videoPrompt:'中文动态提示'}]});
+ const result=await f.studio.splitShots({id:'draft',episodeId:e.id});assert.equal(result.batches.length,4);assert(!result.batches.some(batch=>batch.phase==='ranges-fallback'));assert.match(f.calls[1].user,/唯一一次纠正机会/);assert.equal(f.d.story.episodes[0].shots[0].text,'第一句。');
+});
+
+test('边界纠正期间取消不兜底、不继续设计、不覆盖旧结果',async()=>{
+ const f=fixture();f.d.finalText='第一句。第二句。';const s=createStory(f.d);s.episodeDuration=20;await f.studio.save({id:'draft',story:s,revision:0});await f.studio.splitEpisodes({id:'draft'});const e=f.d.story.episodes[0];let finish,calls=0;
+ f.studio.providers.text=async()=>{calls++;if(calls===1)return {text:'{"shots":[{"endUnit":2},{"endUnit":2}]}'};return new Promise(resolve=>finish=resolve);};
+ const pending=f.studio.splitShots({id:'draft',episodeId:e.id});await new Promise(resolve=>setImmediate(resolve));const run=f.store.data.runs[0];f.studio.runtime.cancel(run.id);finish({text:'{"shots":[{"endUnit":1},{"endUnit":2}]}'});await assert.rejects(pending,/abort|取消/i);assert.equal(calls,2);assert.equal(run.status,'cancelled');assert.equal(run.failureOutput.completedBatches.length,2);assert.deepEqual(f.d.story.episodes[0].shots,[]);
+});
+
+test('规划传输异常不当作边界错误继续重试或兜底',async()=>{
+ const f=fixture();const s=createStory(f.d);s.episodeDuration=20;await f.studio.save({id:'draft',story:s,revision:0});await f.studio.splitEpisodes({id:'draft'});let calls=0;f.studio.providers.text=async()=>{calls++;throw Error('文本服务连接失败');};await assert.rejects(f.studio.splitShots({id:'draft',episodeId:f.d.story.episodes[0].id}),/连接失败/);assert.equal(calls,1);assert.deepEqual(f.d.story.episodes[0].shots,[]);
+});
+
+test('单镜头设计达到输出上限时只重试该镜头一次并保留截断证据',async()=>{
+ const f=fixture();f.d.finalText='第一段。第二段。第三段。第四段。';const s=createStory(f.d);s.episodeDuration=20;await f.studio.save({id:'draft',story:s,revision:0});await f.studio.splitEpisodes({id:'draft'});const e=f.d.story.episodes[0];let designCalls=0;const original=f.studio.providers.text,designLimits=[];
+ f.studio.providers.text=async(system,user,ctx,options)=>{
+  if(user.startsWith('按主题和叙事节奏'))return original(system,user,ctx,options);
+  const endUnit=Number(user.match(/\"endUnit\"\s*:\s*(\d+)/)?.[1]);assert(Number.isInteger(endUnit));designCalls++;designLimits.push(options.maxTokens);
+  if(designCalls===2)return Promise.reject(Object.assign(Error('模型输出达到长度上限，文案不完整；请提高文本输出上限后重试'),{evidence:{rawProviderText:'截断前缀',finishReason:'length',usage:{completion_tokens:2048},requestId:'cutoff-2'}}));
+  return {text:JSON.stringify({shots:[{endUnit,visual:'具体画面'+designCalls,action:'单一清晰动作',camera:'中景固定',sound:'环境声',imagePrompt:'完整简体中文图片描述',videoPrompt:'完整简体中文动态描述'}]})};
+ };
+ f.responses.push({shots:[{endUnit:1},{endUnit:2},{endUnit:3},{endUnit:4}]});
+ const result=await f.studio.splitShots({id:'draft',episodeId:e.id}),retry=result.batches.find(batch=>batch.phase==='design-output-limit');
+ assert.equal(designCalls,3);assert.deepEqual(designLimits,[2048,2048,4096]);assert.equal(retry.offset,1);assert.equal(retry.rawText,'截断前缀');assert.equal(retry.usage.completion_tokens,2048);assert.equal(f.d.story.episodes[0].shots.length,2);
+});
+
+test('单镜头二次输出仍截断时保留证据且不覆盖旧镜头',async()=>{
+ const f=fixture();f.d.finalText='第一段。第二段。';const s=createStory(f.d);s.episodeDuration=20;await f.studio.save({id:'draft',story:s,revision:0});await f.studio.splitEpisodes({id:'draft'});const e=f.d.story.episodes[0],old=[{id:'previous-shot',text:'旧镜头'}];e.shots=structuredClone(old);let designCalls=0;
+ f.studio.providers.text=async(system,user)=>{if(user.startsWith('按主题和叙事节奏'))return {text:JSON.stringify({shots:[{endUnit:1},{endUnit:2}]})};designCalls++;throw Object.assign(Error('模型输出达到长度上限，文案不完整；请提高文本输出上限后重试'),{evidence:{rawProviderText:'仍然被截断',finishReason:'length'}});};
+ await assert.rejects(f.studio.splitShots({id:'draft',episodeId:e.id}),/输出达到长度上限/);assert.equal(designCalls,2);assert.deepEqual(f.d.story.episodes[0].shots,old);const run=f.store.data.runs[0];assert(run.failureOutput.completedBatches.some(batch=>batch.phase==='design-output-limit'&&batch.rawText==='仍然被截断'));
+});
+
 test('后批分镜失败保持旧镜头和已完成模型证据，不提交半套结果',async()=>{
  const f=fixture(),target=await oneEpisode(f);const s=structuredClone(f.d.story);s.episodeDuration=40;s.sourceText=f.d.finalText='一。二。三。四。';await f.studio.save({id:'draft',story:s,revision:s.revision});await f.studio.splitEpisodes({id:'draft'});const e=f.d.story.episodes[0],before=structuredClone(e.shots);
  f.responses.push({shots:[1,2,3,4].map(endUnit=>({endUnit}))},{shots:[{endUnit:1,visual:'花园',action:'浇花',camera:'中景',sound:'鸟鸣',imagePrompt:'One person in a garden',videoPrompt:'The person waters flowers'}]},{shots:[{endUnit:3}]});
