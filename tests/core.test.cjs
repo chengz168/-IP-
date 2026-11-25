@@ -5,7 +5,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {Store}=require('../server/store.cjs');
 const {Runtime}=require('../server/runtime.cjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {parseSrt,toSrt}=require('../server/media.cjs');
 const fixture=t=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'superip-test-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;};
 

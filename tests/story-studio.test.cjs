@@ -346,7 +346,7 @@ test('重启把当前活动项规范成unknown并跳过余项，原参数可直�
 });
 
 test('真实service批量动作映射及模型互斥锁生效，未调用模型和用户数据',async t=>{
- const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),root=fs.mkdtempSync(path.join(os.tmpdir(),'story-batch-service-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const service=require('../server/service.cjs').createService(root);let received;service.stories.generateAssetImages=async args=>{received=args;return {story:{},items:[],counts:{total:0}};};const input={id:service.store.draft().id,assetIds:['one','two'],instructions:{one:'自然光'}};
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),root=fs.mkdtempSync(path.join(os.tmpdir(),'story-batch-service-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const service=require('./support/licensed-service.cjs').createService(root);let received;service.stories.generateAssetImages=async args=>{received=args;return {story:{},items:[],counts:{total:0}};};const input={id:service.store.draft().id,assetIds:['one','two'],instructions:{one:'自然光'}};
  assert.equal((await service.invoke('generateStoryAssetImages',input)).counts.total,0);assert.deepEqual(received,input);
  for(const type of ['avatar-optimize','avatar-background','voice-design']){service.store.data.runs.push({id:type,draftId:input.id,type,status:'running'});await assert.rejects(service.invoke('generateStoryAssetImages',input),/正在|生成/);service.store.data.runs.pop();}
  service.store.data.workflowJobs=[{id:'workflow',draftId:input.id,status:'running'}];await assert.rejects(service.invoke('generateStoryAssetImages',input),/自动流程/);

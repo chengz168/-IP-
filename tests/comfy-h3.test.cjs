@@ -1,7 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),http=require('node:http');
 const {ComfyH3,buildGraph,localBase}=require('../server/comfy-h3.cjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 
 test('H3 图同时使用形象首帧和驱动音轨，时长覆盖原音频且不接入参考成片输出',()=>{
  const graph=buildGraph({image:'own/face.png',audio:'own/driver.wav',duration:5.167,portrait:true,seed:42,prefix:'own/output'});

@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {digest}=require('../server/backup.cjs');
 const fixture=t=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'ip-backup-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;};
 test('备份包含真实素材，可恢复任务，并保留恢复前副本及当前服务连接',async t=>{

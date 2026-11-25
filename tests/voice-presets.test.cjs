@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {catalog,presetJob,definitionHash}=require('../server/voice-presets.cjs');
 const {validateJob}=require('../server/voice-design.cjs');
 const {hashFile}=require('../server/local-indextts.cjs');

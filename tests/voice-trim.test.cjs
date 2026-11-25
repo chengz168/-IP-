@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'studio-trim-')),s=createService(root);t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const file=path.join(root,'source.wav');fs.writeFileSync(file,'边界测试数据，不是真实媒体');const a=s.store.addAsset(file);s.media.probe=async()=>({streams:[{codec_type:'audio'}],format:{duration:6}});return {s,a,input:{id:s.store.draft().id,sampleId:a.id,sourceHash:hash(a.path),start:1,end:4}};}
 test('声音裁剪先拒绝非法数值、越界及未准备来源，不产生片段',async t=>{const {s,a,input}=fixture(t);for(const patch of [{start:NaN},{end:Infinity},{start:-1},{end:1},{end:1.01},{start:'1'},{sourceHash:''}])await assert.rejects(s.invoke('trimVoiceSample',{...input,...patch}),/起止|至少|准备/);await assert.rejects(s.invoke('trimVoiceSample',{...input,end:7}),/超过实际/);assert.equal(s.store.data.assets.length,1);assert.equal(s.store.data.voices.length,0);assert.equal(s.store.data.assets[0].id,a.id);});

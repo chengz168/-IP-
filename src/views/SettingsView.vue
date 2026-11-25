@@ -4,11 +4,15 @@ import PromptManager from '../components/PromptManager.vue';
 import ModelPicker from '../components/ModelPicker.vue';
 import CapabilityKeys from '../components/CapabilityKeys.vue';
 import LocalEnvironment from '../components/LocalEnvironment.vue';
+import ActivationDialog from '../components/ActivationDialog.vue';
+import {releaseMessage} from '../release-ui.mjs';
 import {createKeyDrafts,keyChanges} from '../provider-key-drafts.mjs';
 import {createProtocolDrafts,createDiscoveryController,discoveryModels} from '../model-settings.mjs';
 import {fontPresets,normalizeFontSize} from '../typography.mjs';
 const props=defineProps({initialTab:{type:String,default:'general'}});
-const {state,busy,act,notify,showDialog,refresh,registerPageLeaveGuard}=inject('studio');const config=ref(JSON.parse(JSON.stringify(state.value.settings))),key=ref(''),changeKey=ref(false),tab=ref(props.initialTab);const desktop=window.studio;const restorePath=ref(''),restoreDialog=ref(false);
+const {state,busy,act,notify,showDialog,refresh,registerPageLeaveGuard,checkEnvironment,licenseActivated}=inject('studio');const config=ref(JSON.parse(JSON.stringify(state.value.settings))),key=ref(''),changeKey=ref(false),tab=ref(props.initialTab);const desktop=window.studio;const restorePath=ref(''),restoreDialog=ref(false),usageError=ref('');
+config.value.usageLimits={dailyTextRequests:10,dailyTokens:200000,...config.value.usageLimits};
+async function updateLicense(info){if(licenseActivated)await licenseActivated(info);else{state.value.license=info;await refresh();}}
 watch(()=>props.initialTab,value=>{if(tabs.some(item=>item[0]===value))tab.value=value;});
 const tabs=[['general','常规设置','SettingOutlined'],['models','模型设置','RobotOutlined'],['prompts','提示词管理','FormOutlined'],['data','数据设置','DatabaseOutlined'],['update','软件更新','CloudDownloadOutlined']];
 const keyDrafts=ref(createKeyDrafts());
@@ -61,7 +65,17 @@ async function openExtractBrowser(){const r=await act('打开抖音解析窗口'
 const currentFontPreset=computed(()=>fontPresets.find(preset=>preset.id===normalizeFontSize(state.value.settings.fontSize)));
 async function changeFontSize(id){if(id===normalizeFontSize(state.value.settings.fontSize))return;const result=await act('切换界面字号',()=>call('saveAppearance',{fontSize:id}));if(result){config.value.fontSize=result.fontSize;const baseline=JSON.parse(settingsBaseline.value);baseline.fontSize=result.fontSize;settingsBaseline.value=JSON.stringify(baseline);notify('界面字号已切换为'+fontPresets.find(preset=>preset.id===id).label,'success');}}
 // 启动配置通过专用组件保存，避免本页旧快照覆盖刚刚保存的新路径。
-async function save(){if(settingsSaving.value)return false;if(key.value&&!changeKey.value){notify('API Key 已填写，请勾选“更新密钥”后保存，或清空输入以保留原密钥。','error');return false;}let changes;try{changes=keyChanges(keyDrafts.value,{validate:true});}catch(error){notify(error.message,'error');return false;}const generalSettings=generalSnapshot(),payload={...generalSettings,...(changeKey.value?{key:key.value}:{}),capabilityKeys:changes};settingsSaving.value=true;try{const r=await act('保存设置',()=>call('saveSettings',payload));if(r){settingsBaseline.value=JSON.stringify(generalSettings);key.value='';changeKey.value=false;keyDrafts.value=createKeyDrafts();notify('设置已保存','success');}return r;}finally{settingsSaving.value=false;}}
+async function save(){
+ if(settingsSaving.value)return false;
+ usageError.value='';
+ if(!['dailyTextRequests','dailyTokens'].every(name=>Number.isSafeInteger(config.value.usageLimits[name])&&config.value.usageLimits[name]>0)){usageError.value='每日文本与视觉请求次数与每日 token 上限都须填写大于零的整数。';tab.value='models';notify(usageError.value,'error');return false;}
+ if(key.value&&!changeKey.value){notify('API Key 已填写，请勾选“更新密钥”后保存，或清空输入以保留原密钥。','error');return false;}
+ let changes;try{changes=keyChanges(keyDrafts.value,{validate:true});}catch(error){notify(error.message,'error');return false;}
+ const generalSettings=generalSnapshot(),payload={...generalSettings,...(changeKey.value?{key:key.value}:{}),capabilityKeys:changes};settingsSaving.value=true;
+ try{const r=await act('保存设置',()=>call('saveSettings',payload));if(r){settingsBaseline.value=JSON.stringify(generalSettings);key.value='';changeKey.value=false;keyDrafts.value=createKeyDrafts();notify('设置已保存','success');checkEnvironment?.();}return r;}
+ catch(error){notify(releaseMessage(error,'设置保存失败，请检查填写内容后重试。'),'error');return false;}
+ finally{settingsSaving.value=false;}
+}
 async function check(action){if(!await save())return;const r=await act('检查连接',()=>call(action));if(r)showDialog(action==='checkMedia'?'媒体工具可用':'模型服务已连接',action==='checkMedia'?r.ffmpeg+'\n'+r.ffprobe:'服务返回 '+r.models.length+' 个模型。\n'+r.models.slice(0,15).join('、'));}
 async function directory(){if(window.studio){const dir=await window.studio.chooseDirectory();if(dir)config.value.outputDir=dir;}else notify('浏览器预览中请填写绝对路径；桌面程序可打开文件夹选择器');}
 async function backup(){const r=await act('备份任务与素材',()=>call('backup'));if(r)showDialog('备份已导出',r.directory+'\n已复制 '+r.assets+' 项素材。\n'+r.note);}
@@ -102,11 +116,12 @@ const currentHeading=computed(()=>headings[tab.value]);
 
 <template>
 <section class="management-page settings-page"><div class="settings-layout" :inert="settingsSaving||leaveSaving">
-  <aside class="settings-nav"><header><I name="SettingOutlined" :size="currentFontPreset.pageTitle"/><h1>设置</h1></header><nav aria-label="设置分类"><button v-for="[id,label,icon] in tabs" :key="id" :class="{active:tab===id}" @click="tab=id"><I :name="icon" :size="currentFontPreset.body"/>{{label}}</button></nav><footer>本地版本 0.1.0</footer></aside>
+  <aside class="settings-nav"><header><I name="SettingOutlined" :size="currentFontPreset.pageTitle"/><h1>设置</h1></header><nav aria-label="设置分类"><button v-for="[id,label,icon] in tabs" :key="id" :class="{active:tab===id}" @click="tab=id"><I :name="icon" :size="currentFontPreset.body"/>{{label}}</button></nav><footer>本地版本 0.1.1</footer></aside>
   <article class="settings-content"><header class="settings-heading"><h2>{{currentHeading[0]}}</h2><p>{{currentHeading[1]}}</p><p v-if="hasUnsavedSettings" class="hint" role="status">设置有未保存的修改，离开前可保存或放弃。</p></header>
   <div class="settings-body" :class="'settings-'+tab">
     <div v-show="tab==='models'" class="settings-form-section"><LocalEnvironment ref="environmentEditor" configure/></div>
     <template v-if="tab==='general'">
+      <div class="settings-form-section"><ActivationDialog :license="state.license" embedded @activated="updateLicense"/></div>
       <div class="settings-form-section">
         <label class="settings-field">界面主题<select v-model="config.theme" class="short-control"><option value="default">默认主题</option><option value="midnight">午夜蓝</option></select></label><p class="hint">选择应用的配色主题，保存后生效</p>
         <span class="settings-field field-title">界面字号</span><div class="segmented settings-choice" role="group" aria-label="界面字号"><button v-for="preset in fontPresets" :key="preset.id" :class="{active:normalizeFontSize(state.settings.fontSize)===preset.id}" :aria-pressed="normalizeFontSize(state.settings.fontSize)===preset.id" :disabled="!!busy" @click="changeFontSize(preset.id)">{{preset.label}}</button></div><p class="hint">调整应用内菜单、表单、按钮、表格和提示文字大小，更换后立即生效</p>
@@ -120,6 +135,7 @@ const currentHeading=computed(()=>headings[tab.value]);
     </template>
     <template v-else-if="tab==='models'">
       <div class="settings-form-section"><span class="field-title">按能力选择模型来源</span><p class="hint">文本、视觉、语音合成和语音识别可分别选择云端兼容服务或已有本机引擎。刷新只读取列表或已有文件，不自动保存设置、下载模型或生成内容。</p></div>
+      <div class="settings-form-section usage-limit-settings"><h3>云服务每日额度</h3><p class="hint">仅云端能力计入额度；本地 Ollama、ComfyUI、IndexTTS 不占云端额度。达到上限后会停止对应云端调用，并显示原因。</p><div class="two-fields"><label>每日文本与视觉请求次数<input v-model.number="config.usageLimits.dailyTextRequests" aria-label="每日文本请求次数" type="number" min="1" step="1" :aria-invalid="!!usageError" :aria-describedby="usageError?'usage-limits-error':undefined"/></label><label>每日 token 上限<input v-model.number="config.usageLimits.dailyTokens" aria-label="每日 token 上限" type="number" min="1" step="1" :aria-invalid="!!usageError" :aria-describedby="usageError?'usage-limits-error':undefined"/></label></div><p class="hint">默认文本与视觉共享每日 10 次请求、200000 token。请求按尝试次数累计，失败和取消也计入；上游未返回用量时按预留量估算。修改后需保存设置。</p><p v-if="usageError" id="usage-limits-error" class="usage-limit-error" role="alert">{{usageError}}</p></div>
       <div class="settings-form-section"><h3>全局服务密钥</h3><label class="settings-field">API Key</label><div class="inline"><input v-model="key" type="password" autocomplete="new-password" :placeholder="state.keyConfigured?'已配置，填写后勾选更新':'尚未配置'" aria-label="API Key"/><label class="check-row"><input v-model="changeKey" type="checkbox"/>更新密钥</label></div><p class="hint">未设置独立密钥的能力沿用此项。勾选更新后留空保存可清除全局密钥。桌面版使用Windows加密存储；浏览器预览仅在本次服务进程中使用。</p></div>
       <CapabilityKeys :drafts="keyDrafts" :configured="state.capabilityKeyConfigured" :global-configured="state.keyConfigured"/>
       <div class="settings-form-section"><h3>文本模型</h3>
@@ -142,10 +158,13 @@ const currentHeading=computed(()=>headings[tab.value]);
       <div class="settings-form-section"><label class="settings-field">恢复备份文件夹<div class="inline"><input v-model="restorePath" placeholder="包含manifest.json的备份文件夹绝对路径"/><button v-if="desktop" @click="restoreDirectory">选择文件夹</button></div></label><button :disabled="!!busy||!restorePath.trim()" @click="restoreDialog=true">恢复任务与素材</button><p class="hint">恢复前自动保存当前数据副本。保留当前模型连接、密钥、输出目录和媒体工具路径。</p></div>
       <div class="settings-form-section"><h3>查看输出文件</h3><button @click="desktop?desktop.openOutput():showDialog('输出目录',config.outputDir||'项目 data/outputs 目录')"><I name="FolderOpen"/>打开目录</button><p class="hint">打开剪辑视频、封面和发布包所在目录</p></div><div class="data-counts"><p>创作任务：{{state.drafts.length}}</p><p>素材文件：{{state.assets.length}}</p><p>执行记录：{{state.runs.length}}</p></div>
     </template>
-    <div v-else class="version-card"><span class="brand-symbol"><I name="Play" :size="28"/></span><h2>超级IP智能体</h2><strong>本地开发版 0.1.0</strong><p class="hint">参考界面版本：轻语IP 8.4.0</p><p>当前没有配置在线更新服务。</p></div>
+    <div v-else class="version-card"><span class="brand-symbol"><I name="Play" :size="28"/></span><h2>超级IP智能体</h2><strong>本地开发版 0.1.1</strong><p class="hint">参考界面版本：轻语IP 8.4.0</p><p>当前没有配置在线更新服务。</p></div>
   </div></article>
 </div>
 <Modal v-if="restoreDialog" title="确认恢复备份" @close="restoreDialog=false"><p>恢复将替换当前任务、资源列表及执行记录，并复制备份中的素材。当前数据会先保存为恢复前副本。</p><p class="hint">{{restorePath}}</p><template #footer><button @click="restoreDialog=false">取消</button><button class="primary" @click="restore">确认恢复</button></template></Modal>
 <Modal v-if="leaveDialog" title="设置尚未保存" :close-disabled="leaveSaving" @close="resolveLeave(false)"><p>当前设置有未保存的修改。保存成功后再离开；选择放弃将丢弃本页尚未保存的输入。</p><p class="hint">模型设置与本地启动配置分别保存，密钥仅在明确保存时提交。</p><p v-if="leaveError" role="alert">{{leaveError}}</p><template #footer><button :disabled="leaveSaving" @click="resolveLeave(false)">继续编辑</button><button :disabled="leaveSaving" @click="resolveLeave(true)">放弃修改</button><button class="primary" :disabled="leaveSaving||!!busy||settingsSaving||!!(environmentEditor?.dirty&&environmentEditor?.blocked)" @click="saveAndLeave">{{leaveSaving?'正在保存…':'保存并离开'}}</button></template></Modal>
 </section>
 </template>
+<style scoped>
+.usage-limit-error{color:#ffc3b6;line-height:1.7;overflow-wrap:anywhere}.usage-limit-settings input[aria-invalid=true]{border-color:#c38476}.usage-limit-settings input:focus-visible{outline:2px solid #d9b2ff;outline-offset:3px}
+</style>

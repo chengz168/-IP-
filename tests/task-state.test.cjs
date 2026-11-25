@@ -5,7 +5,7 @@ const path=require('node:path');
 const os=require('node:os');
 const {Store}=require('../server/store.cjs');
 const {summarizeTasks}=require('../server/task-state.cjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'superip-task-state-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return root;}
 function run(draft,type,status,createdAt,extra={}){return {id:type+'-'+createdAt,draftId:draft.id,type,status,createdAt,progress:status==='succeeded'?100:0,...extra};}

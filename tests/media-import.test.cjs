@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'media-import-')),before=new Set(process.listeners('exit')),service=createService(root),listener=process.listeners('exit').find(fn=>!before.has(fn));t.after(()=>{process.removeListener('exit',listener);fs.rmSync(root,{recursive:true,force:true});});return service;}
 function file(s,name){const target=path.join(s.store.root,name);fs.writeFileSync(target,'导入契约字节，不是媒体验收');return target;}
 

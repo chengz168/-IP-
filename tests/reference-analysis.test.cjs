@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {validateAnalysis}=require('../server/reference-analysis.cjs');
 const sample='你也遇到这个问题吗？先看看每天的使用习惯。把需要的东西放在手边，再试着调整位置。最后观察是否方便，再决定是否保留。';
 const analysis=()=>({summary:'从问题切入，提供观察与调整步骤。',hook:{kind:'问题',quote:'你也遇到这个问题吗？',explanation:'直接向观众提问'},sections:[{label:'提出问题',purpose:'引出需求',quote:'你也遇到这个问题吗？'},{label:'建议',purpose:'提出可执行观察',quote:'先看看每天的使用习惯。'},{label:'结束',purpose:'建议复核',quote:'最后观察是否方便，再决定是否保留。'}],ending:{quote:'最后观察是否方便，再决定是否保留。',explanation:'以观察建议结束'},reusableStructure:['问题—步骤—复核'],uncertainties:['只有转写，不能推断画面']});

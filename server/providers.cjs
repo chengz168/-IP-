@@ -7,8 +7,10 @@ const {effectiveKey}=require('./provider-keys.cjs');
 const {textTimeoutSeconds}=require('./prompt-catalog.mjs');
 
 const address=value=>{let url;try{url=new URL(value);}catch{throw new Error('服务地址无效，请在模型设置中填写完整地址');}if(!['http:','https:'].includes(url.protocol))throw new Error('服务地址仅支持HTTP或HTTPS');return url.toString().replace(/\/$/,'');};
+// 协议决定请求格式，回环地址才表示本机免费服务；远程Ollama仍受云端额度约束。
+const localOllama=(local,base)=>local&&['localhost','127.0.0.1','[::1]'].includes(new URL(address(base)).hostname);
 class Providers{
-  constructor(store,media,secrets){this.store=store;this.media=media;this.secrets=secrets;}
+  constructor(store,media,secrets){this.store=store;this.media=media;this.secrets=secrets;if(store.root)this.usageGuard=require('./usage-guard.cjs').createUsageGuard({root:store.root,limits:()=>({dailyRequests:store.data.settings.usageLimits?.dailyTextRequests??10,dailyTokens:store.data.settings.usageLimits?.dailyTokens??200000})});}
   config(){return this.store.data.settings.provider;}
   async headers(capability='global'){const key=await effectiveKey(this.secrets,capability);return key?{Authorization:'Bearer '+key}:{};}
   async sameOriginHeaders(url,base,capability){return base&&new URL(address(url)).origin===new URL(address(base)).origin?this.headers(capability):{};}
@@ -19,7 +21,7 @@ class Providers{
     try{response=await fetch(address(url),{...options,signal});}catch(e){throw new Error(ctx.signal?.aborted||e.name==='AbortError'?'请求已停止':deadline.aborted||e.name==='TimeoutError'?'模型服务请求超时':'无法连接模型服务，请检查地址与网络');}
     if(!response.ok){let message='';try{const data=await response.json();message=data.error?.message||data.message||'';}catch{}if(ctx.signal?.aborted)throw Error('请求已停止');if(deadline.aborted)throw Error('模型服务请求超时');throw new Error('模型服务返回HTTP '+response.status+(message?'：'+message.slice(0,500):''));}return response;
   }
-  async test(){const config=this.config();if(!config.baseUrl)throw new Error('请先配置模型服务地址');const local=config.textProtocol==='ollama',base=address(config.baseUrl),r=await this.request(local?base.replace(/\/v1$/,'')+'/api/tags':base+'/models',{headers:local?{}:await this.headers('text')});const data=await r.json();return {connected:true,models:local?(data.models||[]).map(m=>m.name||m.model):(data.data||[]).map(m=>m.id)};}
+  async test(ctx={}){const config=this.config();if(!config.baseUrl)throw new Error('请先配置模型服务地址');const local=config.textProtocol==='ollama',base=address(config.baseUrl),r=await this.request(local?base.replace(/\/v1$/,'')+'/api/tags':base+'/models',{headers:local?{}:await this.headers('text')},ctx);const data=await r.json();return {connected:true,models:local?(data.models||[]).map(m=>m.name||m.model):(data.data||[]).map(m=>m.id)};}
   async vision(system,user,images,ctx,{schema}={}){
     const config=this.config(),model=config.visionModel,base=config.visionBaseUrl||config.baseUrl,local=config.visionProtocol==='ollama';
     if(!model||!base)throw new Error('请先配置已有视觉模型及服务地址');
@@ -27,10 +29,17 @@ class Providers{
     const messages=[{role:'system',content:system},local?{role:'user',content:user,images}:{role:'user',content:[{type:'text',text:user},...images.map(i=>({type:'image_url',image_url:{url:'data:image/jpeg;base64,'+i}}))]}];
     const body=local?{model,messages,stream:false,think:false,...(schema?{format:schema}:{}),options:{num_predict:1200,temperature:0,num_ctx:8192}}:{model,messages,stream:false,max_tokens:1200,...(schema?{response_format:{type:'json_schema',json_schema:{name:'material_annotation',strict:true,schema}}}:{})};
     const endpoint=local?address(base).replace(/\/v1$/,'')+'/api/chat':address(base)+'/chat/completions';
-    const response=await this.request(endpoint,{method:'POST',headers:{...(local?{}:await this.headers('vision')),'Content-Type':'application/json'},body:JSON.stringify(body)},ctx),data=await response.json(),text=local?data.message?.content:data.choices?.[0]?.message?.content;
-    if(typeof text!=='string'||!text.trim())throw new Error('视觉服务没有返回描述');
-    if((local?data.done_reason:data.choices?.[0]?.finish_reason)==='length')throw new Error('视觉模型输出不完整，原描述保留');
-    return {text,model,protocol:local?'ollama':'compatible',requestId:data.id||'',usage:local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null};
+    const headers={...(local?{}:await this.headers('vision')),'Content-Type':'application/json'},ticket=this.usageGuard?.reserve({capability:'vision',protocol:localOllama(local,base)?'ollama':'compatible',reservedTokens:Buffer.byteLength(system+user,'utf8')+1200+images.length*4096});let settled=false;
+    try{
+    const response=await this.request(endpoint,{method:'POST',headers,body:JSON.stringify(body)},ctx),data=await response.json(),text=local?data.message?.content:data.choices?.[0]?.message?.content;
+    if(typeof text!=='string'||!text.trim()||(local?data.done_reason:data.choices?.[0]?.finish_reason)==='length'){
+      const error=new Error(typeof text!=='string'||!text.trim()?'视觉服务没有返回描述':'视觉模型输出不完整，原描述保留');
+      // 失败回包已经给出用量时照实结算，不能丢失后改记为估算值。
+      error.evidence={usage:local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null,requestId:data.id||''};throw error;
+    }
+    const usage=local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null;settled=true;const usageRecord=ticket?this.usageGuard.succeed(ticket,usage):null;
+    return {text,model,protocol:local?'ollama':'compatible',requestId:data.id||'',usage,...(usageRecord&&!usageRecord.local?{usageRecord}:{})};
+    }catch(error){if(ticket&&!settled)this.usageGuard.fail(ticket,{usage:error.evidence?.usage,cancelled:!!ctx?.signal?.aborted,upstreamFailure:!ctx?.signal?.aborted});throw error;}
   }
   async text(system,user,ctx,{schema,model,temperature,maxTokens,thinking,presencePenalty}={}){
     const config=this.config(),requestedModel=model||config.model;if(!config.baseUrl||!requestedModel)throw new Error('请在设置 → 模型设置中配置文本服务地址和模型名称');
@@ -40,7 +49,7 @@ class Providers{
     const configuredLimit=config.textMaxTokens?Number(config.textMaxTokens):undefined;
     if(maxTokens!==undefined&&(!Number.isInteger(maxTokens)||maxTokens<64||maxTokens>32768))throw new Error('单次文本输出上限需为64至32768的整数');
     if(temperature!==undefined&&(!Number.isFinite(temperature)||temperature<0||temperature>2))throw new Error('文本温度需在0至2之间');
-    const limit=maxTokens===undefined?configuredLimit:Math.min(maxTokens,configuredLimit??maxTokens);
+    const limit=maxTokens===undefined?(configuredLimit??2048):Math.min(maxTokens,configuredLimit??maxTokens);
     if(limit!==undefined&&(!Number.isInteger(limit)||limit<64||limit>32768))throw new Error('文本输出上限需为64至32768的整数');
     const messages=[{role:'system',content:system},{role:'user',content:user}];
     const context=local&&config.textContextTokens?Number(config.textContextTokens):undefined;
@@ -52,7 +61,9 @@ class Providers{
     }
     const body=local?{model:requestedModel,messages,stream:false,think:thinking??false,...(schema?{format:schema}:{}),options:{num_predict:limit||2048,...(context?{num_ctx:context}:{}),...(presencePenalty!==undefined?{presence_penalty:presencePenalty}:{}),...(temperature!==undefined?{temperature}:schema?{temperature:0}:{})}}:{model:requestedModel,messages,stream:false,...(limit?{max_tokens:limit}:{}),...(temperature!==undefined?{temperature}:{}),...(schema?{response_format:{type:'json_schema',json_schema:{name:'subtitle_auxiliary',strict:true,schema}}}:{})};
     const endpoint=local?address(config.baseUrl).replace(/\/v1$/,'')+'/api/chat':address(config.baseUrl)+'/chat/completions';
-    const response=await this.request(endpoint,{method:'POST',headers:{...(local?{}:await this.headers('text')),'Content-Type':'application/json'},body:JSON.stringify(body)},ctx,transportTimeoutMs);
+    const headers={...(local?{}:await this.headers('text')),'Content-Type':'application/json'},ticket=this.usageGuard?.reserve({capability:'text',protocol:localOllama(local,config.baseUrl)?'ollama':'compatible',reservedTokens:Buffer.byteLength(system+user,'utf8')+(limit||2048)});let settled=false;
+    try{
+    const response=await this.request(endpoint,{method:'POST',headers,body:JSON.stringify(body)},ctx,transportTimeoutMs);
     let data;try{data=await response.json();}catch(error){if(ctx?.signal?.aborted)throw Error('请求已停止');if(error.name==='AbortError'||error.name==='TimeoutError')throw Error('模型服务请求超时');throw error;}const text=local?data.message?.content:data.choices?.[0]?.message?.content;
     const finishReason=local?data.done_reason:data.choices?.[0]?.finish_reason;
     if(typeof text!=='string'||!text.trim()){
@@ -67,7 +78,9 @@ class Providers{
       error.evidence={rawProviderText:text,finishReason,usage:local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null,requestId:data.id||''};
       throw error;
     }
-    return {text,requestId:data.id||'',usage:local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null,request:{model:requestedModel,protocol:local?'ollama':'compatible',transportTimeoutMs,messages,parameters:local?{think:body.think,...body.options,...(schema?{format:schema}:{})}:{...(limit?{max_tokens:limit}:{}),...(temperature!==undefined?{temperature}:{}),...(schema?{response_format:body.response_format}:{})}},finishReason};
+    const usage=local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null;settled=true;const usageRecord=ticket?this.usageGuard.succeed(ticket,usage):null;
+    return {text,requestId:data.id||'',usage,...(usageRecord&&!usageRecord.local?{usageRecord}:{}),request:{model:requestedModel,protocol:local?'ollama':'compatible',transportTimeoutMs,messages,parameters:local?{think:body.think,...body.options,...(schema?{format:schema}:{})}:{...(limit?{max_tokens:limit}:{}),...(temperature!==undefined?{temperature}:{}),...(schema?{response_format:body.response_format}:{})}},finishReason};
+    }catch(error){if(ticket&&!settled)this.usageGuard.fail(ticket,{usage:error.evidence?.usage,cancelled:!!ctx?.signal?.aborted,upstreamFailure:!ctx?.signal?.aborted});throw error;}
   }
   async speech(draft,ctx,context){
     const {speechContext,speechRequest,speechEvidence}=require('./speech-request.cjs');context=context||speechContext(this.store.data);const config=context.provider,request=speechRequest(draft,context);if(config.ttsProtocol==='windows')return new WindowsSpeech(this.store,this.media).synthesize(draft,ctx,config);

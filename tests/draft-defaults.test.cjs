@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 
 test('新任务在唯一有效本地音色时默认选用，不改变旧任务或系统云端配置',async t=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'studio-draft-default-')),service=createService(root);

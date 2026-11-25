@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 
 function fixture(t){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'creative-presets-'));

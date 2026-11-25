@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs'),{Store,createDraft}=require('../server/store.cjs');
+const {createService}=require('./support/licensed-service.cjs'),{Store,createDraft}=require('../server/store.cjs');
 const {restoreSignature}=require('../server/caption-history.cjs');
 function fixture(t){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'caption-source-')),listeners=new Set(process.listeners('exit')),s=createService(root),listener=process.listeners('exit').find(fn=>!listeners.has(fn));

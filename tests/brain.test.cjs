@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const sample='收纳并不是把物品全部藏起来。先清点桌面上每天会用到的东西，再按使用频率分类。常用的放在手边，不常用的放进抽屉。先选一个小区域整理，观察拿取是否顺手，再调整分区。保持一个方便执行的习惯，比一次整理所有空间更容易坚持。';
 const analysis=()=>({summary:'先澄清误区，再给出分步操作。',tone:['清晰','务实'],structure:['澄清误区','给出步骤'],strengths:['具体操作'],avoid:['夸大'],topicAngles:['日常习惯'],evidence:[{quote:'先选一个小区域整理',point:'降低行动门槛'}]});
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'brain-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const previous=new Set(process.listeners('exit')),s=createService(root),listener=process.listeners('exit').find(fn=>!previous.has(fn));t.after(()=>process.removeListener('exit',listener));s.store.draft().template='default';s.store.draft().brain.sampleText=sample;s.store.draft().sourceText='原有文案';s.store.save();return s;}

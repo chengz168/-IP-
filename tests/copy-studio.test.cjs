@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'copy-studio-')),previous=new Set(process.listeners('exit')),s=createService(root);const listener=process.listeners('exit').find(fn=>!previous.has(fn));t.after(()=>{process.removeListener('exit',listener);fs.rmSync(root,{recursive:true,force:true});});const d=s.store.draft();Object.assign(d.topic,{industry:'桌面收纳',audience:'办公人群',bio:'分享整理建议'});Object.assign(d.marketing,{name:'分格收纳盒',selling:'有分格，可整理小件物品'});d.sourceText='已有原文';d.rewrite='已有改写';d.finalText='已有最终文案';d.confirmed=true;s.store.save();model(s);return s;}
 const topicValue=()=>({opportunity:'提供容易开始的整理建议',topics:Array.from({length:5},(_,i)=>({title:'整理选题'+i,hook:'从桌面常用物品开始'+i,personaAngle:'分享具体整理方法'}))});
 const copiesValue=count=>({candidates:Array.from({length:count},(_,i)=>({text:'候选正文'+i+'。先清点常用的小件，再按拿取习惯分类。'}))});

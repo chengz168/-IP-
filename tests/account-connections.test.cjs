@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {EventEmitter}=require('node:events');
 const {Store}=require('../server/store.cjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {AccountConnections,sessionKey,connectionVerdict}=require('../server/account-connections.cjs');
 const {AccountBrowser}=require('../electron/account-browser.cjs');
 const logged={url:'https://creator.douyin.com/creator-micro/home',loginVisible:false,creatorControlVisible:true};

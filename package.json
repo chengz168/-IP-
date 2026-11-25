@@ -1,6 +1,6 @@
 {
   "name": "super-ip-studio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "依据参考产品拆解实现的本地内容创作桌面工作台",
   "main": "electron/main.cjs",
@@ -10,7 +10,7 @@
     "build": "vite build",
     "start": "electron .",
     "test": "node --test tests/*.test.cjs",
-    "pack": "npm run build && electron-builder --win dir"
+    "pack": "node scripts/make-license.cjs --check-release && npm run build && electron-builder --win nsis dir"
   },
   "dependencies": {
     "@ant-design/icons-vue": "7.0.1",
@@ -40,7 +40,9 @@
       "integrations/musetalk-local/**/*",
       "integrations/local-link-extractor/**/*",
       "integrations/qwen-voice-design/**/*",
-      "integrations/portrait-matting/**/*"
+      "integrations/portrait-matting/**/*",
+      "!scripts/**/*",
+      "!**/*.{pem,key,pfx,p12}"
     ],
     "asarUnpack": [
       "server/local-asr.py",
@@ -51,9 +53,21 @@
       "integrations/qwen-voice-design/**/*",
       "integrations/portrait-matting/**/*"
     ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "onlyLoadAppFromAsar": true,
+      "enableEmbeddedAsarIntegrityValidation": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
     "win": {
-      "target": "dir",
-      "signAndEditExecutable": false,
+      "target": ["nsis", "dir"],
+      "signExecutable": false,
       "icon": "build/icon.ico"
     },
     "electronDist": "node_modules/electron/dist"

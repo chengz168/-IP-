@@ -5,7 +5,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {LocalAsr,validateResult,runWorker}=require('../server/local-asr.cjs');
 const {Providers}=require('../server/providers.cjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 
 test('本地识别保留可追溯的逐词凭据，非法词轴不能写入执行结果',()=>{
  const words=[{start:.2,end:.8,word:'真实'},{start:.8,end:1.2,word:'时间。'}],data={text:'真实时间。',segments:[{start:0,end:1.3,text:'真实时间。',words}]};

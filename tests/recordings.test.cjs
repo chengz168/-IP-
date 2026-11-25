@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const fixture=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'superip-recording-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const service=createService(root);service.store.data.settings.outputDir=path.join(root,'output');return service;};
 const input=s=>({id:s.store.draft().id,mimeType:'audio/webm;codecs=opus',base64:Buffer.from('受控录音').toString('base64')});
 test('录音导入拒绝无效容器、空数据、畸形编码与不存在任务',async t=>{const s=fixture(t);for(const patch of [{mimeType:'video/webm'},{base64:''},{base64:'%%%%'},{id:'不存在'}])await assert.rejects(s.invoke('importRecording',{...input(s),...patch}));assert.equal(s.store.data.assets.length,0);assert.equal(s.store.data.runs.length,0);});

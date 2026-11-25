@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {createDraft}=require('../server/store.cjs');
 const {avatarContext,avatarCurrent}=require('../server/avatar-request.cjs');
 function fixture(t){

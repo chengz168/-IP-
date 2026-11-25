@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {Store,createDraft}=require('../server/store.cjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const model=()=>import('../src/cover-model.mjs');
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'superip-cover-'));t.after(()=>fs.rmSync(root,{force:true,recursive:true}));return root;}
 

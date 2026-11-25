@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
 const {capabilityKeys,effectiveKey,keyState,saveKeys,memorySecrets,encryptedSecrets}=require('../server/provider-keys.cjs');
-const {createService}=require('../server/service.cjs'),{Providers}=require('../server/providers.cjs'),{StoryGenerator}=require('../server/story-generator.cjs');
+const {createService}=require('./support/licensed-service.cjs'),{Providers}=require('../server/providers.cjs'),{StoryGenerator}=require('../server/story-generator.cjs');
 function fixture(t,secrets=memorySecrets()){const root=fs.mkdtempSync(path.join(os.tmpdir(),'provider-keys-')),listeners=new Set(process.listeners('exit')),service=createService(root,secrets);t.after(()=>{for(const listener of process.listeners('exit'))if(!listeners.has(listener))process.removeListener('exit',listener);fs.rmSync(root,{recursive:true,force:true});});return {root,service,secrets};}
 const fresh=()=>crypto.randomUUID();
 test('独立优先、各作用域隔离、缺省和明确清除回退全局，状态不回显密钥',async()=>{

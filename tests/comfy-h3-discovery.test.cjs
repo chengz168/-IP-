@@ -1,7 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),http=require('node:http');
 const {ComfyH3,graphSignature}=require('../server/comfy-h3.cjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {Store}=require('../server/store.cjs');
 const graph={'6':{class_type:'Example',inputs:{b:2,a:1}}};
 

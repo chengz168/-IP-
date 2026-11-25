@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
-const {createService}=require('../server/service.cjs'),{createDraft}=require('../server/store.cjs');
+const {createService}=require('./support/licensed-service.cjs'),{createDraft}=require('../server/store.cjs');
 const load=()=>import('../server/copy-confirmation.mjs');
 function serviceFixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'copy-confirmation-')),before=new Set(process.listeners('exit')),s=createService(root),listener=process.listeners('exit').find(fn=>!before.has(fn));t.after(()=>{process.removeListener('exit',listener);fs.rmSync(root,{recursive:true,force:true});});return s;}
 function actionFixture(){

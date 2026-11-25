@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {Store}=require('../server/store.cjs');
 
 test('旧字号配置重启可用，损坏字号修复为舒适且保留任务与其更新时间',t=>{

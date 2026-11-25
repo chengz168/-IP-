@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),http=require('node:http');
 const {Providers}=require('../server/providers.cjs');
 const {textTimeoutSeconds,generationConfig}=require('../server/prompt-catalog.mjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 
 function provider(config={}){return new Providers({data:{settings:{provider:{baseUrl:'http://127.0.0.1:1',model:'测试夹具',...config}}}},null,{get:async()=>''});}
 async function localServer(t,handler){const timers=new Set(),sockets=new Set();const server=http.createServer((request,response)=>handler(request,response,(callback,ms)=>{const timer=setTimeout(()=>{timers.delete(timer);callback();},ms);timers.add(timer);request.on('close',()=>{clearTimeout(timer);timers.delete(timer);});}));server.on('connection',socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket));});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(async()=>{for(const timer of timers)clearTimeout(timer);for(const socket of sockets)socket.destroy();await new Promise(resolve=>server.close(resolve));});return 'http://127.0.0.1:'+server.address().port;}

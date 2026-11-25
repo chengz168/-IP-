@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),http
 const {shareLink,extractionMode,LocalLinkExtractor,runWorker}=require('../server/local-link-extractor.cjs');
 const {Store}=require('../server/store.cjs');
 const {Media}=require('../server/media.cjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const python=process.env.LINK_PYTHON||'C:/Python314/python.exe',packagePath=process.env.YTDLP_PACKAGE||'D:/AI-Runtimes/super-ip/link-extractor/2026.10.26/package';
 const ready=fs.existsSync(python)&&fs.existsSync(path.join(packagePath,'yt_dlp','__main__.py'));
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'link-extract-test-')),store=new Store(root),media=new Media(store);t.after(()=>fs.rmSync(root,{recursive:true,force:true}));Object.assign(store.data.settings.provider,{extractProtocol:'local',extractPythonPath:python,extractPackagePath:packagePath});return {root,store,media};}

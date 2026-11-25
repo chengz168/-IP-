@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs'),{Store}=require('../server/store.cjs'),{summarizeTasks}=require('../server/task-state.cjs');
+const {createService}=require('./support/licensed-service.cjs'),{Store}=require('../server/store.cjs'),{summarizeTasks}=require('../server/task-state.cjs');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function until(fn){for(let i=0;i<200;i++){if(fn())return;await sleep(5);}throw new Error('队列契约测试等待超时');}
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'superip-jobs-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const service=createService(root);service.media.probe=async()=>({streams:[{codec_type:'video'},{codec_type:'audio'}]});return service;}

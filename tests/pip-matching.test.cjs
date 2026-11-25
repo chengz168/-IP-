@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs'),{parseMatches}=require('../server/pip-matching.cjs');
+const {createService}=require('./support/licensed-service.cjs'),{parseMatches}=require('../server/pip-matching.cjs');
 function fixture(t){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'pip-match-test-')),before=new Set(process.listeners('exit')),s=createService(root);
  t.after(()=>{for(const fn of process.listeners('exit'))if(!before.has(fn))process.removeListener('exit',fn);fs.rmSync(root,{recursive:true,force:true});});

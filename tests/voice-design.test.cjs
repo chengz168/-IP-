@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto'),vm=require('node:vm');
-const {createService}=require('../server/service.cjs'),{validateJob,verifyReceipt}=require('../server/voice-design.cjs'),manifest=require('../integrations/qwen-voice-design/manifest.json');
+const {createService}=require('./support/licensed-service.cjs'),{validateJob,verifyReceipt}=require('../server/voice-design.cjs'),manifest=require('../integrations/qwen-voice-design/manifest.json');
 const job={text:'晚上好。',instruct:'成年女性，普通话，语气自然。',language:'Chinese',seed:12,max_new_tokens:1024};
 const digest=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'voice-design-')),service=createService(root);t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return {root,service,id:service.store.draft().id};}

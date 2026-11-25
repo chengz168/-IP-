@@ -2,6 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vue=require('vue'),sfc=require('@vue/compiler-sfc');
 
 function compile(relative,context,props={}){
+ context={ActivationDialog:{},FirstRunWizard:{},...require('../src/release-ui.mjs'),...context};
  const filename=path.resolve(__dirname,'..',relative),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename});
  const script=sfc.compileScript(descriptor,{id:'settings-leave'}),code=script.content.replace(/^import .*;\r?\n/gm,'').replace('export default','return');
  const component=new Function(...Object.keys(context),code)(...Object.values(context)),scope=vue.effectScope();
@@ -79,7 +80,7 @@ test('后台服务检查不阻止放弃未保存路径，专用保存尚在进�
 });
 
 async function appFixture(){
- const helpers=await import('../src/local-environment-ui.mjs'),calls=[],windows=[],hooks={},data={currentId:'draft',drafts:[{id:'draft',sourceText:'原文'}],settings:{view:'new',fontSize:'comfortable'},runs:[],accounts:[],workflowJobs:[],localEnvironment:{status:'ready',services:[]}};
+ const helpers=await import('../src/local-environment-ui.mjs'),calls=[],windows=[],hooks={},data={license:{active:true,activated:true},currentId:'draft',drafts:[{id:'draft',sourceText:'原文'}],settings:{view:'new',fontSize:'comfortable'},runs:[],accounts:[],workflowJobs:[],localEnvironment:{status:'ready',services:[]}};
  const context={ref:vue.ref,computed:vue.computed,watch:vue.watch,onMounted:fn=>hooks.mount=fn,onUnmounted:fn=>hooks.unmount=fn,provide(){},I:{},Modal:{},Workflow:{},LegacyWorkflow:{},Resources:{},SettingsView:{},TaskCenter:{},call:async(action,payload)=>{calls.push({action,payload});return structuredClone(data);},pickFiles:async()=>[],OperationStatus:{},LocalEnvironment:{},applyTypography(){},workflowView(){},copySourceChanged:()=>false,window:{studio:{window:action=>windows.push(action)}},setInterval:()=>1,clearInterval(){},setTimeout:()=>1,clearTimeout(){},Date,...helpers};
  const f=compile('src/App.vue',context);await hooks.mount();f.vm.page.value='settings';return {...f,calls,windows,cleanup(){hooks.unmount();f.dispose();}};
 }
@@ -87,7 +88,7 @@ async function appFixture(){
 test('返回、菜单、新任务、切换任务与关闭窗口都遵守设置离开取消',async()=>{
  const f=await appFixture();try{
   let checks=0;const unregister=f.vm.registerPageLeaveGuard(()=>{checks++;return false;});
-  await f.vm.goBack();await f.vm.navigate('voices');await f.vm.newTask();await f.vm.selectTask('other');await f.vm.closeWindow();assert.equal(checks,5);assert.equal(f.vm.page.value,'settings');assert.equal(f.windows.length,0);assert.deepEqual(f.calls.map(call=>call.action),['state']);
+  await f.vm.goBack();await f.vm.navigate('voices');await f.vm.newTask();await f.vm.selectTask('other');await f.vm.closeWindow();assert.equal(checks,5);assert.equal(f.vm.page.value,'settings');assert.equal(f.windows.length,0);assert.deepEqual(f.calls.map(call=>call.action),['state','environmentStatus']);
   unregister();await f.vm.navigate('voices');assert.equal(f.vm.page.value,'voices');await f.vm.closeWindow();assert.deepEqual(f.windows,['close']);
  }finally{f.cleanup();}
 });

@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const load=()=>import('../server/copy-quality.mjs');
 const history=require('./fixtures/rewrite-BK-001-history.json');
 function fixture(t){

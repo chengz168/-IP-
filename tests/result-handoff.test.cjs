@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {Store}=require('../server/store.cjs'),{createService}=require('../server/service.cjs');
+const {Store}=require('../server/store.cjs'),{createService}=require('./support/licensed-service.cjs');
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'superip-handoff-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return root;}
 function seed(store){const d=store.draft();d.video.assetId='avatar-old';d.edit.resultId='render-old';d.cover.assetId='cover-old';d.cover.videoId='covered-old';Object.assign(d.publish,{videoId:'render-old',coverId:'cover-old',recordId:'package-old'});store.data.publishRecords=[{id:'package-old',status:'exported'}];store.save();return structuredClone(d);}
 

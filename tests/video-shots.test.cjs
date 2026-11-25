@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const logic=import('../server/video-shots.mjs');
 
 test('镜头均分保留十分之一秒余数且拒绝过短或无效音频',async()=>{

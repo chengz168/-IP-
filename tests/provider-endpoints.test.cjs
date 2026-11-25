@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs'),{speechRequest,speechContext,speechCurrent}=require('../server/speech-request.cjs'),{asrConfig}=require('../server/asr-request.cjs');
+const {createService}=require('./support/licensed-service.cjs'),{speechRequest,speechContext,speechCurrent}=require('../server/speech-request.cjs'),{asrConfig}=require('../server/asr-request.cjs');
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'provider-endpoints-')),listeners=new Set(process.listeners('exit')),service=createService(root);t.after(()=>{for(const listener of process.listeners('exit'))if(!listeners.has(listener))process.removeListener('exit',listener);fs.rmSync(root,{recursive:true,force:true});});return service;}
 test('旧配置回退共享地址，独立端点进入配音和ASR快照，其他端点变化不误判',async t=>{
  const s=fixture(t),p=s.providers.config(),d=s.store.draft();Object.assign(p,{baseUrl:'http://text/v1',ttsProtocol:'compatible',ttsModel:'tts',voice:'voice',asrModel:'asr'});const {speechActionSignature}=await import('../src/speech-action.mjs');assert.equal(speechRequest(d,speechContext(s.store.data)).baseUrl,p.baseUrl);assert.equal(asrConfig(p).baseUrl,p.baseUrl);

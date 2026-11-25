@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {resolveCreativePreset,creativePresetPrompt}=require('../server/creative-presets.mjs');
 const {githubProductionSkillCatalog,githubProductionSkillSources}=require('../server/github-production-skills.mjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 test('外部中文方法按题材与阶段生效，关闭及分析阶段不串入规则',()=>{
  const draft={creativePreset:{mode:'manual',presetId:'product'}};
  for(const stage of ['script','rewrite','shots']){const route=resolveCreativePreset(draft,stage);assert.ok(route.skills.some(skill=>skill.id==='product-evidence-mapping'));assert.ok(route.sources.some(source=>source.id==='github-ads-creative'));assert.match(creativePresetPrompt(route),/真实投放效果/);}

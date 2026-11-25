@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 
 // 独立空白数据目录只验证真实服务动作，不启动任何模型或读取用户工作区。
 function fixture(t,options={}){const root=fs.mkdtempSync(path.join(os.tmpdir(),'superip-environment-service-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return createService(root,undefined,options);}

@@ -55,7 +55,7 @@ test('保存失败保留输入、待保存状态，环境详情不调用全局 a
 });
 
 test('真实 App 在检查中及时轮询、空闲时低频只读刷新，并能直达模型设置',async()=>{
- const filename=path.resolve(__dirname,'../src/App.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename}),helpers=await import('../src/local-environment-ui.mjs');
+ const filename=path.resolve(__dirname,'../src/App.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename}),helpers={...await import('../src/local-environment-ui.mjs'),...await import('../src/release-ui.mjs'),ActivationDialog:{},FirstRunWizard:{}};
  let mounted,tick,now=0;const calls=[],data={currentId:'draft',drafts:[{id:'draft',sourceText:'验收原文'}],settings:{view:'new',fontSize:'comfortable'},runs:[],accounts:[],workflowJobs:[],localEnvironment:{status:'ready',checking:false,services:[]}};
  const call=async action=>{calls.push(action);return structuredClone(data);};
  const names=['ref','computed','watch','onMounted','onUnmounted','provide','I','Modal','Workflow','LegacyWorkflow','Resources','SettingsView','TaskCenter','call','pickFiles','OperationStatus','LocalEnvironment','applyTypography','workflowView','copySourceChanged','window','setInterval','clearInterval','setTimeout','clearTimeout','Date',...Object.keys(helpers)];
@@ -71,7 +71,7 @@ test('真实 App 在检查中及时轮询、空闲时低频只读刷新，并能
 
 test('真实模型设置保存不把旧启动配置快照写回专用配置',async()=>{
  const filename=path.resolve(__dirname,'../src/views/SettingsView.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename});
- const modules=await Promise.all([import('../src/provider-key-drafts.mjs'),import('../src/model-settings.mjs'),import('../src/typography.mjs')]),helpers=Object.assign({},...modules),calls=[];
+ const modules=await Promise.all([import('../src/provider-key-drafts.mjs'),import('../src/model-settings.mjs'),import('../src/typography.mjs'),import('../src/release-ui.mjs')]),helpers=Object.assign({ActivationDialog:{}},...modules),calls=[];
  const state=vue.ref({settings:{provider:{},localEnvironment:{autoStart:true,comfyRoot:'D:/Old'}},drafts:[],assets:[],runs:[]}),studio={state,busy:vue.ref(''),act:async(_,work)=>work(),notify(){},showDialog(){},refresh:async()=>{}};
  const names=['computed','inject','ref','watch','onBeforeUnmount','I','call','Modal','PromptManager','ModelPicker','CapabilityKeys','LocalEnvironment','window',...Object.keys(helpers)],values=[vue.computed,()=>studio,vue.ref,vue.watch,()=>{},{},async(action,payload)=>{calls.push({action,payload});return true;},{},{},{},{},{},{studio:{}},...Object.values(helpers)];
  const code=sfc.compileScript(descriptor,{id:'environment-settings-test'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return'),scope=vue.effectScope(),component=new Function(...names,code)(...values),vm=scope.run(()=>component.setup({initialTab:'models'}, {expose(){}}));

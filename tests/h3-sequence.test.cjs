@@ -2,7 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {segmentPlan,multiShotPlan,digest,h3Prompt}=require('../server/h3-plan.cjs');
 const {H3Sequence}=require('../server/h3-sequence.cjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {avatarContext}=require('../server/avatar-request.cjs');
 const {Store}=require('../server/store.cjs');
 

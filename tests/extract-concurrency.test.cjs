@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 function fixture(t){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'superip-extract-concurrency-')),before=new Set(process.listeners('exit')),service=createService(root);
  const listener=process.listeners('exit').find(fn=>!before.has(fn));t.after(()=>{if(listener)process.removeListener('exit',listener);fs.rmSync(root,{recursive:true,force:true});});

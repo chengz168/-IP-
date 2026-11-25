@@ -52,7 +52,7 @@ test('活动任务及结果待确认禁止保存，探测过程中新增活动�
 });
 
 test('真实Service接口可检查且禁止普通草稿伪造，无媒体不能记录通过',async t=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'production-review-service-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const service=require('../server/service.cjs').createService(root),d=service.store.draft();const view=await service.invoke('getProductionReview',{id:d.id});assert.equal(view.status,'unchecked');assert.equal(view.technicalPassed,false);await assert.rejects(service.invoke('saveProductionReview',{id:d.id,fingerprint:view.fingerprint,historyVersion:view.historyVersion,status:'approved',checked:checked(),notes:''}),/待交付视频/);
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'production-review-service-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const service=require('./support/licensed-service.cjs').createService(root),d=service.store.draft();const view=await service.invoke('getProductionReview',{id:d.id});assert.equal(view.status,'unchecked');assert.equal(view.technicalPassed,false);await assert.rejects(service.invoke('saveProductionReview',{id:d.id,fingerprint:view.fingerprint,historyVersion:view.historyVersion,status:'approved',checked:checked(),notes:''}),/待交付视频/);
 });
 
 test('分集尾帧同编号外部替换使既有质量复核失效',async t=>{

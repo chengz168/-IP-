@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{createService}=require('../server/service.cjs');
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{createService}=require('./support/licensed-service.cjs');
 
 test('模板断句使用真实词边界，标点结束且不等分时间、不修改识别凭据',async()=>{
  const {recognitionRows}=await import('../server/caption-recognition.mjs');

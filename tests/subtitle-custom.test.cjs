@@ -6,7 +6,7 @@ const path=require('node:path');
 const {SubtitleFonts,readFontNames}=require('../server/subtitle-fonts.cjs');
 const {toCustomAss,assColor}=require('../server/custom-subtitles.cjs');
 const {Store}=require('../server/store.cjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const fixture=t=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'subtitle-custom-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return root;};
 const style=async()=>({...((await import('../server/subtitle-style.mjs')).subtitleDefaults),fontId:'font-0123456789abcdef0123'});
 

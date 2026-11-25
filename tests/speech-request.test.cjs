@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {speechContext,speechRequest,speechCurrent,speechEvidence}=require('../server/speech-request.cjs');
 
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'speech-input-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const service=createService(root),d=service.store.draft();d.finalText='保留正文和旧音频。';d.voice.audioId='prior';Object.assign(service.store.data.settings.provider,{ttsProtocol:'compatible',baseUrl:'http://127.0.0.1:1/v1',ttsModel:'original-model',voice:'original-voice'});service.store.save();return {service,d};}

@@ -14,6 +14,8 @@ actions.add('avatarOptimize');
 for(const action of ['planAvatarBackground','generateAvatarBackground','queryAvatarBackground'])actions.add(action);
 actions.add('checkLocalLipSync');
 for(const action of ['ensureLocalEnvironment','saveLocalEnvironment'])actions.add(action);
+// 授权读取与激活可在工作台解锁前调用，环境检查由服务端授权守卫统一限制。
+for(const action of ['licenseInfo','licenseActivate','environmentStatus'])actions.add(action);
 actions.add('discoverModels');actions.add('cancelModelDiscovery');
 actions.add('checkVoiceDesign');actions.add('designVoice');actions.add('saveDesignedVoice');
 actions.add('listVoicePresets');actions.add('prepareVoicePreset');

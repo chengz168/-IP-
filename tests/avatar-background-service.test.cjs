@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
-const {createService}=require('../server/service.cjs'),{AvatarBackground}=require('../server/avatar-background.cjs');
+const {createService}=require('./support/licensed-service.cjs'),{AvatarBackground}=require('../server/avatar-background.cjs');
 function fixture(t){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'avatar-background-service-')),prior=new Set(process.listeners('exit')),service=createService(root),listener=process.listeners('exit').find(fn=>!prior.has(fn));
  t.after(()=>{process.removeListener('exit',listener);fs.rmSync(root,{recursive:true,force:true});});

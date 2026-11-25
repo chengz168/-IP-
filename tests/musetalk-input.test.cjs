@@ -3,7 +3,7 @@ const {audioPlan,videoPlan,sourceIndex,prepareProductionInput,prepareVideoSource
 const {Media,runProcess}=require('../server/media.cjs');
 const {avatarContext,avatarCurrent}=require('../server/avatar-request.cjs');
 const {avatarActionSignature}=require('../src/avatar-action.mjs');
-const {createService}=require('../server/service.cjs');
+const {createService}=require('./support/licensed-service.cjs');
 const {Runtime}=require('../server/runtime.cjs');
 const {verifyReceipt,runtimeOptions,runWorker}=require('../server/local-musetalk.cjs');
 const {digest}=require('../integrations/musetalk-local/input.cjs');

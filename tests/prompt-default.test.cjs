@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {Store,defaults,createDraft}=require('../server/store.cjs'),{createService}=require('../server/service.cjs'),{referenceCopyId,selectDefaultCopyId}=require('../server/prompt-default.mjs');
+const {Store,defaults,createDraft}=require('../server/store.cjs'),{createService}=require('./support/licensed-service.cjs'),{referenceCopyId,selectDefaultCopyId}=require('../server/prompt-default.mjs');
 function directory(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'prompt-default-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return root;}
 function legacy(t){const root=directory(t),data=defaults(),d=createDraft();data.drafts=[d];data.currentId=d.id;fs.writeFileSync(path.join(root,'studio.json'),JSON.stringify(data,null,2));return {root,data,d};}
 function service(t,root){const previous=new Set(process.listeners('exit')),s=createService(root),listener=process.listeners('exit').find(fn=>!previous.has(fn));t.after(()=>process.removeListener('exit',listener));return s;}

@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
-const proofread=require('../server/subtitle-proofread.cjs'),{createDraft}=require('../server/store.cjs'),{createService}=require('../server/service.cjs');
+const proofread=require('../server/subtitle-proofread.cjs'),{createDraft}=require('../server/store.cjs'),{createService}=require('./support/licensed-service.cjs');
 function evidence(d){return {assets:[{id:d.edit.sourceId||d.video.assetId,avatarRequest:{audio:{assetId:'proofread-audio'}}},{id:'proofread-audio',speech:{request:{textSha256:proofread.hash(d.finalText),textLength:d.finalText.length}}}]};}
 const preview=d=>proofread.preview(d,evidence(d)),apply=(d,r,selected)=>proofread.apply(d,r,selected,evidence(d));
 function fixture(){const d=createDraft();d.confirmed=true;d.edit.sourceId=d.video.assetId='proofread-video';d.finalText='红色便签贴在封底。设备没有电池，不提供邮寄。';d.edit.captions=[{id:'a',start:0,end:3,text:'红色变迁贴在封底。',auxiliary:{sourceText:'红色变迁贴在封底。',translation:'旧译文'}},{id:'b',start:3.1,end:6,text:'设备没有电池，不提供邮寄。'}];return d;}
