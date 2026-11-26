@@ -55,3 +55,37 @@ test('实际REF2VA图使用相同角色约束且Picture顺序保持上传顺序'
   assert(line(graph['6'].inputs.prompt,'subject_definitions',index+1).includes('from <Picture '+(index+1)+'>. Asset identity: '+ref.name+'.'));
  });
 });
+
+test('普通资产参考模式保留显式中文对白，不在声音段无条件禁止人声',()=>{
+ const story={...input,prompt:'两人在厨房对话。厨师说：“先把炉面擦干净。”',instruction:'第二秒开始说话，不添加其他台词。',references};
+ const graph=referenceVideoGraph({input:story,images:references.map((_,index)=>'reference-'+index+'.png')});
+ const prompt=graph['6'].inputs.prompt,sound=prompt.split('overall_soundscape:')[1].split('non_diegetic_music:')[0];
+ assert(prompt.includes(story.prompt));assert(prompt.includes(story.instruction));
+ assert.match(sound,/Preserve any explicitly required dialogue or voiceover in its original language and at the requested time/);
+ assert.match(sound,/do not invent additional spoken content/);
+ assert.doesNotMatch(sound,/; no speech or voiceover/);
+});
+
+test('未要求人声或明确静音时，普通参考模式仍不擅自增加对白',()=>{
+ const prompt=referenceVideoPrompt({...input,prompt:'无人厨房，白布从左侧擦到右侧。',instruction:'无对白、无画外音，只要白布接触声。'},references);
+ const sound=prompt.split('overall_soundscape:')[1].split('non_diegetic_music:')[0];
+ assert.match(sound,/Follow the explicit speech, silence and physical sound requirements specified above/);
+ assert.match(sound,/Explicit silence or sound-only requirements take precedence over the fallback/);
+ assert.match(sound,/If neither speech, silence nor specific sound requirements are provided, use only low natural ambience without dialogue or voiceover/);
+ assert.match(prompt,/无对白、无画外音，只要白布接触声/);
+});
+
+test('明确完全静音优先于默认环境声，不把无人声误当作无声音要求',()=>{
+ const prompt=referenceVideoPrompt({...input,instruction:'完全静音，不要任何声音。'},references);
+ assert.match(prompt,/完全静音，不要任何声音/);
+ assert.match(prompt,/Explicit silence or sound-only requirements take precedence over the fallback/);
+ assert.doesNotMatch(prompt,/If no speech is requested, use only low natural ambience/);
+});
+
+test('商品介绍参考模式继续禁止模型重复生成已经确认的后期旁白',()=>{
+ const prompt=referenceVideoPrompt({...input,productIntroduction:{version:1,productHash:'confirmed-product'}},references);
+ const sound=prompt.split('overall_soundscape:')[1].split('non_diegetic_music:')[0];
+ assert.match(sound,/no speech or voiceover/);
+ assert.match(sound,/approved narration is added separately during composition/);
+ assert.doesNotMatch(sound,/Preserve any explicitly required dialogue/);
+});
