@@ -8,6 +8,23 @@ export function speechCapabilities(config){
  const windows=config.ttsProtocol==='windows',local=config.ttsProtocol==='indextts-local',classic=local?'IndexTTS-2.5':String(config.ttsClassicModel||config.ttsModel||'').trim(),fast=local?'IndexTTS-2.5':String(config.ttsFastModel||config.ttsModel||'').trim();
  return {windows,local,classic,fast,modelRouting:!windows&&!local&&!!classic&&!!fast&&classic!==fast,emotions:local};
 }
+
+// 这里只描述当前配置和素材记录；文件存在性、模型可用性及生成效果仍由实际合成校验。
+export function voiceResourceStatus(profile={},config={},assets=[]){
+ const sample=assets.find(asset=>asset.id===profile.sampleId),{local,windows}=speechCapabilities(config),hasRemote=!!String(profile.remoteId||'').trim();
+ if(windows&&hasRemote&&!profile.sampleId)return {label:'服务音色 ID',detail:'已填写服务音色 ID；当前系统配音使用本机系统音色，不会使用此服务 ID。'};
+ if(!local&&!windows&&hasRemote)return {label:'服务音色 ID',detail:'已填写服务音色 ID，是否可用需通过当前语音服务实际合成验证。'};
+ if(!profile.sampleId)return {label:'未关联声音样本',detail:local?'本地 IndexTTS 需要关联音频样本；服务音色 ID 不能代替本地参考音频。':'尚未关联声音样本或填写服务音色 ID。'};
+ if(!sample)return {label:'样本记录缺失',detail:'关联的素材记录不存在，请重新选择声音样本。'};
+ if(sample.type!=='audio')return {label:'需音频样本',detail:'当前样本不是音频素材，请先提取音轨并保存音频样本。'};
+ return local?{label:'本地参考样本',detail:'已关联音频素材记录，可作为本地 IndexTTS 的参考输入；文件、时长和模型环境在生成时校验，尚不代表本次合成或效果验收通过。'}:{label:'声音样本',detail:config.ttsProtocol==='windows'?'已关联声音样本；系统配音使用本机系统音色，不能使用此参考样本。':'已关联声音样本；当前语音服务使用服务音色 ID，单独保存样本不会完成服务音色训练。'};
+}
+
+export function voiceResourceHint(config={}){
+ const capabilities=speechCapabilities(config);
+ const usage=capabilities.local?'当前本地 IndexTTS 使用已保存的音频样本作参考，无需先取得服务音色 ID。文件、时长与模型环境会在生成时校验，效果以实际合成试听为准。':capabilities.windows?'当前使用系统配音，请选择本机系统音色；保存的参考样本不会用于系统配音。':'当前语音服务使用服务音色 ID；保存样本不会自动完成服务音色训练，ID 是否可用需实际合成验证。';
+ return usage+(config.cloneUrl?' 声音训练服务地址已配置，是否可用需实际调用验证。':' 声音训练服务地址未配置，“开始训练”需要另行配置该服务。');
+}
 export function speechInput(draft,config){
  const voice=draft.voice||{},speed=Number(voice.speed),text=String(draft.finalText||'');
  if(!text.trim()||text.length>10000)throw new Error('请填写10000字以内的最终文案');

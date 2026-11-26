@@ -1,6 +1,6 @@
 import {computed,inject,onBeforeUnmount,onMounted,ref,watch} from 'vue';
 import {call,mediaUrl} from './api';
-import {emotionOptions,speechCapabilities,speechGenerationReason} from '../server/speech-config.mjs';
+import {emotionOptions,speechCapabilities,speechGenerationReason,voiceResourceStatus} from '../server/speech-config.mjs';
 
 // 新旧声音界面共用真实音色读取、试听及过期保护。
 export function useVoiceControls({emit,previewAudio}){
@@ -9,7 +9,7 @@ const advanced=ref(false),upload=ref(false),presets=ref(false),voices=ref([]),vo
 const capabilities=computed(()=>speechCapabilities(state.value.settings.provider));
 const locked=computed(()=>!!busy.value||workflowLocked.value);
 const selected=computed({get:()=>d.value.voice.profile?'sample:'+d.value.voice.profile:capabilities.value.windows&&d.value.voice.systemVoice?'system:'+d.value.voice.systemVoice:'',set:value=>{stop();if(value.startsWith('sample:')){d.value.voice.profile=value.slice(7);delete d.value.voice.systemVoice;}else{d.value.voice.profile='';if(value.startsWith('system:'))d.value.voice.systemVoice=value.slice(7);else delete d.value.voice.systemVoice;}}});
-const options=computed(()=>[{value:'',label:capabilities.value.windows?'使用设置中的系统音色':capabilities.value.local?'请选择本地参考声音':'使用设置中的服务音色'},...(capabilities.value.windows?voices.value.map(v=>({value:'system:'+v.name,label:v.name+' · '+v.culture})):[]),...(capabilities.value.windows&&d.value.voice.systemVoice&&!voices.value.some(v=>v.name===d.value.voice.systemVoice)?[{value:'system:'+d.value.voice.systemVoice,label:loading.value?'正在读取本机音色…':d.value.voice.systemVoice+'（待核对）',disabled:true}]:[]),...state.value.voices.map(v=>({value:'sample:'+v.id,label:v.name+(v.provenance?.kind==='builtin-voice-preset'?'（预设）':capabilities.value.local&&v.sampleId?'（本地样本）':!v.remoteId?'（仅样本，未训练）':'')}))]);
+const options=computed(()=>[{value:'',label:capabilities.value.windows?'使用设置中的系统音色':capabilities.value.local?'请选择本地参考声音':'使用设置中的服务音色'},...(capabilities.value.windows?voices.value.map(v=>({value:'system:'+v.name,label:v.name+' · '+v.culture})):[]),...(capabilities.value.windows&&d.value.voice.systemVoice&&!voices.value.some(v=>v.name===d.value.voice.systemVoice)?[{value:'system:'+d.value.voice.systemVoice,label:loading.value?'正在读取本机音色…':d.value.voice.systemVoice+'（待核对）',disabled:true}]:[]),...state.value.voices.map(v=>({value:'sample:'+v.id,label:v.name+(v.provenance?.kind==='builtin-voice-preset'?'（预设）':'')+'（'+voiceResourceStatus(v,state.value.settings.provider,state.value.assets).label+'）'}))]);
 const profile=computed(()=>state.value.voices.find(v=>v.id===d.value.voice.profile));
 const generationReason=computed(()=>loading.value?'正在读取本机音色…':speechGenerationReason(d.value,state.value.settings.provider,state.value.voices,voices.value));
 const emotionItems=computed(()=>emotionOptions.map(v=>({...v,disabled:!!v.value&&!capabilities.value.emotions})));
