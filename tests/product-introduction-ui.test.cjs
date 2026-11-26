@@ -21,7 +21,7 @@ async function fixture({existing=false,stale=false,component='ProductStudio',pro
  const scope=vue.effectScope(),call=async(action,payload)=>{calls.push({action,payload});return callResult||{stale,story:JSON.parse(JSON.stringify(draft.value.story))};};
  const names=['computed','inject','ref','watch','nextTick','onBeforeUnmount','I','MediaPreview','StoryStudio','AssetPicker','Modal','StoryModelSettings','CreativePresets','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)];
  const values=[vue.computed,()=>studio,vue.ref,vue.watch,vue.nextTick,()=>{},{},{},{},{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
- const componentObject=new Function(...names,compiled)(...values),vm=scope.run(()=>componentObject.setup({phase:'video',productMode},{expose(){}}));
+ const componentObject=new Function('StoryImageEdit',...names,compiled)({},...values),vm=scope.run(()=>componentObject.setup({phase:'video',productMode},{expose(){}}));
  await vue.nextTick();
  return {vm,draft,state,calls,notices,descriptor,filename,initialDraftJson,dispose:()=>scope.stop()};
 }

@@ -88,7 +88,7 @@ async function componentFixture(options={}){
  const call=async(action,payload)=>{calls.push({action,payload});return options.call?options.call(action,payload,{draft,state}):{story:structuredClone(JSON.parse(JSON.stringify(draft.value.story)))};};
  const compiled=sfc.compileScript(descriptor,{id:'story-ui-test'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return'),scope=vue.effectScope();
  const names=['computed','inject','nextTick','onBeforeUnmount','ref','watch','I','AssetPicker','Modal','StoryModelSettings','CreativePresets','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)],values=[vue.computed,()=>studio,vue.nextTick,()=>{},vue.ref,vue.watch,{},{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
- const component=new Function(...names,compiled)(...values),vm=scope.run(()=>component.setup({}, {expose(){}}));await vue.nextTick();vm.inputFingerprint.value=await helpers.storyEpisodeFingerprint(vm.story.value);await vue.nextTick();return {vm,draft,state,calls,navigation,notices,dispose:()=>scope.stop(),descriptor,sfc,filename};
+ const component=new Function('StoryImageEdit',...names,compiled)({},...values),vm=scope.run(()=>component.setup({}, {expose(){}}));await vue.nextTick();vm.inputFingerprint.value=await helpers.storyEpisodeFingerprint(vm.story.value);await vue.nextTick();return {vm,draft,state,calls,navigation,notices,dispose:()=>scope.stop(),descriptor,sfc,filename};
 }
 
 test('真实组件模板可编译，视频页就地绑定，错误恢复仅版本冲突提供',async()=>{

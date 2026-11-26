@@ -75,7 +75,7 @@ async function uiFixture(){
  const studio={draft,state,busy:vue.ref(''),workflowLocked:vue.ref(false),act:async(_,work)=>work(),refresh:async()=>{},notify:()=>{},navigate:()=>{},registerDraftFlusher:()=>()=>{}};
  const filename=path.resolve(__dirname,'../src/components/StoryStudio.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename}),compiled=sfc.compileScript(descriptor,{id:'localization-ui'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return');
  const names=['computed','inject','ref','watch','nextTick','onBeforeUnmount','I','AssetPicker','Modal','StoryModelSettings','CreativePresets','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)],values=[vue.computed,()=>studio,vue.ref,vue.watch,vue.nextTick,()=>{},{},{},{},{},{},async(action,payload)=>{calls.push({action,payload});return {translated:0,skipped:2};},id=>id,()=>1,()=>{},...Object.values(helpers)];
- const scope=vue.effectScope(),component=new Function(...names,compiled)(...values),vm=scope.run(()=>component.setup({productMode:true},{expose(){}}));await vue.nextTick();
+ const scope=vue.effectScope(),component=new Function('StoryImageEdit',...names,compiled)({},...values),vm=scope.run(()=>component.setup({productMode:true},{expose(){}}));await vue.nextTick();
  return {vm,draft,calls,dispose:()=>scope.stop()};
 }
 test('组件仅显示独立中文译稿，不改原字段，不误标为未保存；显式编辑才复制译稿',async()=>{

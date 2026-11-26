@@ -16,7 +16,7 @@ async function fixture(t,options={}){
  const source=sfc.compileScript(descriptor,{id:'story-upstream-duration-ui'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return');
  const names=['computed','inject','ref','watch','nextTick','onBeforeUnmount','I','AssetPicker','Modal','StoryModelSettings','CreativePresets','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)];
  const values=[vue.computed,()=>studio,vue.ref,vue.watch,vue.nextTick,()=>{},{},{},{},{},{},async(action,payload)=>{calls.push({action,payload});throw Error('本次时长设置不应调用媒体或服务接口');},id=>id,()=>1,()=>{},...Object.values(helpers)];
- const scope=vue.effectScope(),component=new Function(...names,source)(...values),vm=scope.run(()=>component.setup({productMode:!!options.productMode},{expose(){}}));
+ const scope=vue.effectScope(),component=new Function('StoryImageEdit',...names,source)({},...values),vm=scope.run(()=>component.setup({productMode:!!options.productMode},{expose(){}}));
  t.after(()=>{scope.stop();helpers.storyUiDrafts.delete(id);});await vue.nextTick();
  async function settleFingerprint(){const expected=await helpers.storyEpisodeFingerprint(vm.story.value);for(let turn=0;turn<20&&vm.inputFingerprint.value!==expected;turn++)await new Promise(setImmediate);assert.equal(vm.inputFingerprint.value,expected);}
  await settleFingerprint();return{vm,draft,state,busy,workflowLocked,calls,notices,descriptor,settleFingerprint};

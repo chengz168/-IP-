@@ -59,7 +59,7 @@ async function uiFixture(t,options={}){
  const source=sfc.compileScript(descriptor,{id:'asset-localization-ui'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return');
  const names=['computed','inject','ref','watch','nextTick','onBeforeUnmount','I','AssetPicker','Modal','StoryModelSettings','CreativePresets','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)];
  const values=[vue.computed,()=>studio,vue.ref,vue.watch,vue.nextTick,()=>{},{},{},{},{},{},async(action,payload)=>{calls.push({action,payload});return options.call?options.call(action,payload):{translated:1,skipped:0};},id=>id,()=>1,()=>{},...Object.values(helpers)];
- const scope=vue.effectScope(),component=new Function(...names,source)(...values),vm=scope.run(()=>component.setup({productMode:false},{expose(){}}));vm.assetScope.value='all';await vue.nextTick();
+ const scope=vue.effectScope(),component=new Function('StoryImageEdit',...names,source)({},...values),vm=scope.run(()=>component.setup({productMode:false},{expose(){}}));vm.assetScope.value='all';await vue.nextTick();
  t.after(()=>{scope.stop();helpers.storyUiDrafts.delete(id);});
  function attachTranslation(){const source=helpers.assetTranslationSource(vm.asset.value);draft.value.artifacts.shotTranslations={[source.id+':'+fingerprint(source)]:{shotId:source.id,sourceFingerprint:fingerprint(source),source:sourceOf(source),translation:translation()}};}
  return {vm,draft,state,busy,workflowLocked,calls,descriptor,filename,attachTranslation};

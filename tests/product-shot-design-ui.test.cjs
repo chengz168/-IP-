@@ -28,7 +28,7 @@ async function fixture({refreshAfterAct=false}={}){
  const compiled=sfc.compileScript(descriptor,{id:'shot-design-ui'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return'),helpers={...await import('../src/story-ui.mjs'),...await import('../server/shot-localization-view.mjs')};
  const names=['computed','inject','ref','watch','nextTick','onBeforeUnmount','I','AssetPicker','Modal','StoryModelSettings','CreativePresets','call','mediaUrl','setTimeout','clearTimeout',...Object.keys(helpers)];
  const values=[vue.computed,()=>studio,vue.ref,vue.watch,vue.nextTick,()=>{},{},{},{},{},{},call,id=>id,()=>1,()=>{},...Object.values(helpers)];
- const scope=vue.effectScope(),component=new Function(...names,compiled)(...values),vm=scope.run(()=>component.setup({productMode:true},{expose(){}}));await vue.nextTick();
+ const scope=vue.effectScope(),component=new Function('StoryImageEdit',...names,compiled)({},...values),vm=scope.run(()=>component.setup({productMode:true},{expose(){}}));await vue.nextTick();
  return{vm,draft,state,calls,notices,filename,descriptor,setProposal:fn=>{proposed=fn;},dispose:()=>scope.stop()};
 }
 

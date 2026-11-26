@@ -4,9 +4,9 @@ import {call} from '../api';
 const {state,busy,workflowLocked,notify,refresh}=inject('studio');
 const expanded=ref(false),working=ref(false),result=ref(''),inspection=ref(null),checkedAt=ref('');
 const config=ref({}),baseline=ref('');
-const defaults={storyImageProtocol:'comfy',storyImageBaseUrl:'http://127.0.0.1:8188',storyImageModel:'sd_xl_base_1.0.safetensors',storyImageArchitecture:'sdxl',storyImageZUnet:'z_image_turbo_bf16.safetensors',storyImageZClip:'qwen_3_4b.safetensors',storyImageZVae:'ae.safetensors',storyVideoProtocol:'comfy-h3',storyVideoBaseUrl:'http://127.0.0.1:8188',storyVideoModel:'minimax_h3_fl2va_pruned_int8_convrot.safetensors',storyReferenceVideoModel:'minimax_h3_ref2va_pruned_int8_convrot.safetensors'};
+const defaults={storyImageProtocol:'comfy',storyImageBaseUrl:'http://127.0.0.1:8188',storyImageModel:'sd_xl_base_1.0.safetensors',storyImageArchitecture:'sdxl',storyImageReferenceFit:'contain',storyImageDenoise:.68,storyImagePromptLanguage:'original',storyImageZUnet:'z_image_turbo_bf16.safetensors',storyImageZClip:'qwen_3_4b.safetensors',storyImageZVae:'ae.safetensors',storyVideoProtocol:'comfy-h3',storyVideoBaseUrl:'http://127.0.0.1:8188',storyVideoModel:'minimax_h3_fl2va_pruned_int8_convrot.safetensors',storyReferenceVideoModel:'minimax_h3_ref2va_pruned_int8_convrot.safetensors'};
 const keys=Object.keys(defaults);
-function savedConfig(){const p=state.value.settings.provider;return Object.fromEntries(keys.map(key=>[key,p[key]||defaults[key]]));}
+function savedConfig(){const p=state.value.settings.provider;return Object.fromEntries(keys.map(key=>[key,p[key]??defaults[key]]));}
 function read(){config.value=savedConfig();baseline.value=JSON.stringify(config.value);}
 read();
 const dirty=computed(()=>JSON.stringify(config.value)!==baseline.value);
@@ -52,12 +52,17 @@ async function save(check=false){if(locked.value)return;working.value=true;resul
         <label>视频模型<input v-model="config.storyVideoModel" :disabled="locked" aria-label="非口播视频模型"/></label>
         <label v-if="config.storyVideoProtocol==='comfy-h3'">资产参考视频模型<input v-model="config.storyReferenceVideoModel" :disabled="locked" aria-label="H3资产参考视频模型"/></label>
       </div>
+      <fieldset v-if="localImage&&!textOnly" class="story-reference-options"><legend>SDXL 构图与参考图</legend><div class="story-model-grid">
+          <label>参考图适配<select v-model="config.storyImageReferenceFit" :disabled="locked"><option value="contain">完整保留，空白处补边</option><option value="blur">柔化背景扩展，主体完整居中</option><option value="cover">铺满画面，居中裁切</option></select><small>长宽比不同时优先用柔化扩展保留完整产品；补边会留下空白，铺满可能裁掉主体边缘。</small></label>
+          <label><span>重绘强度 · {{Number(config.storyImageDenoise).toFixed(2)}}</span><input v-model.number="config.storyImageDenoise" type="range" min="0.1" max="1" step="0.01" :disabled="locked" aria-label="SDXL参考图重绘强度"/><small>数值越低越贴近原图，越高越容易改变内容。建议先用低强度试图并人工核对产品结构。</small></label>
+          <label>内部构图指令<select v-model="config.storyImagePromptLanguage" :disabled="locked"><option value="original">按原文直接生成</option><option value="english">先编译为英文再生成</option></select><small>仅改变送入本地 SDXL 的内部指令，界面与原始中文要求不变；翻译结果仍需检查。</small></label>
+      </div></fieldset>
       <datalist id="story-image-checkpoints"><option v-for="name in available.checkpoints||[]" :key="name" :value="name"/></datalist>
       <datalist id="story-image-unets"><option v-for="name in available.unets||[]" :key="name" :value="name"/></datalist>
       <datalist id="story-image-encoders"><option v-for="name in available.textEncoders||[]" :key="name" :value="name"/></datalist>
       <datalist id="story-image-vaes"><option v-for="name in available.vaes||[]" :key="name" :value="name"/></datalist>
       <p v-if="localImage&&textOnly" class="hint story-reference-warning" role="status">当前 Z-Image 工作流仅支持纯文生图。已有绑定参考的镜头会在提交前被拒绝；可先建立无参考的独立构图资产，审图后手动用于镜头。主体外观仅由文字约束，不保证跨图身份一致。</p>
-      <p v-else class="hint">本地 SDXL 仅主参考图片参与图生图，其余绑定只传文字，不提供多图或身份一致性保证。云端参考图需要可用的图片编辑接口。H3 单镜头支持 4～15 秒。</p>
+      <p v-else class="hint">本地 SDXL 仅主参考图片参与图生图，其余绑定只传文字，不提供多图或身份一致性保证。云端参考图需要可用的图片编辑接口。H3 单镜头支持 4～15 秒。图片服务成功返回不代表产品结构或镜头内容已通过，仍需逐张预览确认。</p>
       <p v-if="inspection?.image" class="hint" role="status">图片检查：{{inspection.image.ready?'所需节点与权重齐备，尚未验证生成':'当前配置未就绪'}}；参考方式：{{inspection.image.referenceMode||'未确认'}}。模型列表读取不会执行生成或更改设置。</p>
       <p v-if="inspection?.video?.reference" class="hint" role="status">资产参考工作流：{{inspection.video.reference.ready?'节点与权重齐备，仍需实际生成验证':'尚未就绪：'+[...(inspection.video.reference.missingNodes||[]),...(inspection.video.reference.missingModels||[]),...(inspection.video.reference.invalidOptions||[])].join('、')}}。资产参考不固定首尾帧，需逐镜检查商品结构与人物外观。</p>
       <div class="story-model-actions"><button :disabled="locked" @click="discover">{{working?'正在检查…':'读取本地模型与能力（不保存）'}}</button><button :disabled="locked" @click="save(false)">保存模型设置</button><button :disabled="locked" @click="save(true)">保存并检查本地能力</button></div>
@@ -67,5 +72,5 @@ async function save(check=false){if(locked.value)return;working.value=true;resul
 </template>
 <style scoped>
 .story-model-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.story-service-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-block:12px}.story-service-summary p{margin:0;display:grid;gap:6px;padding:10px 12px;border:1px solid var(--border,#454152);border-radius:8px;min-width:0;overflow-wrap:anywhere;line-height:1.6}.story-service-summary .unready{border-color:var(--warning,#c89146)}.story-service-summary span{font-size:13px}.story-model-heading button{min-height:36px}@media(max-width:760px){.story-service-summary{grid-template-columns:minmax(0,1fr)}}
-.story-model-settings{margin-block:12px;border:1px solid var(--border,#454152);border-radius:12px;padding:12px 16px;background:var(--card-bg,rgba(255,255,255,.025))}.story-model-form{display:grid;gap:14px;padding-top:12px}.story-model-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.story-model-grid label{display:grid;gap:8px;min-width:0}.story-model-grid input,.story-model-grid select{width:100%;min-width:0}.story-model-actions{display:flex;gap:12px;flex-wrap:wrap}.story-model-result{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font-size:12px}.hint{margin:0;line-height:1.7}@media(max-width:1100px){.story-model-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.story-model-grid{grid-template-columns:minmax(0,1fr)}}
+.story-model-settings{margin-block:12px;border:1px solid var(--border,#454152);border-radius:12px;padding:12px 16px;background:var(--card-bg,rgba(255,255,255,.025))}.story-model-form{display:grid;gap:14px;padding-top:12px}.story-model-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.story-model-grid label{display:grid;align-content:start;gap:8px;min-width:0}.story-model-grid small{line-height:1.7;overflow-wrap:anywhere}.story-reference-options{margin:0;padding:14px;border:1px solid var(--border,#454152);border-radius:8px;min-width:0}.story-reference-options legend{padding-inline:6px;font-size:13px}.story-model-grid input,.story-model-grid select{width:100%;min-width:0}.story-model-actions{display:flex;gap:12px;flex-wrap:wrap}.story-model-result{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font-size:12px}.hint{margin:0;line-height:1.7}@media(max-width:1100px){.story-model-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:760px){.story-model-grid{grid-template-columns:minmax(0,1fr)}}
 </style>
