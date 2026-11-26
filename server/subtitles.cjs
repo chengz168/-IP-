@@ -1,6 +1,53 @@
+const wordSegmenter=new Intl.Segmenter('zh-CN',{granularity:'word'});
+const closingPunctuation=/^[，。！？；：、,.!?;:%％）\)］\]｝\}〉》」』】”’]/;
+const openingPunctuation=/[（\(［\[｛\{〈《「『【“‘]$/;
+const numberWithUnit=/\d+(?:[.．]\d+)?[\t ]*(?:毫米|厘米|分米|千米|微米|平方米|立方米|千克|公斤|毫升|分钟|小时|万元|米|克|升|秒|元|个|台|件|张)/gu;
+const charWidth=ch=>/[\u0000-\u007f]/.test(ch)?.6:1;
 function wrapLines(text,maxUnits){
+  if(!Number.isFinite(maxUnits)||maxUnits<=0)throw new Error('字幕每行宽度无效');
   const rows=[];
-  for(const paragraph of String(text).split(/\r?\n/)){let line='',units=0;for(const ch of paragraph){const width=/[\u0000-\u007f]/.test(ch)?.6:1;if(units+width>maxUnits&&line){rows.push(line);line='';units=0;}line+=ch;units+=width;}rows.push(line);}
+  for(const paragraph of String(text).split(/\r?\n/)){
+    const chars=Array.from(paragraph),widths=[0],offsets=[0],boundaries=new Set([0]),quantityEnds=new Set();
+    for(const ch of chars){widths.push(widths.at(-1)+charWidth(ch));offsets.push(offsets.at(-1)+ch.length);}
+    for(const part of wordSegmenter.segment(paragraph))boundaries.add(part.index+part.segment.length);
+    // 数字与常用完整单位按原文保护，不依赖运行时是否将“分米”“万元”完整分词。
+    // 组合超过整行宽度时仍允许保底折行，避免丢字或超出画面。
+    for(const match of paragraph.matchAll(numberWithUnit)){
+      quantityEnds.add(match.index+match[0].length);
+      for(let i=match.index+1;i<match.index+match[0].length;i++)boundaries.delete(i);
+    }
+    const fits=(a,b)=>widths[b]-widths[a]<=maxUnits+1e-7;
+    const allowed=i=>!closingPunctuation.test(chars[i]||'')&&!openingPunctuation.test(chars[i-1]||'');
+    const cuts=[0];let start=0;
+    while(start<chars.length){
+      let end=start+1;while(end<chars.length&&fits(start,end+1))end++;
+      if(end<chars.length){
+        let cut=end;
+        while(cut>start&&(!allowed(cut)||!boundaries.has(offsets[cut])))cut--;
+        // 极窄画面容不下“完整数量＋后续标点”时，优先保全可容纳的数量，才放宽标点禁则。
+        if(cut===start){cut=end;while(cut>start&&!quantityEnds.has(offsets[cut]))cut--;}
+        if(cut===start){cut=end;while(cut>start&&!allowed(cut))cut--;}
+        if(cut>start)end=cut;
+      }
+      cuts.push(end);start=end;
+    }
+    // 只均衡过短的末行，不改显式换行，也不为排版拆分字幕时间段。
+    if(cuts.length>2){
+      const end=cuts.at(-1),last=cuts.at(-2),begin=cuts.at(-3);
+      if(widths[end]-widths[last]<=maxUnits/3){
+        let best=last,score=Infinity;
+        for(let i=begin+1;i<end;i++)if(fits(begin,i)&&fits(i,end)&&allowed(i)&&boundaries.has(offsets[i])){
+          const left=widths[i]-widths[begin],right=widths[end]-widths[i];
+          const clauseEnd=/[，。！？；：、,.!?;:]$/.test(chars[i-1])&&Math.min(left,right)>=maxUnits/3;
+          const candidate=Math.abs(left-right)-(clauseEnd?maxUnits:0);
+          if(candidate<score){best=i;score=candidate;}
+        }
+        cuts[cuts.length-2]=best;
+      }
+    }
+    if(!chars.length)rows.push('');
+    else for(let i=1;i<cuts.length;i++)rows.push(chars.slice(cuts[i-1],cuts[i]).join(''));
+  }
   return rows;
 }
 function toAss(rows,width,height,{speed=1,marginV=80,fontSize=48,style='white',position='bottom',maxChars=18}={}){

@@ -29,7 +29,8 @@ async function mapSubtitleReference(rows,reference){
  let offset=0;
  const suggestions=rows.map((row,index)=>{
   const count=content(row.text).length,start=points.get(offset),end=points.get(offset+count);offset+=count;
-  const from=start?.max,to=end?.max,proposed=Number.isInteger(from)&&Number.isInteger(to)&&to>from?reference.slice(index===0&&from===0?0:rawOffsets[from],rawOffsets[to]).trim():'';
+  // 只压缩讲稿连续段落换行，不能改写正文、原字幕或生成新的时间切点。
+  const from=start?.max,to=end?.max,proposed=Number.isInteger(from)&&Number.isInteger(to)&&to>from?reference.slice(index===0&&from===0?0:rawOffsets[from],rawOffsets[to]).replace(/(?:\r?\n[\t ]*){2,}/g,'\n').trim():'';
   const similarity=localSimilarity(row.text,proposed),ambiguous=!start||!end||start.min!==start.max||end.min!==end.max,warnings=[];
   if(ambiguous)warnings.push('字幕边界包含识别增漏字，未确认文字对应时间，请手工回听');
   if(similarity<mapping.thresholds.localSimilarity)warnings.push('本条拼音匹配不足，请手工回听核对');

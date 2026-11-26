@@ -23,7 +23,8 @@ function preview(d,data,{allowReferenceMapping=false}={}){
  if(similarity<.7)throw Error('字幕与第二步文案相似度不足，可能不是同一份讲稿，未生成替换建议');
  let offset=0;const suggestions=rows.map((row,index)=>{
   const original=units(row.text),start=boundaries[offset],end=boundaries[offset+original.length];offset+=original.length;
-  let proposed='';if(end>start){const rawStart=b[start].start,rawEnd=end<b.length?b[end].start:ref.text.length;proposed=ref.text.slice(rawStart,rawEnd).trim();}
+  // 正文段落空行不能成为字幕空白行；保留单次换行与原始时间、识别记录。
+  let proposed='';if(end>start){const rawStart=b[start].start,rawEnd=end<b.length?b[end].start:ref.text.length;proposed=ref.text.slice(rawStart,rawEnd).replace(/(?:\r?\n[\t ]*){2,}/g,'\n').trim();}
   const revised=units(proposed),local=original.length&&revised.length?1-align(original,revised).distance/Math.max(original.length,revised.length):0;
   // 长度突变与低匹配句保留待人工处理，不能借用相邻时间塞入缺失段落。
   const ratio=revised.length/original.length,warnings=[];if(local<.65)warnings.push('本句匹配不足，需手工核对');if(ratio>1.35||ratio<.65)warnings.push('文案片段长度差异较大，无法确认对应发言时间');if(index===0&&start>0)warnings.push('文案开头没有对应字幕，请手工核对缺失内容');
