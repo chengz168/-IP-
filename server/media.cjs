@@ -22,9 +22,14 @@ class Media{
     catch(error){this.store.data.assets=this.store.data.assets.filter(item=>item.id!==asset.id);fs.rmSync(asset.path,{force:true});this.store.save();throw error;}
   }
   async analyzeSilence(id,edit,ctx){return require('./silence.cjs').detectSilence(this,id,edit,ctx,runProcess);}
-  async frame(id,time=0,ctx={}){const source=this.store.asset(id);const out=path.join(this.store.outputDir(),'frame-'+Date.now()+'.png');await runProcess(this.binaries().ffmpeg,['-y','-ss',String(Math.max(0,Number(time)||0)),'-i',source.path,'-frames:v','1','-update','1',out],ctx);if(!fs.existsSync(out)||!fs.statSync(out).size)throw new Error('截取封面失败');return this.store.addAsset(out,{origin:'frame'});}
+  async frame(id,time=0,ctx={}){
+    const {frameInput,hashFile}=require('./cover-source.cjs'),input=frameInput(this.store,id,time),source=this.store.asset(id),out=path.join(this.store.outputDir(),'frame-'+crypto.randomUUID()+'.png');
+    try{await runProcess(this.binaries().ffmpeg,['-y','-ss',String(input.time),'-i',source.path,'-frames:v','1','-update','1',out],ctx);if(!fs.existsSync(out)||!fs.statSync(out).size)throw new Error('截取封面失败');ctx.signal?.throwIfAborted();if(JSON.stringify(input)!==JSON.stringify(frameInput(this.store,id,time)))throw Error('截帧期间源视频已变化，请重新截取');return this.store.addAsset(out,{origin:'frame',frameSource:input,frameSha256:hashFile(out)});}finally{fs.rmSync(out,{force:true});}
+  }
   async extractAudio(id,ctx){const source=this.store.asset(id);const out=path.join(this.store.outputDir(),'audio-'+Date.now()+'.wav');await runProcess(this.binaries().ffmpeg,['-y','-i',source.path,'-vn','-ac','1','-ar','16000',out],ctx);await this.probe(out);return this.store.addAsset(out,{origin:'extract-audio'});}
   async coverVideo(draft,ctx){
+    const sourceTools=require('./cover-source.cjs');sourceTools.assertCoverCurrent(this.store,draft);
+    const coverVideoSource={version:1,video:sourceTools.fileInput(this.store,sourceTools.sourceId(draft),'video'),cover:sourceTools.fileInput(this.store,draft.cover.assetId,'image')};
     const source=this.store.asset(draft.edit.resultId||draft.edit.sourceId||draft.video.assetId),cover=this.store.asset(draft.cover.assetId);
     const info=await this.probe(source.path),video=info.streams.find(s=>s.codec_type==='video'),audio=info.streams.find(s=>s.codec_type==='audio');
     if(!video||!video.width||!video.height)throw new Error('封面视频需要有效的视频源');
@@ -59,7 +64,9 @@ class Media{
       if(!output||output.width!==size.width||output.height!==size.height||!Number.isFinite(duration)||duration<=0||Math.abs(duration-sourceDuration)>.12)throw new Error('封面视频校验失败：尺寸或时长与源视频不一致');
       if(video.nb_frames&&output.nb_frames&&Number(video.nb_frames)!==Number(output.nb_frames))throw new Error('封面视频校验失败：帧数与源视频不一致');
       ctx.signal?.throwIfAborted();
-      fs.renameSync(temp,file);return this.store.addAsset(file,{origin:'cover-video',duration});
+      sourceTools.assertCoverCurrent(this.store,draft);
+      if(JSON.stringify(coverVideoSource)!==JSON.stringify({version:1,video:sourceTools.fileInput(this.store,sourceTools.sourceId(draft),'video'),cover:sourceTools.fileInput(this.store,draft.cover.assetId,'image')}))throw Error('封面视频生成期间来源文件已变化，请重新生成');
+      fs.renameSync(temp,file);return this.store.addAsset(file,{origin:'cover-video',duration,coverVideoSource});
     }finally{fs.rmSync(temp,{force:true});fs.rmSync(unrotated,{force:true});}
   }
 }

@@ -8,7 +8,7 @@ import {call} from '../api';
 import {openCaptionSession,saveCaptionSession} from '../caption-edit-session.mjs';
 import {insertCaption,deleteCaption,changeCaptionStart,changeCaptionEnd,realignCaptionText,captionAsrSnapshot} from '../caption-edit-rules.mjs';
 
-const props=defineProps({session:Object,auxiliaryTools:Boolean});
+const props=defineProps({session:Object,auxiliaryTools:Boolean,proofreadTools:Boolean});
 const emit = defineEmits(['close', 'import']);
 const {draft, state, busy, save, notify, act} = inject('studio');
 const localSession=ref(openCaptionSession(props.session,draft.value));
@@ -77,9 +77,10 @@ async function confirm(){if(await persist()){notify('字幕已更新，剪辑时
 
 <template>
   <Modal title="编辑字幕" variant="caption" wide :backdrop-style="backdropStyle" @close="close">
-    <template v-if="auxiliaryTools"><div v-if="draft.artifacts?.captionHistory?.length" class="caption-auxiliary-toolbar"><button :disabled="saving||!!busy" @click="openAuxiliary('history')">字幕历史</button><span>先保存当前编辑，再查看或恢复旧字幕</span></div>
-    <div class="caption-auxiliary-toolbar"><button :disabled="saving||!!busy||!rows.length" @click="openAuxiliary('proofread')">按文案校对</button><span>先保存当前编辑，再回听并逐条选择建议</span></div>
-    <div class="caption-auxiliary-toolbar"><button :aria-expanded="showAuxiliary" @click="showAuxiliary=!showAuxiliary">译文与关键词</button><template v-if="showAuxiliary"><button :disabled="saving||!!busy||!rows.length" @click="generateAuxiliary('translation')">生成双语译文</button><button :disabled="saving||!!busy||!rows.length" @click="generateAuxiliary('keywords')">提取关键词</button><span>使用已配置的本地文本模型，可手工填写</span></template></div></template>
+    <div v-if="auxiliaryTools&&draft.artifacts?.captionHistory?.length" class="caption-auxiliary-toolbar"><button :disabled="saving||!!busy" @click="openAuxiliary('history')">字幕历史</button><span>先保存当前编辑，再查看或恢复旧字幕</span></div>
+    <!-- 校对入口独立启用，不展开新版隐藏的译文工具或改变原编辑器定位。 -->
+    <div v-if="auxiliaryTools||proofreadTools" class="caption-auxiliary-toolbar"><button :disabled="saving||!!busy||!rows.length" @click="openAuxiliary('proofread')">按文案校对</button><span>先保存当前编辑，再回听并逐条选择建议</span></div>
+    <div v-if="auxiliaryTools" class="caption-auxiliary-toolbar"><button :aria-expanded="showAuxiliary" @click="showAuxiliary=!showAuxiliary">译文与关键词</button><template v-if="showAuxiliary"><button :disabled="saving||!!busy||!rows.length" @click="generateAuxiliary('translation')">生成双语译文</button><button :disabled="saving||!!busy||!rows.length" @click="generateAuxiliary('keywords')">提取关键词</button><span>使用已配置的本地文本模型，可手工填写</span></template></div>
     <p v-if="auxiliaryError" class="caption-auxiliary-error" role="alert">{{auxiliaryError}}</p>
     <div ref="table" class="caption-list">
       <table class="caption-table">

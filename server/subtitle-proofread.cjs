@@ -12,11 +12,13 @@ function align(a,b){
  const boundaries=new Uint32Array(n+1);i=0;j=0;for(const direction of steps.reverse()){if(direction!==1)j++;if(direction!==2)i++;boundaries[i]=j;}
  return {distance,boundaries};
 }
-function preview(d,data){
+function preview(d,data,{allowReferenceMapping=false}={}){
+ if(typeof allowReferenceMapping!=='boolean')throw Error('是否允许可信稿字幕映射必须为布尔值');
  const ref=reference(d,data),rows=d.edit.captions;if(!ref?.text.trim())throw Error('没有与当前视频对应的可信讲稿：请先确认第二步正文并使用该稿配音生成视频，或选用已合成的当前集；导入视频可继续手工回听校对');
  if(!Array.isArray(rows)||!rows.length||rows.length>1000||rows.some(r=>typeof r.text!=='string'||!r.text.trim()||!Number.isFinite(r.start)||!Number.isFinite(r.end)||r.start<0||r.end<=r.start))throw Error('字幕内容或时间无效，请先修正后校对');
  if(rows.some((r,i)=>i&&r.start<rows[i-1].end-.001))throw Error('字幕时间轴重叠或顺序错误，请先修正后校对');
  const a=rows.flatMap(r=>units(r.text)),b=units(ref.text);if(!a.length||!b.length||a.length>4000||b.length>4000)throw Error('本次校对支持4000字以内的有效讲稿和字幕，请拆分后处理');
+ if(allowReferenceMapping){const inputSignature=signature(d,data);return require('./subtitle-reference-mapping.cjs').mapSubtitleReference(rows,ref.text).then(({mapping,suggestions,recognition})=>({version:3,algorithm:'explicit-reference-character-pinyin-v1',signature:inputSignature,reference:ref,referenceSha256:hash(ref.text),originalCaptions:structuredClone(rows),mappingInput:{kind:'saved-caption-rows',...recognition},referenceMapping:mapping,similarity:mapping.similarity,suggestions,requiresListening:true,limitation:'仅按已保存字幕与可信稿映射字形，原ASR另存于执行记录；保留原字幕边界，不证明实际发音或发言正确，请逐条回听。'+mapping.limitation}));}
  const {distance,boundaries}=align(a,b),similarity=1-distance/Math.max(a.length,b.length);
  if(similarity<.7)throw Error('字幕与第二步文案相似度不足，可能不是同一份讲稿，未生成替换建议');
  let offset=0;const suggestions=rows.map((row,index)=>{

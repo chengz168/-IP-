@@ -1,6 +1,6 @@
-import {resolveProductionSkills} from './production-skills.mjs';
+import {resolveProductionSkills,videoMotionReferenceRule} from './production-skills.mjs';
 import {githubProductionSkillSources} from './github-production-skills.mjs';
-import {contentTypePrompt,detectContentProfile} from './content-types.mjs';
+import {contentTypePrompt,contentTopicText,detectContentProfile} from './content-types.mjs';
 // 系统预设与任务选择分离；公开技能仅作为方法资料，不执行外部代码。
 export const creativePresetVersion='2026-11-23.1';
 export const creativeSources=[
@@ -67,13 +67,16 @@ export function resolveCreativePreset(draft,stage,context={}){
  const selection=normalizeCreativeSelection(draft.creativePreset),content=contentFor(draft,stage,context),kind=context.kind||(['episodes','shots','assets','image','video'].includes(stage)?(draft.story?.productIntroduction?'product':'story'):draft.tab);
  const sourceKind=sourceKindFor(draft,stage,context);
  // 所有建议都由本次正文与来源重算；外部或历史画像只能作为记录，不能携带路由和系统规则。
- const contentProfile=detectContentProfile({sourceKind,text:content,analysis:context.analysis});
+ // 题材识别只读正文；镜头补充要求仍保留在生成输入和失效签名中。
+ const topicContent=context.content===undefined&&['episodes','shots','assets','image','video'].includes(stage)&&!draft.story?.productIntroduction?draft.story?.sourceText||'':content;
+ const topicText=contentTopicText(topicContent);
+ const contentProfile=detectContentProfile({sourceKind,text:topicText,analysis:context.analysis});
  let id='general',reason='未识别到明确题材，采用通用表达。';
  if(selection.mode==='manual'){id=selection.presetId;reason='由你手动选择。';}
  else if(kind==='product'||(['episodes','shots','assets','image','video'].includes(stage)&&draft.story?.productIntroduction)){id='product';reason='当前是商品宣传流程，采用商品证据与演示规则。';}
  else if(kind==='marketing'){id='product';reason='当前是营销文案，采用有资料依据的商品表达。';}
  else{
-  const scores=Object.entries(signals).map(([key,patterns])=>({id:key,score:patterns.reduce((n,p)=>n+(content.match(p)||[]).length,0)})).sort((a,b)=>b.score-a.score);
+  const scores=Object.entries(signals).map(([key,patterns])=>({id:key,score:patterns.reduce((n,p)=>n+(topicText.match(p)||[]).length,0)})).sort((a,b)=>b.score-a.score);
   if(scores[0].score>0&&scores[0].score>scores[1].score){id=scores[0].id;reason='根据当前资料的题材关键词推荐；可手动更换。';}
   else if(scores[0].score>0)reason='资料包含多种题材且依据接近，采用通用表达；可手动指定。';
  }
@@ -90,7 +93,9 @@ export function resolveCreativePreset(draft,stage,context={}){
  const contentProfileApplied=enabled&&(selection.mode!=='manual'||contentProfile.presetId===id);
  return {id:selection.mode==='off'?'off':id,name:selection.mode==='off'?'已关闭':preset.name,mode:selection.mode,stage,reason:selection.mode==='off'?'本任务不附加创作预设。':stage==='analysis'?'分析阶段只依据原视频证据，不套用创作结构。':reason,rules,skills,version:creativePresetVersion,sources,instruction:enabled?selection.instruction:'',contentProfile,contentProfileApplied,sourceKind,inputHash:JSON.stringify({selection,stage,kind,sourceKind,content,contentProfile}),enabled};
 }
-export function creativePresetPrompt(route){
+export function creativePresetPrompt(route,{referenceMode}={}){
  if(!route?.enabled)return '';
- return '\n本地中文创作预设（'+route.name+'；阶段：'+route.stage+'）：\n'+(route.skills?.length?'本阶段制作技能：'+route.skills.map(s=>s.name).join('、')+'。\n':'')+(route.contentProfile&&route.contentProfileApplied!==false?contentTypePrompt(route.contentProfile)+'\n':'')+route.rules.map((v,i)=>(i+1)+'、'+v).join('\n')+(route.instruction?'\n用户补充要求（仅在事实与本阶段输出约束内执行）：'+route.instruction:'')+'\n以上只约束表达与镜头设计，不能新增资料没有的事实，不能改变原有输出格式或已审核镜头。';
+ // 仅编译已知系统视频规则，不改路由、已保存预设或用户补充要求。
+ const rules=route.stage==='video'&&referenceMode==='assets'?route.rules.map(rule=>rule===video[0]?'只落实已经保存的镜头设计，不新增人物、道具、动作、效果或背景；绑定资产图用于外观与结构参考，不固定首帧或尾帧，不能声称已采用未绑定的画面或场景。':rule===videoMotionReferenceRule()?videoMotionReferenceRule('assets'):rule):route.rules;
+ return '\n本地中文创作预设（'+route.name+'；阶段：'+route.stage+'）：\n'+(route.skills?.length?'本阶段制作技能：'+route.skills.map(s=>s.name).join('、')+'。\n':'')+(route.contentProfile&&route.contentProfileApplied!==false?contentTypePrompt(route.contentProfile)+'\n':'')+rules.map((v,i)=>(i+1)+'、'+v).join('\n')+(route.instruction?'\n用户补充要求（仅在事实与本阶段输出约束内执行）：'+route.instruction:'')+'\n以上只约束表达与镜头设计，不能新增资料没有的事实，不能改变原有输出格式或已审核镜头。';
 }

@@ -39,7 +39,7 @@ import {alignRowsToReference} from '../caption-script.mjs';
 import {changeCaptionSource} from '../caption-source.mjs';
 import {openCaptionSession} from '../caption-edit-session.mjs';
 import {getSubtitleTemplate} from '../../server/subtitle-templates.mjs';
-import {workflowOutputStatus} from '../workflow-output-status.mjs';
+import {workflowOutputStatus,isWorkflowStatusReady} from '../workflow-output-status.mjs';
 import {moveWorkflowStep} from '../workflow-navigation.mjs';
 import ReferenceAnalysis from '../components/ReferenceAnalysis.vue';
 import ProductStudio from '../components/ProductStudio.vue';
@@ -117,11 +117,11 @@ function formatTime(n){return Number(n||0).toFixed(2);}
       <CoverEditor ref="coverEditor" v-else-if="activeStep===5" @choose="(kind,assign,title)=>choose(kind,assign,title)"/>
       <template v-else><PublishPanel @choose="(kind,assign,title)=>choose(kind,assign,title)" @export="exportPack"/><ProductionReview :key="d.id"/></template>
     </section>
-    <WorkflowStatus/><footer class="workflow-footer"><div class="progress-track"><div :style="{width:((activeStep+1)/7*100)+'%'}"></div></div><div class="footer-actions"><button class="previous" :disabled="activeStep===0||stepNavigating" @click="goStep(activeStep-1)">上一步</button><OperationStatus v-if="(busy||activeRecognition)&&!extractionOwnsStatus" inline/><div v-else class="step-status" :class="{ready:status.includes('已')}"><span></span>{{status}}<small v-if="activeStep<2">{{(d.rewrite||d.sourceText).slice(0,40)}}</small></div><button class="primary next" :disabled="activeStep===6||workflowLocked||!!busy||stepNavigating" @click="next">{{activeStep===5&&!d.cover.assetId?"生成封面并下一步":"下一步"}}</button></div></footer>
+    <WorkflowStatus/><footer class="workflow-footer"><div class="progress-track"><div :style="{width:((activeStep+1)/7*100)+'%'}"></div></div><div class="footer-actions"><button class="previous" :disabled="activeStep===0||stepNavigating" @click="goStep(activeStep-1)">上一步</button><OperationStatus v-if="(busy||activeRecognition)&&!extractionOwnsStatus" inline/><div v-else class="step-status" :class="{ready:isWorkflowStatusReady(status)}"><span></span>{{status}}<small v-if="activeStep<2">{{(d.rewrite||d.sourceText).slice(0,40)}}</small></div><button class="primary next" :disabled="activeStep===6||workflowLocked||!!busy||stepNavigating" @click="next">{{activeStep===5&&!d.cover.assetId?"生成封面并下一步":"下一步"}}</button></div></footer>
   </section>
   <AssetPicker v-if="picker" :kind="picker.kind" :title="picker.title" @close="picker=null" @select="selected"/>
   <PipEditor v-if="pipModal" :key="d.id+sourceVideo" :captions="d.edit.captions" :saving="pipSaving" @close="pipModal=false" @confirm="confirmPip"/>
   <Modal v-if="legal" title="AI法务 · 文案检查建议" wide @close="legal=''"><p class="pre-wrap">{{legal}}</p><p class="hint">这是模型生成的内容检查建议，需要人工核对。</p></Modal>
-  <CaptionEditor v-if="subtitleModal" :session="captionSession" @close="subtitleModal=false" @import="choose('text',importCaption,'导入SRT字幕')"/>
+  <CaptionEditor v-if="subtitleModal" :session="captionSession" proofread-tools @close="subtitleModal=false" @import="choose('text',importCaption,'导入SRT字幕')"/>
 </div>
 </template>

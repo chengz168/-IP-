@@ -74,15 +74,25 @@ function createUsageGuard({root, now = () => new Date(), limits = {}, timeZone =
         if (error.code !== 'EEXIST') throw error;
         // 活进程锁不等待；让调用方明确重试，不能并发覆盖账本。
         let held;
-        try { held = JSON.parse(fs.readFileSync(lockFile, 'utf8')); } catch { throw fail('USAGE_BUSY', '云端用量正在更新，请稍后重试'); }
+        try { held = JSON.parse(fs.readFileSync(lockFile, 'utf8')); }
+        catch (readError) {
+          if (readError.code === 'ENOENT' || readError instanceof SyntaxError) throw fail('USAGE_BUSY', '云端用量正在更新，请稍后重试');
+          throw readError;
+        }
         if (!Number.isInteger(held.pid) || held.pid <= 0) throw fail('USAGE_BUSY', '云端用量正在更新，请稍后重试');
         let alive = true;
         try { process.kill(held.pid, 0); } catch (probe) { if (probe.code === 'ESRCH') alive = false; }
         if (alive) throw fail('USAGE_BUSY', '云端用量正在更新，请稍后重试');
         // 仅回收已确认退出的进程留下的锁，不按年龄抢占活进程。
-        if (fs.readFileSync(lockFile, 'utf8') !== JSON.stringify(held)) throw fail('USAGE_BUSY', '云端用量正在更新，请稍后重试');
-        fs.unlinkSync(lockFile);
-        descriptor = fs.openSync(lockFile, 'wx', 0o600);
+        try {
+          if (fs.readFileSync(lockFile, 'utf8') !== JSON.stringify(held)) throw fail('USAGE_BUSY', '云端用量正在更新，请稍后重试');
+          fs.unlinkSync(lockFile);
+          descriptor = fs.openSync(lockFile, 'wx', 0o600);
+        } catch (reclaimError) {
+          // 回收期间锁可能已被释放或由其他进程重建；只将明确竞争视为繁忙。
+          if (reclaimError.code === 'ENOENT' || reclaimError.code === 'EEXIST') throw fail('USAGE_BUSY', '云端用量正在更新，请稍后重试');
+          throw reclaimError;
+        }
       }
       fs.writeFileSync(descriptor, JSON.stringify({pid: process.pid, owner}));
       const state = load(), configurationValue = configuration(), current = clock();

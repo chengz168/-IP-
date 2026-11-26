@@ -103,6 +103,7 @@ class Store{
     require('./caption-history.cjs').archiveOnSourceChange(before,next);
     const editChanged=videoChanged||before.video.assetId!==next.video.assetId||without(before.edit,['resultId'])!==without(next.edit,['resultId']);
     if(editChanged)next.edit.resultId='';
+    require('./cover-source.cjs').invalidateVideoCover(this,before,next);
     const coverChanged=without(before.cover,['assetId','videoId'])!==without(next.cover,['assetId','videoId']);
     if(coverChanged){next.cover.assetId='';next.cover.videoId='';}
     // 同参数重新生成也会替换真实产物，旧首帧视频与默认发布绑定不能继续沿用。

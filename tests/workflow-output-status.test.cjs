@@ -10,13 +10,20 @@ function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'workflow-ou
 function asset(store,name,type){const file=path.join(store.root,name);fs.writeFileSync(file,'文件引用契约数据，不是生成媒体');return store.addAsset(file,{type});}
 function state(store){return {...store.state(),taskSummaries:summarizeTasks(store.data)};}
 
+test('底栏仅精确完成和跳过状态显示就绪，配置变化与未知状态不误绿',async()=>{
+ const {isWorkflowStatusReady}=await import('../src/workflow-output-status.mjs');
+ for(const status of ['原文案 已填写','最终文案 已确认','改写文案 已填写','当前音频 已跳过','当前音频 已就绪','当前视频 已就绪','剪辑结果 已生成','标题封面 已生成','平台 草稿已保存','平台 已发布','发布包 已导出'])assert.equal(isWorkflowStatusReady(status),true,status);
+ for(const name of ['当前音频','当前视频','剪辑结果','标题封面'])for(const suffix of ['未生成','待检查','配置已变化','不可用'])assert.equal(isWorkflowStatusReady(name+' '+suffix),false,name+' '+suffix);
+ for(const status of ['原文案 未填写','改写文案 未填写','平台 正在处理','平台 结果待确认','发布信息 待发布','平台 已取消','平台 已中断','平台 已导出，待发布','未知状态 已完成','当前视频 已就绪但已失效','',undefined,null])assert.equal(isWorkflowStatusReady(status),false,String(status));
+});
+
 test('底栏按真实磁盘文件判音频视频剪辑封面，缺失/空文件不可就绪，恢复后就绪',async t=>{
- const {workflowOutputStatus}=await import('../src/workflow-output-status.mjs'),store=fixture(t),draft=store.draft();
+ const {workflowOutputStatus,isWorkflowStatusReady}=await import('../src/workflow-output-status.mjs'),store=fixture(t),draft=store.draft();
  const files=[asset(store,'audio.wav','audio'),asset(store,'video.mp4','video'),asset(store,'edit.mp4','video'),asset(store,'cover.png','image')];
  draft.voice.audioId=files[0].id;draft.video.assetId=files[1].id;draft.edit.resultId=files[2].id;draft.cover.assetId=files[3].id;
  for(const [i,file] of files.entries()){
   assert.match(workflowOutputStatus(state(store),draft,i+2),/已就绪|已生成/);
-  fs.renameSync(file.path,file.path+'.held');assert.match(workflowOutputStatus(state(store),draft,i+2),/不可用/);
+  fs.renameSync(file.path,file.path+'.held');assert.match(workflowOutputStatus(state(store),draft,i+2),/不可用/);assert.equal(isWorkflowStatusReady(workflowOutputStatus(state(store),draft,i+2)),false);
   fs.writeFileSync(file.path,'');assert.match(workflowOutputStatus(state(store),draft,i+2),/不可用/);
   fs.rmSync(file.path);fs.renameSync(file.path+'.held',file.path);assert.match(workflowOutputStatus(state(store),draft,i+2),/已就绪|已生成/);
  }

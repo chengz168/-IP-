@@ -4,7 +4,7 @@ import {call} from '../api';
 const {state,busy,workflowLocked,notify,refresh}=inject('studio');
 const expanded=ref(false),working=ref(false),result=ref(''),inspection=ref(null),checkedAt=ref('');
 const config=ref({}),baseline=ref('');
-const defaults={storyImageProtocol:'comfy',storyImageBaseUrl:'http://127.0.0.1:8188',storyImageModel:'sd_xl_base_1.0.safetensors',storyImageArchitecture:'sdxl',storyImageZUnet:'z_image_turbo_bf16.safetensors',storyImageZClip:'qwen_3_4b.safetensors',storyImageZVae:'ae.safetensors',storyVideoProtocol:'comfy-h3',storyVideoBaseUrl:'http://127.0.0.1:8188',storyVideoModel:'minimax_h3_fl2va_pruned_int8_convrot.safetensors'};
+const defaults={storyImageProtocol:'comfy',storyImageBaseUrl:'http://127.0.0.1:8188',storyImageModel:'sd_xl_base_1.0.safetensors',storyImageArchitecture:'sdxl',storyImageZUnet:'z_image_turbo_bf16.safetensors',storyImageZClip:'qwen_3_4b.safetensors',storyImageZVae:'ae.safetensors',storyVideoProtocol:'comfy-h3',storyVideoBaseUrl:'http://127.0.0.1:8188',storyVideoModel:'minimax_h3_fl2va_pruned_int8_convrot.safetensors',storyReferenceVideoModel:'minimax_h3_ref2va_pruned_int8_convrot.safetensors'};
 const keys=Object.keys(defaults);
 function savedConfig(){const p=state.value.settings.provider;return Object.fromEntries(keys.map(key=>[key,p[key]||defaults[key]]));}
 function read(){config.value=savedConfig();baseline.value=JSON.stringify(config.value);}
@@ -50,6 +50,7 @@ async function save(check=false){if(locked.value)return;working.value=true;resul
         <label>视频服务<select v-model="config.storyVideoProtocol" :disabled="locked"><option value="comfy-h3">本地 ComfyUI H3</option><option value="bridge">云端视频服务桥</option></select></label>
         <label>视频服务地址<input v-model="config.storyVideoBaseUrl" :disabled="locked" aria-label="非口播视频服务地址" placeholder="http://127.0.0.1:8188"/></label>
         <label>视频模型<input v-model="config.storyVideoModel" :disabled="locked" aria-label="非口播视频模型"/></label>
+        <label v-if="config.storyVideoProtocol==='comfy-h3'">资产参考视频模型<input v-model="config.storyReferenceVideoModel" :disabled="locked" aria-label="H3资产参考视频模型"/></label>
       </div>
       <datalist id="story-image-checkpoints"><option v-for="name in available.checkpoints||[]" :key="name" :value="name"/></datalist>
       <datalist id="story-image-unets"><option v-for="name in available.unets||[]" :key="name" :value="name"/></datalist>
@@ -58,6 +59,7 @@ async function save(check=false){if(locked.value)return;working.value=true;resul
       <p v-if="localImage&&textOnly" class="hint story-reference-warning" role="status">当前 Z-Image 工作流仅支持纯文生图。已有绑定参考的镜头会在提交前被拒绝；可先建立无参考的独立构图资产，审图后手动用于镜头。主体外观仅由文字约束，不保证跨图身份一致。</p>
       <p v-else class="hint">本地 SDXL 仅主参考图片参与图生图，其余绑定只传文字，不提供多图或身份一致性保证。云端参考图需要可用的图片编辑接口。H3 单镜头支持 4～15 秒。</p>
       <p v-if="inspection?.image" class="hint" role="status">图片检查：{{inspection.image.ready?'所需节点与权重齐备，尚未验证生成':'当前配置未就绪'}}；参考方式：{{inspection.image.referenceMode||'未确认'}}。模型列表读取不会执行生成或更改设置。</p>
+      <p v-if="inspection?.video?.reference" class="hint" role="status">资产参考工作流：{{inspection.video.reference.ready?'节点与权重齐备，仍需实际生成验证':'尚未就绪：'+[...(inspection.video.reference.missingNodes||[]),...(inspection.video.reference.missingModels||[]),...(inspection.video.reference.invalidOptions||[])].join('、')}}。资产参考不固定首尾帧，需逐镜检查商品结构与人物外观。</p>
       <div class="story-model-actions"><button :disabled="locked" @click="discover">{{working?'正在检查…':'读取本地模型与能力（不保存）'}}</button><button :disabled="locked" @click="save(false)">保存模型设置</button><button :disabled="locked" @click="save(true)">保存并检查本地能力</button></div>
       <details v-if="result"><summary>查看完整检查信息</summary><pre class="story-model-result">{{result}}</pre></details>
     </div>

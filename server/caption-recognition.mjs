@@ -12,8 +12,47 @@ export function validatedWords(row,duration){
  return words;
 }
 
+// 小数可能被识别为多个数字词；只合并明确的小数与百分号，沿用原词首尾时间。
+function decimalWords(words){
+ const result=[],decimal=/^[0-9０-９]+[.．][0-9０-９]+[%％]?$/u;
+ for(let i=0;i<words.length;i++){
+  let end=i;
+  while(end<words.length&&/^[0-9０-９.．%％]+$/u.test(words[end].word)&&(end===i||words[end].start-words[end-1].end<=.65))end++;
+  if(end===i){result.push(words[i]);continue;}
+  const run=words.slice(i,end),text=run.map(word=>word.word).join('');
+  if(run.length>1&&decimal.test(text))result.push({start:run[0].start,end:run.at(-1).end,word:text});
+  else result.push(...run);
+  i=end-1;
+ }
+ return result;
+}
+
+// 数量与明确单位合为完整识别词组，短模板允许整组超长，绝不创造词内时间。
+function quantityWords(words){
+ const text=words.map(item=>item.word).join(''),spans=[];let offset=0;
+ for(const word of words){spans.push({from:offset,to:offset+word.word.length});offset+=word.word.length;}
+ const pattern=/(?:[0-9０-９]+(?:[.．][0-9０-９]+)?|[零〇一二三四五六七八九十百千万萬亿億两兩几幾]+)(?:平方毫米|平方厘米|平方米|毫升|毫米|厘米|千米|公斤|千克|分钟|分鐘|小时|小時|秒钟|秒鐘|米|克|斤|升|元|角|秒|天|周|週|月|年|台|件|张|張|股|倍|个|個|款|次)/gu;
+ const ends=new Map();let startIndex=0,endIndex=0;
+ for(const match of text.matchAll(pattern)){
+  while(startIndex<spans.length&&spans[startIndex].to<=match.index)startIndex++;
+  endIndex=Math.max(startIndex,endIndex);while(endIndex<spans.length&&spans[endIndex].to<match.index+match[0].length)endIndex++;
+  const from=startIndex,to=endIndex;
+  if(from<0||to<=from)continue;
+  if(words.slice(from+1,to+1).some((word,index)=>word.start-words[from+index].end>.65))continue;
+  ends.set(from,Math.max(ends.get(from)||from,to));
+ }
+ const result=[];
+ for(let index=0;index<words.length;index++){
+  let end=ends.get(index)||index;
+  for(let cursor=index+1;cursor<=end;cursor++)end=Math.max(end,ends.get(cursor)||cursor);
+  result.push(end===index?words[index]:{start:words[index].start,end:words[end].end,word:words.slice(index,end+1).map(item=>item.word).join('')});index=end;
+ }
+ return result;
+}
+
 // 只使用识别器实际返回的词边界，绝不按字数平均分配时间。
 function splitWords(row,words,maxChars){
+ words=quantityWords(decimalWords(words));
  const rows=[],groups=[];let group=[];
  const text=()=>group.map(item=>item.word).join('').trim();
  const flush=()=>{if(group.length&&group.at(-1).end>group[0].start){rows.push({start:group[0].start,end:group.at(-1).end,text:text()});groups.push(group);group=[];}};
@@ -60,11 +99,17 @@ export function recognitionRows(result,duration,{maxChars}={}){
  if(result.segments.length>10000)throw Error('字幕条目过多，请拆分视频后识别');
  let previousEnd=0;
  if(maxChars!==undefined&&(!Number.isInteger(maxChars)||maxChars<3||maxChars>80))throw Error('字幕断句长度无效');
- return result.segments.flatMap((row,index)=>{
+ const rows=result.segments.flatMap((row,index)=>{
   if(typeof row.text!=='string'||!row.text.trim()||!Number.isFinite(row.start)||!Number.isFinite(row.end)||row.start<0||row.end<=row.start||row.start<previousEnd-.001||(Number.isFinite(duration)&&duration>0&&(row.end>duration+.15||row.start>=duration)))throw Error('第'+(index+1)+'条识别字幕内容或时间无效，当前字幕已保留，请重试或导入SRT');
   previousEnd=row.end;
   const words=validatedWords(row,Number.isFinite(duration)&&duration>0?duration:Infinity);
   if(words&&maxChars!==undefined)return splitWords(row,words,maxChars);
   return [{start:row.start,end:Number.isFinite(duration)&&duration>0?Math.min(row.end,duration):row.end,text:row.text.trim()}];
  });
+ // 缺省参数也用于恢复手工字幕；仅在显式识别断句时修复跨段小数。
+ if(maxChars===undefined)return rows;
+ // 兼容仅有句级时间的小数跨段结果，不把小数点当句号，也不推测段内时间。
+ const joined=[];
+ for(const row of rows){const previous=joined.at(-1);if(previous&&/[0-9０-９]+[.．]$/u.test(previous.text)&&/^[0-9０-９]+/u.test(row.text)&&row.start-previous.end<=.65){previous.text+=row.text;previous.end=row.end;}else joined.push({...row});}
+ return joined;
 }

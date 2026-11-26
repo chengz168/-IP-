@@ -1,5 +1,5 @@
 // 统一来源和内容类型画像。它只做可解释的路由建议，不把类型猜测当成内容事实。
-export const contentTypeVersion='2026-11-22.2';
+export const contentTypeVersion='2026-11-26.1';
 
 const definitions=[
  {id:'talking-head',name:'口播表达',presetId:'general',outputMode:'spoken',aliases:['口播','讲解','出镜'],requires:['已确认正文','可选人物视频或配音'],pipeline:['script','rewrite','voice','avatar','subtitle','edit'],rules:['台词是主叙事，画面只承担人物表达、示范或辅助信息。']},
@@ -15,9 +15,13 @@ const definitions=[
 ];
 
 const normalize=value=>String(value||'').trim().toLowerCase();
+// 生成限制不是题材证据；只移除当前否定分句，保留逗号后的正向正文。
+export const contentTopicText=value=>normalize(value).replace(/(?:禁止|不要|避免|无需|不得|不能|不包含|不生成|不出现|无对白|无台词|无口播)[^，,。！？；;\n]*/g,'').replace(/日常(?=(?:应该|需要|要|的)?(?:怎样|如何|怎么)?(?:清洁|清理|保养|维护|使用))/g,'');
 const textOf=input=>[...new Set([input?.title,input?.description,input?.brief,input?.text,input?.sourceText,input?.transcript?.text,input?.analysis?.summary].filter(value=>typeof value==='string'))].join('\n');
 const scoreDefinition=(definition,text,input)=>{
  let score=0;const hits=[];for(const alias of definition.aliases){if(text.includes(normalize(alias))){score+=alias.length>2?3:1;hits.push(alias);}}
+ // 设备或板材与选购/规格介绍共同出现才提供商品上下文；单个设备名不代表带货。
+ if(definition.id==='product-promo'&&/(?:扒炉|烤炉|板材|板面)/.test(text)&&/(?:选购|厂家|咱们厂|我们厂|规格|厚度|毫米)/.test(text)){score+=2;hits.push('设备或板材的选购与规格介绍');}
  if(definition.id==='product-promo'&&(input?.sourceKind==='product-page'||input?.hasProductFacts===true)){score+=20;hits.push('商品资料来源');}
  if(definition.id==='non-verbal-visual'&&['music-visual','visual'].includes(input?.analysis?.contentType)){score+=20;hits.push('画面主体分析');}
  if(definition.id==='talking-head'&&input?.analysis?.contentType==='spoken'){score+=4;hits.push('主体台词分析');}
@@ -32,18 +36,19 @@ export function detectContentProfile(input={}){
  const sourceKind=input.sourceKind||'text';
  // 配乐歌词不能成为题材判断依据；只用经过依据校验的画面分析摘要。
  const visual=['music-visual','visual'].includes(input?.analysis?.contentType);
- const text=normalize(visual?input?.analysis?.summary:textOf(input));
+ const text=contentTopicText(visual?input?.analysis?.summary:textOf(input));
  const ranked=definitions.map(item=>scoreDefinition(item,text,input)).sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));
  const top=ranked[0],second=ranked[1];
  // 没有任何命中依据时使用通用口播候选，避免按字母排序误判为数据解读。
  const fallback=definitions.find(item=>item.id==='talking-head')||definitions[0];
- const definition=input.sourceKind==='product-page'||input.hasProductFacts===true?definitions.find(item=>item.id==='product-promo'):visual?definitions.find(item=>item.id==='non-verbal-visual'):top.score>0?definitions.find(item=>item.id===top.id)||fallback:fallback;
+ const tied=top.score>0&&top.score===second.score;
+ const definition=input.sourceKind==='product-page'||input.hasProductFacts===true?definitions.find(item=>item.id==='product-promo'):visual?definitions.find(item=>item.id==='non-verbal-visual'):top.score>0&&!tied?definitions.find(item=>item.id===top.id)||fallback:fallback;
  const selected=ranked.find(item=>item.id===definition.id);
  const explicitSource=input.sourceKind==='product-page'||input.hasProductFacts===true||visual;
  // 单个弱关键词只能给低置信度；领先分数不能凭空增加命中证据。
  const confidence=explicitSource?'high':top.score>=4&&top.hits.length>=2&&top.score>second.score*1.8?'high':top.score>=2&&top.score>second.score?'medium':'low';
  const candidates=ranked.filter(item=>item.score>0).slice(0,4).map(item=>({id:item.id,name:definitions.find(row=>row.id===item.id).name,score:item.score,hits:item.hits}));
- const reason=selected.hits.length?('命中：'+selected.hits.join('、')):(input?.analysis?.contentType?('依据参考视频分析类型：'+input.analysis.contentType):'没有命中明确类型词，采用通用候选。');
+ const reason=tied&&!explicitSource?'类型待确认：多种类型命中依据同分，暂用通用候选；请核对候选类型后手动选择。':selected.hits.length?('命中：'+selected.hits.join('、')):(input?.analysis?.contentType?('依据参考视频分析类型：'+input.analysis.contentType):'没有命中明确类型词，采用通用候选。');
  return {version:contentTypeVersion,sourceKind,type:definition.id,name:definition.name,presetId:definition.presetId,outputMode:definition.outputMode,confidence,reason,candidates,requires:[...definition.requires],pipeline:[...definition.pipeline],rules:[...definition.rules],needsUserConfirmation:confidence!=='high'};
 }
 

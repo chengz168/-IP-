@@ -38,6 +38,7 @@
 .story-script-label>textarea{min-height:150px;max-height:360px}
 .story-script-label>textarea[readonly]{background:#242633;border-color:#454056;color:#c4cbde}
 .story-generation-options{grid-template-columns:minmax(100px,.7fr) minmax(120px,.8fr) minmax(140px,.9fr) minmax(160px,1.4fr);margin-top:16px}
+.story-studio .story-style-input{min-height:70px;max-height:180px;overflow-wrap:anywhere}
 .story-help{font-size:var(--app-font-size-caption);line-height:1.8;color:#a4b2cb;margin:10px 0 0;overflow-wrap:anywhere}
 .story-action-row{display:flex;align-items:center;justify-content:flex-start;gap:10px;flex-wrap:wrap;margin-top:16px}
 .story-action-row>.story-help{flex:1;min-width:180px;margin:0}

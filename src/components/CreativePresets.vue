@@ -77,7 +77,7 @@ onBeforeUnmount(()=>{clearTimeout(refreshTimer);requestToken++;saveToken++;});
   <div class="creative-presets-body">
    <p class="creative-presets-reason" role="status">{{route?.reason||'按已保存的创作资料推荐；修改资料后，请先保存并刷新推荐。'}}</p>
    <section v-if="contentProfile" class="creative-content-profile" aria-label="自动识别的内容类型">
-    <div class="creative-content-profile-head"><strong>自动识别类型</strong><span class="creative-content-profile-type">{{contentProfile.name||contentProfile.type||'未命名类型'}}</span><span class="creative-content-profile-confidence" :data-confidence="contentProfile.confidence">置信度：{{contentConfidenceLabel}}</span></div>
+    <div class="creative-content-profile-head"><strong>自动识别类型</strong><span class="creative-content-profile-type">{{contentProfile.confidence==='low'?'类型待确认':contentProfile.name||contentProfile.type||'未命名类型'}}</span><span class="creative-content-profile-confidence" :data-confidence="contentProfile.confidence">置信度：{{contentConfidenceLabel}}</span></div>
     <p v-if="contentProfile.reason" class="creative-content-profile-reason">{{contentProfile.reason}}</p>
     <p v-if="contentPipeline.length" class="creative-content-profile-line"><strong>推荐制作链路：</strong><span v-for="(step,index) in contentPipeline" :key="step+index">{{step}}{{index<contentPipeline.length-1?' → ':''}}</span></p>
     <p v-if="contentRequires.length" class="creative-content-profile-line"><strong>所需资料：</strong>{{contentRequires.join('、')}}</p>

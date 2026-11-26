@@ -2,6 +2,9 @@ const ordered=value=>Array.isArray(value)?value.map(ordered):value&&typeof value
 const signature=value=>JSON.stringify(ordered(value));
 const source=draft=>draft.edit.sourceId||draft.video.assetId||'';
 const names={2:'当前音频',3:'当前视频',4:'剪辑结果',5:'标题封面'};
+const readyStatuses=new Set(['原文案 已填写','最终文案 已确认','改写文案 已填写','当前音频 已跳过','当前音频 已就绪','当前视频 已就绪','剪辑结果 已生成','标题封面 已生成','平台 草稿已保存','平台 已发布','发布包 已导出']);
+// 只为明确完成或跳过的状态显示就绪样式，配置变化等提示不能借用完成颜色。
+export function isWorkflowStatusReady(status){return readyStatuses.has(status);}
 function input(draft,step){
  if(step===2)return {finalText:draft.finalText,voice:draft.voice};
  if(step===3&&draft.edit.sourceId)return {sourceId:draft.edit.sourceId};
