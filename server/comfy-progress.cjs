@@ -1,4 +1,4 @@
-const labels={UNETLoader:'加载视频模型',CLIPLoader:'加载文本模型',VAELoader:'加载编解码模型',LoraLoaderModelOnly:'加载采样模型',MiniMaxH3ImageToVideo:'处理提示词与首帧',MiniMaxH3AddGuide:'处理驱动音频',SamplerCustomAdvanced:'模型采样',VAEDecode:'解码视频画面',VAEDecodeAudio:'解码模型音轨',CreateVideo:'组装生成画面',SaveVideo:'保存模型结果',LoadImage:'读取形象首帧',LoadAudio:'读取驱动音频'};
+const labels={UNETLoader:'加载视频模型',CLIPLoader:'加载文本模型',VAELoader:'加载编解码模型',LoraLoaderModelOnly:'加载采样模型',MiniMaxH3ImageToVideo:'处理提示词与首帧',MiniMaxH3AddGuide:'处理驱动音频',Wan22ImageToVideoLatent:'准备首帧与视频时长',KSampler:'模型采样',SamplerCustomAdvanced:'模型采样',VAEDecode:'解码视频画面',VAEDecodeAudio:'解码模型音轨',CreateVideo:'组装生成画面',SaveVideo:'保存模型结果',LoadImage:'读取形象首帧',LoadAudio:'读取驱动音频'};
 
 // 观察连接不提交任务，也不决定任务成败；最终状态始终由原历史查询确认。
 class ComfyProgress{
@@ -51,7 +51,7 @@ class ComfyProgress{
   if(this.node&&this.node!==node||this.total!==undefined&&(this.total!==max||value<=this.step))return;
   this.node=node;this.step=value;this.total=max;
   // 只有真实采样节点才使用“采样”文字，其他节点保留自己的阶段。
-  this.publish({phase:this.graph[node].class_type==='SamplerCustomAdvanced'?'sampling':'executing',node,nodeLabel,value,max});
+  this.publish({phase:['SamplerCustomAdvanced','KSampler'].includes(this.graph[node].class_type)?'sampling':'executing',node,nodeLabel,value,max});
  }
  publish(details){
   if(this.closed||!this.promptId||this.failure)return;

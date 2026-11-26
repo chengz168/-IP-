@@ -66,3 +66,14 @@ test('阶段文案显示真实步数与段序，不伪造整片百分比',async(
  assert.equal(h3ActivityText({kind:'comfy-h3-activity-v1',phase:'unavailable'}),'进度连接不可用，正在查询原任务');
  assert.equal(h3ActivityText(null),'');
 });
+
+test('Wan实际KSampler事件显示采样步数，解码事件保持阶段且不冒充成功',async()=>{
+ const events=[],wanGraph={'7':{class_type:'Wan22ImageToVideoLatent'},'9':{class_type:'KSampler'},'13':{class_type:'VAEDecode'}};
+ const observer=new ComfyProgress({baseUrl:'http://127.0.0.1:8188',clientId:'wan',graph:wanGraph,onActivity:a=>events.push(a)});observer.bind('wan-task');
+ const send=(type,node,value,max)=>observer.receive(JSON.stringify({type,data:{prompt_id:'wan-task',node,value,max}}));
+ send('executing','7');assert.equal(events.at(-1).nodeLabel,'准备首帧与视频时长');
+ send('executing','9');send('progress','9',6,20);
+ const sampling=events.at(-1);assert.equal(sampling.phase,'sampling');assert.equal(sampling.value,6);assert.equal(sampling.max,20);assert.equal(sampling.status,undefined);
+ const {h3ActivityText}=await import('../server/h3-activity.mjs');assert.equal(h3ActivityText(sampling),'采样 6/20');
+ send('executing','13');send('progress','13',1,2);assert.equal(events.at(-1).phase,'executing');assert.equal(h3ActivityText(events.at(-1)),'解码视频画面');observer.close();
+});
