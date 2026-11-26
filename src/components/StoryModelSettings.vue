@@ -4,7 +4,7 @@ import {call} from '../api';
 const {state,busy,workflowLocked,notify,refresh}=inject('studio');
 const expanded=ref(false),working=ref(false),result=ref(''),inspection=ref(null),checkedAt=ref('');
 const config=ref({}),baseline=ref('');
-const defaults={storyImageProtocol:'comfy',storyImageBaseUrl:'http://127.0.0.1:8188',storyImageModel:'sd_xl_base_1.0.safetensors',storyImageArchitecture:'sdxl',storyImageReferenceFit:'contain',storyImageDenoise:.68,storyImagePromptLanguage:'original',storyImageZUnet:'z_image_turbo_bf16.safetensors',storyImageZClip:'qwen_3_4b.safetensors',storyImageZVae:'ae.safetensors',storyVideoProtocol:'comfy-h3',storyVideoBaseUrl:'http://127.0.0.1:8188',storyVideoModel:'minimax_h3_fl2va_pruned_int8_convrot.safetensors',storyReferenceVideoModel:'minimax_h3_ref2va_pruned_int8_convrot.safetensors'};
+const defaults={storyImageProtocol:'comfy',storyImageBaseUrl:'http://127.0.0.1:8188',storyImageModel:'sd_xl_base_1.0.safetensors',storyImageArchitecture:'sdxl',storyImageReferenceFit:'contain',storyImageDenoise:.68,storyImagePromptLanguage:'original',storyImageZUnet:'z_image_turbo_bf16.safetensors',storyImageZClip:'qwen_3_4b.safetensors',storyImageZVae:'ae.safetensors',storyVideoProtocol:'comfy-h3',storyVideoBaseUrl:'http://127.0.0.1:8188',storyVideoModel:'minimax_h3_fl2va_pruned_int8_convrot.safetensors',storyReferenceVideoModel:'minimax_h3_ref2va_pruned_int8_convrot.safetensors',storyWanModel:'wan2.2_ti2v_5B_fp16.safetensors',storyWanClip:'umt5_xxl_fp8_e4m3fn_scaled.safetensors',storyWanVae:'wan2.2_vae.safetensors'};
 const keys=Object.keys(defaults);
 function savedConfig(){const p=state.value.settings.provider;return Object.fromEntries(keys.map(key=>[key,p[key]??defaults[key]]));}
 function read(){config.value=savedConfig();baseline.value=JSON.stringify(config.value);}
@@ -22,7 +22,7 @@ const localImage=computed(()=>config.value.storyImageProtocol==='comfy');
 const textOnly=computed(()=>config.value.storyImageArchitecture==='z-image-turbo');
 const available=computed(()=>inspection.value?.image?.available||{});
 function showInspection(checked){inspection.value=checked;checkedAt.value=new Date().toLocaleTimeString('zh-CN');result.value=typeof checked==='string'?checked:JSON.stringify(checked,null,2);}
-function inspectionText(kind){const item=inspection.value?.[kind];if(!item)return '尚未检查';if(!['comfy','comfy-h3'].includes(item.protocol))return '云端配置 · 需实际生成验证';if(!item.connected)return item.error||'本地服务未连接，请启动 ComfyUI 后重新检查';if(item.ready)return '连接正常，所需节点与权重齐备';return '连接正常，缺少：'+[...(item.missingNodes||[]),...(item.missingModels||[]),...(item.invalidOptions||[])].join('、');}
+function inspectionText(kind){const item=inspection.value?.[kind];if(!item)return '尚未检查';if(!['comfy','comfy-h3','comfy-wan22'].includes(item.protocol))return '云端配置 · 需实际生成验证';if(!item.connected)return item.error||'本地服务未连接，请启动 ComfyUI 后重新检查';if(item.ready)return '连接正常，所需节点与权重齐备';return '连接正常，缺少：'+[...(item.missingNodes||[]),...(item.missingModels||[]),...(item.invalidOptions||[])].join('、');}
 function open(){expanded.value=true;}
 defineExpose({open,check:discover});
 async function discover(){if(locked.value)return;working.value=true;result.value='';try{showInspection(await call('checkStoryModels',{provider:{...config.value}}));}catch(error){notify(error.message,'error');}finally{working.value=false;}}
@@ -47,9 +47,14 @@ async function save(check=false){if(locked.value)return;working.value=true;resul
           <label>Z-Image 文本编码器<input v-model="config.storyImageZClip" :disabled="locked" aria-label="Z-Image文本编码器" list="story-image-encoders"/></label>
           <label>Z-Image VAE<input v-model="config.storyImageZVae" :disabled="locked" aria-label="Z-Image VAE" list="story-image-vaes"/></label>
         </template>
-        <label>视频服务<select v-model="config.storyVideoProtocol" :disabled="locked"><option value="comfy-h3">本地 ComfyUI H3</option><option value="bridge">云端视频服务桥</option></select></label>
+        <label>视频服务<select v-model="config.storyVideoProtocol" :disabled="locked"><option value="comfy-h3">本地 ComfyUI H3</option><option value="comfy-wan22">本地 ComfyUI Wan2.2 · 静音图生视频</option><option value="bridge">云端视频服务桥</option></select></label>
         <label>视频服务地址<input v-model="config.storyVideoBaseUrl" :disabled="locked" aria-label="非口播视频服务地址" placeholder="http://127.0.0.1:8188"/></label>
-        <label>视频模型<input v-model="config.storyVideoModel" :disabled="locked" aria-label="非口播视频模型"/></label>
+        <label v-if="config.storyVideoProtocol!=='comfy-wan22'">视频模型<input v-model="config.storyVideoModel" :disabled="locked" aria-label="非口播视频模型"/></label>
+        <template v-if="config.storyVideoProtocol==='comfy-wan22'">
+          <label>Wan 5B 视频模型<input v-model="config.storyWanModel" :disabled="locked" aria-label="Wan视频模型"/></label>
+          <label>Wan 文本编码器<input v-model="config.storyWanClip" :disabled="locked" aria-label="Wan文本编码器"/></label>
+          <label>Wan VAE<input v-model="config.storyWanVae" :disabled="locked" aria-label="Wan VAE"/></label>
+        </template>
         <label v-if="config.storyVideoProtocol==='comfy-h3'">资产参考视频模型<input v-model="config.storyReferenceVideoModel" :disabled="locked" aria-label="H3资产参考视频模型"/></label>
       </div>
       <fieldset v-if="localImage&&!textOnly" class="story-reference-options"><legend>SDXL 构图与参考图</legend><div class="story-model-grid">
@@ -63,6 +68,7 @@ async function save(check=false){if(locked.value)return;working.value=true;resul
       <datalist id="story-image-vaes"><option v-for="name in available.vaes||[]" :key="name" :value="name"/></datalist>
       <p v-if="localImage&&textOnly" class="hint story-reference-warning" role="status">当前 Z-Image 工作流仅支持纯文生图。已有绑定参考的镜头会在提交前被拒绝；可先建立无参考的独立构图资产，审图后手动用于镜头。主体外观仅由文字约束，不保证跨图身份一致。</p>
       <p v-else class="hint">本地 SDXL 仅主参考图片参与图生图，其余绑定只传文字，不提供多图或身份一致性保证。云端参考图需要可用的图片编辑接口。H3 单镜头支持 4～15 秒。图片服务成功返回不代表产品结构或镜头内容已通过，仍需逐张预览确认。</p>
+      <p v-if="config.storyVideoProtocol==='comfy-wan22'" class="hint story-reference-warning" role="status">Wan2.2 5B 使用一张已确认首帧生成静音视频，支持横屏、竖屏及固定种子，不支持尾帧、多资产参考或声音生成。旁白由第三步配音后期合成。4～15秒仅为接入范围，长镜头的显存、耗时和实际效果仍须验证；检查成功不表示内容质量通过。</p>
       <p v-if="inspection?.image" class="hint" role="status">图片检查：{{inspection.image.ready?'所需节点与权重齐备，尚未验证生成':'当前配置未就绪'}}；参考方式：{{inspection.image.referenceMode||'未确认'}}。模型列表读取不会执行生成或更改设置。</p>
       <p v-if="inspection?.video?.reference" class="hint" role="status">资产参考工作流：{{inspection.video.reference.ready?'节点与权重齐备，仍需实际生成验证':'尚未就绪：'+[...(inspection.video.reference.missingNodes||[]),...(inspection.video.reference.missingModels||[]),...(inspection.video.reference.invalidOptions||[])].join('、')}}。资产参考不固定首尾帧，需逐镜检查商品结构与人物外观。</p>
       <div class="story-model-actions"><button :disabled="locked" @click="discover">{{working?'正在检查…':'读取本地模型与能力（不保存）'}}</button><button :disabled="locked" @click="save(false)">保存模型设置</button><button :disabled="locked" @click="save(true)">保存并检查本地能力</button></div>

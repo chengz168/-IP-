@@ -60,7 +60,8 @@ export function storyVideoControlProblems(shot,protocol='comfy-h3'){
   if(shot.referenceMode==='assets'&&protocol!=='comfy-h3')reasons.push('资产参考生成目前仅支持本地H3，请切换本地模型或选择首帧图生视频');
   if(shot.referenceMode==='assets'&&shot.lastFrameId)reasons.push('资产参考生成不支持尾帧，请清除尾帧或选择首帧图生视频');
   if(shot.videoSeed!==undefined&&shot.videoSeed!==null&&(!Number.isSafeInteger(shot.videoSeed)||shot.videoSeed<0||shot.videoSeed>4294967295))reasons.push('固定种子请输入0至4294967295的整数，留空则随机');
-  if(protocol!=='comfy-h3'&&(shot.lastFrameId||shot.videoSeed!==undefined&&shot.videoSeed!==null))reasons.push('尾帧和固定种子目前仅支持本地H3；请清除控制项或切换本地模型');
+  if(protocol==='comfy-wan22'&&shot.lastFrameId)reasons.push('Wan不支持尾帧，请清除尾帧后再生成');
+  if(!['comfy-h3','comfy-wan22'].includes(protocol)&&(shot.lastFrameId||shot.videoSeed!==undefined&&shot.videoSeed!==null))reasons.push('尾帧和固定种子目前仅支持本地H3；请清除控制项或切换本地模型');
   return reasons;
 }
 

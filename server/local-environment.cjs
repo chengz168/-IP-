@@ -49,7 +49,7 @@ class LocalEnvironment{
   const p=this.store.data.settings.provider||{},items=[];
   const add=(kind,url)=>{const item=endpoint(kind,url);if(!items.some(row=>row.id===item.id))items.push(item);};
   if(p.storyImageProtocol==='comfy'||!p.storyImageProtocol&&p.storyImageBaseUrl)add('comfy',p.storyImageBaseUrl||'http://127.0.0.1:8188');
-  if(p.storyVideoProtocol==='comfy-h3'||!p.storyVideoProtocol&&p.storyVideoBaseUrl)add('comfy',p.storyVideoBaseUrl||'http://127.0.0.1:8188');
+  if(['comfy-h3','comfy-wan22'].includes(p.storyVideoProtocol)||!p.storyVideoProtocol&&p.storyVideoBaseUrl)add('comfy',p.storyVideoBaseUrl||'http://127.0.0.1:8188');
   if(p.avatarProtocol==='comfy-h3')add('comfy',p.avatarUrl||'http://127.0.0.1:8188');
   if(p.textProtocol==='ollama')add('ollama',p.baseUrl||'http://127.0.0.1:11434');
   if(p.visionProtocol==='ollama')add('ollama',p.visionBaseUrl||p.baseUrl||'http://127.0.0.1:11434');return items;
