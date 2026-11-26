@@ -80,3 +80,35 @@ test('商品独立编译调用也将全局要求加入可审计源，不修改�
  const result=await compileProductMotion({text:async(_system,user)=>{assert.equal(JSON.parse(user).storyInstructions,globalText);return {text:JSON.stringify({prompt:'A close shot of a griddle.'})};}},{productIntroduction:{},approvedProductDesign:approved,storyInstructions:globalText},{progress(){}});
  assert.deepEqual(approved,before);assert.equal(result.promptCompilation.source.storyInstructions,globalText);assert.equal(result.storyInstructions,globalText);
 });
+
+test('普通本地H3编译当前中文方案，保留全局和本次原文，不改草稿或台词',async()=>{
+ const f=fixture(),before=structuredClone(f.story);f.studio.generator.config=()=>({storyVideoProtocol:'comfy-h3'});
+ const result=await f.studio.generateVideo({...f.args,instruction:localText}),translation=f.calls.find(row=>row.kind==='translation'),input=f.calls.find(row=>row.kind==='video').input;
+ assert(translation);assert.equal(translation.source.visual,before.episodes[0].shots[0].visual);assert.equal(translation.source.action,before.episodes[0].shots[0].action);
+ assert.equal(translation.source.instruction,localText);assert.equal(translation.source.storyInstructions,globalText);assert(!Object.hasOwn(translation.source,'videoPrompt'));
+ assert.equal(translation.source.supplementaryPrompt,before.episodes[0].shots[0].videoPrompt);assert.match(translation.system,/明确要求的对白、歌词和可见文字保留原语言/);assert.match(translation.system,/必须以当前字段为准/);
+ assert.match(input.prompt,/A static close shot/);assert.equal(input.instruction,localText);assert.equal(input.storyInstructions,globalText);
+ assert.equal(result.promptCompilation.sourceHash,hash(translation.source));assert.equal(result.promptCompilation.qualityAccepted,false);assert.deepEqual(f.story,before);
+});
+
+test('普通云桥保持既有提示协议，不引入本地H3翻译',async()=>{
+ const f=fixture();f.studio.generator.config=()=>({storyVideoProtocol:'bridge'});
+ await f.studio.generateVideo({...f.args,instruction:localText});assert(!f.calls.some(row=>row.kind==='translation'));
+ assert.match(f.calls.find(row=>row.kind==='video').input.prompt,/清洁金属烤面/);
+});
+
+test('普通H3翻译失败或取消不得提交视频生成',async()=>{
+ for(const failure of ['invalid','cancel']){
+  const f=fixture();f.studio.generator.config=()=>({storyVideoProtocol:'comfy-h3'});
+  f.studio.providers.text=async(_system,_user,ctx)=>{if(failure==='cancel'){const controller=new AbortController();controller.abort();ctx.signal=controller.signal;return {text:JSON.stringify({prompt:'A close shot.'})};}return {text:'not-json'};};
+  await assert.rejects(f.studio.generateVideo(f.args));assert(!f.calls.some(row=>row.kind==='video'));
+ }
+});
+
+test('普通H3翻译期间镜头或来源改变，不提交已失效输入',async()=>{
+ for(const change of [f=>{f.story.episodes[0].shots[0].action='新的动作';},f=>{f.story.episodes[0].shots=[];},f=>{f.studio.sourceCurrent=()=>false;}]){
+  const f=fixture();f.studio.generator.config=()=>({storyVideoProtocol:'comfy-h3'});
+  f.studio.providers.text=async()=>{change(f);return {text:JSON.stringify({prompt:'A close shot.'})};};
+  await assert.rejects(f.studio.generateVideo(f.args),/翻译期间/);assert(!f.calls.some(row=>row.kind==='video'));
+ }
+});
