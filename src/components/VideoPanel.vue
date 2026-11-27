@@ -16,6 +16,12 @@ const emit=defineEmits(['choose','generate']);
 const {state,draft:d,busy,navigate,save,workflowLocked,notify}=inject('studio');
 const shotEditor=ref(false),shotSignature=ref('');
 const optimizeOpen=ref(false);
+const storyEditor=ref(null);
+async function handoffToEditing(){
+ if(!storyEditor.value){notify('请先完成当前视频制作，再交接网感剪辑','error');return false;}
+ return storyEditor.value.handoffToEditing();
+}
+defineExpose({handoffToEditing});
 const activeVideo=computed(()=>state.value.runs.some(run=>run.draftId===d.value.id&&(['avatar','avatar-optimize','avatar-background','product-video','product-introduction'].includes(run.type)||String(run.type).startsWith('story-'))&&['running','queued','unknown'].includes(run.status)));
 const locked=computed(()=>!!busy.value||workflowLocked.value||activeVideo.value);
 const localH3=computed(()=>state.value.settings.provider.avatarProtocol==='comfy-h3');
@@ -55,8 +61,8 @@ async function editShots(){if(locked.value)return;try{await save();shotSignature
       <button v-else :disabled="locked" @click="manualRouting">手动调整</button>
     </div>
   </div>
-  <StoryStudio v-if="d.video.mode==='story'" :key="d.id"/>
-  <ProductStudio v-else-if="d.video.mode==='product'" :key="d.id" phase="video"/>
+  <StoryStudio ref="storyEditor" v-if="d.video.mode==='story'" :key="d.id"/>
+  <ProductStudio ref="storyEditor" v-else-if="d.video.mode==='product'" :key="d.id" phase="video"/>
   <template v-else>
   <div class="two-columns video-columns">
     <article class="card video-config">

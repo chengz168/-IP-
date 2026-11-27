@@ -157,6 +157,33 @@ test('点击页签回到工作区顶部，不沿用合成滚动位置或提交�
  }finally{f.dispose();}
 });
 
+test('制作入口按分镜资产镜头合成排序，下一步有前置要求且返回不生成',async()=>{
+ const f=await componentFixture();try{
+  const vm=f.vm;
+  assert.deepEqual(vm.creationSteps.value.map(item=>item.id),['episodes','assets','videos','composition']);
+  assert.equal(vm.currentCreationStep.value,'episodes');assert.equal(vm.nextCreationStep.value.id,'assets');assert.equal(vm.advanceReason.value,'');
+  await vm.advanceCreation();assert.equal(vm.currentCreationStep.value,'assets');assert.match(vm.advanceReason.value,/资产/);
+  await vm.advanceCreation();assert.equal(vm.currentCreationStep.value,'assets');
+  await vm.selectCreationStep(vm.creationSteps.value[2]);assert.equal(vm.currentCreationStep.value,'assets');assert.equal(f.calls.length,0);
+  vm.story.value.assets[1].selectedImageId='scene-1-image';assert.equal(vm.advanceReason.value,'');
+  await vm.advanceCreation();assert.equal(vm.currentCreationStep.value,'videos');assert.match(vm.advanceReason.value,/镜头视频/);
+  for(const shot of vm.episode.value.shots){shot.images=[{id:shot.id+'-frame',status:'ready'}];shot.selectedImageId=shot.id+'-frame';shot.videos=[{id:shot.id+'-video',status:'ready'}];shot.selectedVideoId=shot.id+'-video';f.state.value.assets.push({id:shot.selectedImageId,type:'image'},{id:shot.selectedVideoId,type:'video'});}
+  assert.equal(vm.advanceReason.value,'');await vm.advanceCreation();assert.equal(vm.currentCreationStep.value,'composition');assert.equal(vm.nextCreationStep.value,undefined);
+  await vm.selectCreationStep(vm.previousCreationStep.value);assert.equal(vm.currentCreationStep.value,'videos');assert.equal(vm.videoSection.value,'frame');assert.equal(f.calls.length,0);
+  vm.story.value.episodesSourceHash='old-source';assert.match(vm.advanceReason.value,/创作来源/);await vm.advanceCreation();assert.equal(vm.currentCreationStep.value,'videos');
+ }finally{f.dispose();}
+});
+
+test('底部交接使用当前查看分集，缺成片或来源过期不带旧视频进入剪辑',async()=>{
+ const f=await componentFixture();try{
+  const vm=f.vm;
+  assert.equal(await vm.handoffToEditing(),false);assert.equal(f.calls.length,0);assert.match(vm.error.value,/合成当前集/);assert.equal(vm.currentCreationStep.value,'assets');
+  vm.episodeId.value='e2';vm.episode.value.resultId='e2-result';
+  assert.equal(await vm.handoffToEditing(),true);assert.equal(f.calls.filter(item=>item.action==='useStoryEpisode').length,1);assert.equal(f.calls.at(-1).payload.episodeId,'e2');
+  vm.story.value.episodesSourceHash='old-source';const count=f.calls.length;assert.equal(await vm.handoffToEditing(),false);assert.equal(f.calls.length,count);assert.match(vm.error.value,/创作来源/);
+ }finally{f.dispose();}
+});
+
 test('分镜来源过期或尚未拆集时导航到创作来源，保持原生成门禁',async()=>{
  const f=await componentFixture();try{
   f.vm.story.value.episodesSourceHash='previous-source';assert.equal(f.vm.visibleProgressAction.value.target.section,'source');assert.equal(f.vm.visibleProgressAction.value.label,'检查创作来源');assert.equal(f.vm.visibleProgressStage.value,'shots');

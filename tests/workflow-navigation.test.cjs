@@ -30,3 +30,30 @@ test('保存目标步骤失败时恢复原页面，保留已保存编辑',async(
  const result=await moveWorkflowStep({target:4,draft,navigating,save:async()=>{if(++calls===2)throw Error('第二次写盘失败');},notify:message=>messages.push(message)});
  assert.equal(result,false);assert.equal(draft.value.step,3);assert.equal(draft.value.title,'刚保存的分集');assert.deepEqual(messages,['第二次写盘失败']);
 });
+
+test('分镜与商品下一步等待当前集交接，不用普通保存将旧视频带入剪辑',async()=>{
+ for(const mode of ['story','product']){
+  const pending=deferred(),draft={value:{id:'one',step:3,video:{mode},edit:{sourceId:'old'}}},navigating={value:false};let saves=0,handoffs=0;
+  const options={target:4,draft,navigating,save:async()=>saves++,notify:()=>assert.fail('不应报错'),handoff:async()=>{handoffs++;await pending.promise;draft.value={...draft.value,step:4,edit:{sourceId:'current-episode'}};return true;}};
+  const moving=moveWorkflowStep(options);await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(draft.value.step,3);assert.equal(draft.value.edit.sourceId,'old');assert.equal(navigating.value,true);
+  assert.equal(await moveWorkflowStep(options),false);assert.equal(handoffs,1);
+  pending.resolve();assert.equal(await moving,true);assert.equal(draft.value.edit.sourceId,'current-episode');assert.equal(saves,1);assert.equal(navigating.value,false);
+ }
+});
+
+test('交接未完成、后台拒绝或入口缺失时保留视频生成和旧剪辑源',async()=>{
+ for(const handoff of [async()=>false,async()=>{throw Error('当前集还没有匹配镜头的合成视频');},undefined]){
+  const draft={value:{id:'one',step:3,video:{mode:'story'},edit:{sourceId:'old'}}},navigating={value:false},messages=[];
+  assert.equal(await moveWorkflowStep({target:4,draft,navigating,handoff,save:async()=>{},notify:message=>messages.push(message)}),false);
+  assert.equal(draft.value.step,3);assert.equal(draft.value.edit.sourceId,'old');assert.equal(navigating.value,false);
+  if(handoff===undefined)assert.match(messages[0],/交接入口/);
+ }
+});
+
+test('交接等待中换任务不改变新任务，单形象普通导航不调用分镜交接',async()=>{
+ const draft={value:{id:'one',step:3,video:{mode:'story'}}},navigating={value:false};
+ assert.equal(await moveWorkflowStep({target:4,draft,navigating,save:async()=>{},notify:()=>{},handoff:async()=>{draft.value={id:'two',step:0};return true;}}),false);assert.equal(draft.value.step,0);
+ draft.value={id:'one',step:3,video:{mode:'single'}};let saves=0;
+ assert.equal(await moveWorkflowStep({target:4,draft,navigating,save:async()=>saves++,notify:()=>{},handoff:()=>assert.fail('口播不调用分集交接')}),true);assert.equal(saves,2);assert.equal(draft.value.step,4);
+});

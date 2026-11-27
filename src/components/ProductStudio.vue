@@ -11,6 +11,17 @@ const props=defineProps({phase:{type:String,default:'source'}});
 const {state,draft:d,busy,workflowLocked,act,save,refresh,importAssets,notify}=inject('studio');
 const error=ref(''),errorAt=ref('collect'),operation=ref(''),manualEntry=ref(false),failedImages=ref({}),previewRunId=ref('');
 const pendingCollection=ref(null);
+const storyEditor=ref(null);
+async function handoffToEditing(){
+ if(locked.value)return false;
+ if(introduction.value){
+  if(storyEditor.value)return storyEditor.value.handoffToEditing();
+  notify('请先准备产品介绍分镜并合成当前集，再进入网感剪辑','error');return false;
+ }
+ if(!previewRun.value?.id||previewStale.value){notify('请先生成并检查有效的商品视频，再进入网感剪辑','error');return false;}
+ const id=d.value.id;await useVideo();return d.value.id===id&&d.value.step===4;
+}
+defineExpose({handoffToEditing});
 const defaults=()=>({url:'',sourceRunId:'',title:'',description:'',brand:'',sku:'',price:'',currency:'',specifications:[],selectedIndices:[],assetIds:[],duration:30,aspect:'9:16',brief:'',scriptRunId:'',shots:[],narration:true});
 // 旧任务缺失的制作模式和素材角色仅在界面派生，避免挂载触发自动保存而撤销成片。
 function ensureProduct(){
@@ -194,7 +205,7 @@ watch([()=>d.value.id,()=>p.value.url],()=>{pendingCollection.value=null;});
     <template v-else><p class="product-help">修改镜头文字后需与第二步已确认正文一致；调整图片、画面说明或时长不重新生成声音。此方式保留商品原图，通过原图展示与转场合成。</p><div class="product-actions"><button class="primary" :disabled="locked||!!generationReason" :title="generationReason" @click="renderVideo"><I :name="operation==='video'?'LoaderCircle':'Video'" :class="{spin:operation==='video'}" :size="16"/>{{operation==='video'?'生成视频中…':'生成原图展示视频'}}</button></div></template>
    </template>
   </article>
-  <StoryStudio v-if="props.phase==='video'&&introduction&&preparedIntroduction" :key="d.id+':product'" product-mode/>
+  <StoryStudio ref="storyEditor" v-if="props.phase==='video'&&introduction&&preparedIntroduction" :key="d.id+':product'" product-mode/>
   <article v-if="props.phase==='video'&&!introduction" class="card product-preview">
    <p v-if="error&&errorAt==='use'" class="product-error" role="alert">{{error}}</p>
    <div class="card-heading"><h4>视频预览与后续制作</h4><select v-if="videoRuns.length>1" :value="previewRun?.id" :disabled="locked" aria-label="商品宣传视频版本" @change="previewRunId=$event.target.value"><option v-for="(run,index) in videoRuns" :key="run.id" :value="run.id">视频版本 {{videoRuns.length-index}}</option></select></div>
