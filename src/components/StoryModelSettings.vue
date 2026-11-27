@@ -31,7 +31,7 @@ async function save(check=false){if(locked.value)return;working.value=true;resul
 <template>
   <section class="story-model-settings">
     <div class="story-model-heading"><button class="text-button" :aria-expanded="expanded" @click="expanded=!expanded">{{expanded?'收起':'展开'}}非口播模型设置 · 图片 / 动态视频</button><button :disabled="locked" @click="discover">{{working?'正在检查…':'检查图片与视频服务'}}</button></div>
-    <div class="story-service-summary" aria-live="polite"><p v-for="item in [['image','图片'],['video','视频']]" :key="item[0]" :class="{unready:inspection?.[item[0]]&&!inspection[item[0]].ready}"><strong>{{item[1]}}服务</strong><span>{{inspectionText(item[0])}}</span></p></div>
+    <div v-if="expanded||inspection" class="story-service-summary" aria-live="polite"><p v-for="item in [['image','图片'],['video','视频']]" :key="item[0]" :class="{unready:inspection?.[item[0]]&&!inspection[item[0]].ready}"><strong>{{item[1]}}服务</strong><span>{{inspectionText(item[0])}}</span></p></div>
     <p class="hint">{{checkedAt?'检查于 '+checkedAt+'，仅代表当时连接及模型状态，生成结果仍需预览确认。':'生成前可先检查连接与模型；检查不会提交生成任务。'}}{{dirty?' 当前检查使用未保存输入，生成使用已保存配置。':''}}</p>
     <div v-if="expanded" class="story-model-form">
       <p class="hint">拆集与分镜使用设置中的文本模型。图片、动态视频可各自选择本地或云端；云端使用对应能力的独立密钥，未配置时沿用全局密钥。</p>

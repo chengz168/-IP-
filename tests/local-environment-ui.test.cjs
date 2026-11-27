@@ -55,7 +55,8 @@ test('保存失败保留输入、待保存状态，环境详情不调用全局 a
 });
 
 test('真实 App 在检查中及时轮询、空闲时低频只读刷新，并能直达模型设置',async()=>{
- const filename=path.resolve(__dirname,'../src/App.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename}),helpers={...await import('../src/local-environment-ui.mjs'),...await import('../src/release-ui.mjs'),ActivationDialog:{},FirstRunWizard:{}};
+ // 主入口沿用真实通知状态；本用例只验证轮询，键盘事件由浏览器验收覆盖。
+ const filename=path.resolve(__dirname,'../src/App.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename}),helpers={...await import('../src/local-environment-ui.mjs'),...await import('../src/release-ui.mjs'),...await import('../src/composables/use-notification.js'),useGlobalShortcuts:()=>({register(){},destroy(){}}),ActivationDialog:{},FirstRunWizard:{},WorkspaceNavigation:{},EnhancedToast:{}};
  let mounted,tick,now=0;const calls=[],data={currentId:'draft',drafts:[{id:'draft',sourceText:'验收原文'}],settings:{view:'new',fontSize:'comfortable'},runs:[],accounts:[],workflowJobs:[],localEnvironment:{status:'ready',checking:false,services:[]}};
  const call=async action=>{calls.push(action);return structuredClone(data);};
  const names=['ref','computed','watch','onMounted','onUnmounted','provide','I','Modal','Workflow','LegacyWorkflow','Resources','SettingsView','TaskCenter','call','pickFiles','OperationStatus','LocalEnvironment','applyTypography','workflowView','copySourceChanged','window','setInterval','clearInterval','setTimeout','clearTimeout','Date',...Object.keys(helpers)];

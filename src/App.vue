@@ -3,6 +3,7 @@ import {ref,computed,watch,onMounted,onUnmounted,provide} from 'vue';
 import I from './components/Icon.vue';
 import Modal from './components/Modal.vue';
 import Workflow from './views/Workflow.vue';
+import WorkspaceNavigation from './components/WorkspaceNavigation.vue';
 import LegacyWorkflow from './views/LegacyWorkflow.vue';
 import Resources from './views/Resources.vue';
 import SettingsView from './views/SettingsView.vue';
@@ -12,12 +13,17 @@ import OperationStatus from './components/OperationStatus.vue';
 import LocalEnvironment from './components/LocalEnvironment.vue';
 import ActivationDialog from './components/ActivationDialog.vue';
 import FirstRunWizard from './components/FirstRunWizard.vue';
+import EnhancedToast from './components/EnhancedToast.vue';
 import {environmentItems,environmentCanCreate,releaseMessage} from './release-ui.mjs';
 import {localEnvironmentSummary,localEnvironmentBusy} from './local-environment-ui.mjs';
 import {applyTypography} from './typography.mjs';
 import {workflowView} from '../server/workflow-view.mjs';
 import {copySourceChanged} from '../server/copy-confirmation.mjs';
-const state=ref(null),draft=ref(null),page=ref('workflow'),view=ref('new'),menu=ref(false),busy=ref(''),toast=ref(null),dialog=ref(null),saveState=ref('已保存');
+import {useNotification} from './composables/use-notification.js';
+import {useGlobalShortcuts} from './composables/use-keyboard-shortcuts.js';
+
+const state=ref(null),draft=ref(null),page=ref('workflow'),view=ref('new'),menu=ref(false),busy=ref(''),dialog=ref(null),saveState=ref('已保存');
+const {toast,notify:notifyEnhanced,success:notifySuccess,error:notifyError,warning:notifyWarning,progress:notifyProgress,dismiss:dismissToast,dismissTransient} = useNotification();
 const desktop=window.studio;
 const environmentDialog=ref(false);
 const environmentReport=ref(null),environmentChecking=ref(false),environmentError=ref(''),wizardAccepted=ref(false);
@@ -68,10 +74,16 @@ watch(()=>({id:draft.value?.id,sourceText:draft.value?.sourceText,rewrite:draft.
 const currentWorkflow=computed(()=>{const job=state.value?.workflowJobs?.find(job=>job.draftId===draft.value?.id);if(!job)return null;const summary=state.value.taskSummaries?.find(task=>task.id===draft.value.id),saved=state.value.drafts.find(task=>task.id===draft.value.id),available=(id,type)=>{if(!id)return false;const stage=type==='image'?summary?.stages[5]:summary?.stages[4],savedId=type==='image'?saved?.cover.assetId:saved?.edit.resultId;if(id===savedId)return !!stage?.available;return state.value.assets.some(asset=>asset.id===id&&asset.type===type&&asset.size>0);};return {...job,view:workflowView(job,draft.value,{available,unsettled:summary?.unknownRuns.length?'unknown':summary?.activeRun?'running':''})};});
 const workflowLocked=computed(()=>['queued','running','stopping'].includes(currentWorkflow.value?.status));
 watch(()=>state.value?.settings.fontSize,value=>applyTypography(value),{immediate:true});
-let saveTimer,toastTimer,pollTimer,refreshRequestVersion=0,refreshExplicitVersion=0,refreshExplicitPending=0;let chain=Promise.resolve();let lastSaved='';
+let saveTimer,pollTimer,refreshRequestVersion=0,refreshExplicitVersion=0,refreshExplicitPending=0;let chain=Promise.resolve();let lastSaved='';
 const core=d=>JSON.stringify(d?{...d,updatedAt:undefined}:null);
-function notify(message,type='info'){toast.value={message,type};clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.value=null,7000);}
-function dismissTransientNotice(){if(toast.value&&toast.value.type!=='error'){toast.value=null;clearTimeout(toastTimer);}}
+
+// 统一通知函数，兼容旧代码
+function notify(message,type='info'){
+  if(type==='success')notifySuccess(message);
+  else if(type==='error')notifyError(message);
+  else if(type==='warning')notifyWarning(message);
+  else notifyEnhanced(message,type);
+}
 async function refresh(replace=false,options={}){
  const requestVersion=++refreshRequestVersion;
  const explicit=replace||options.priority==='explicit';
@@ -107,22 +119,47 @@ const activeRecognition=computed(()=>state.value?.runs.find(run=>run.status==='r
 const stopping=ref(false),stopRequestedId=ref('');
 const stopPending=computed(()=>stopping.value||!!activeRecognition.value&&(stopRequestedId.value===activeRecognition.value.id||!!activeRecognition.value.cancelRequestedAt));
 watch(()=>activeRecognition.value?.id,()=>{stopRequestedId.value='';});
-async function stopRecognition(){if(!activeRecognition.value||stopPending.value)return;const id=activeRecognition.value.id;stopping.value=true;stopRequestedId.value=id;try{await call('cancelRun',{id});await refresh();}catch(e){stopRequestedId.value='';notify(e.message,'error');}finally{stopping.value=false;}}
-async function startWorkflow(mode=draft.value.mode||'auto',expectedId=draft.value.id){if(busy.value||workflowLocked.value)return;try{await save();if(draft.value.id!==expectedId){notify('任务已变化，未启动其他任务的自动流程');return;}await call('startWorkflow',{id:expectedId,mode});await refresh(true);notify(mode==='background'?'已创建后台任务，可继续查看其他页面':'已启动自动串行处理','success');}catch(error){notify(String(error.message).replace(/^Error invoking remote method '[^']+': (?:Error: )?/u,''),'error');}}
-async function stopWorkflow(){if(!currentWorkflow.value)return;try{await call('stopWorkflow',{jobId:currentWorkflow.value.id});await refresh();notify('已请求停止流程，远程结果仍按实际状态保留');}catch(error){notify(error.message,'error');}}
-provide('studio',{registerPageLeaveGuard,registerDraftFlusher,currentWorkflow,workflowLocked,startWorkflow,stopWorkflow,activeRecognition,stopPending,stopRecognition,state,draft,busy,notify,dismissTransientNotice,act,refresh,save,importAssets,showDialog,selectTask,newTask,navigate,stepNames,checkEnvironment,licenseActivated});
-onMounted(async()=>{try{await refresh(true);view.value=state.value.settings?.view||'new';if(activated.value){await checkEnvironment();try{wizardAccepted.value=creationReady.value&&window.localStorage?.getItem('super-ip.environment-wizard.v1')==='accepted';}catch{}}}catch(e){notify(releaseMessage(e,'工作台读取失败，请重新读取。'),'error');}pollTimer=setInterval(()=>{if(activated.value&&!environmentChecking.value&&Date.now()-environmentCheckedAt>=30000)checkEnvironment();if(localEnvironmentBusy(state.value?.localEnvironment)||(state.value?.localEnvironment&&Date.now()-environmentPolledAt>=15000)||busy.value||activeRecognition.value||state.value?.runs?.some(r=>r.type==='publish'&&['running','queued'].includes(r.status))||state.value?.avatarQueryRunIds?.length||state.value?.workflowJobs?.some(job=>['queued','running','stopping'].includes(job.status))||state.value?.accounts?.some(account=>['waiting_login','connected'].includes(account.connection?.status)))refresh().catch(()=>{});},2000);});
+async function stopRecognition(){if(!activeRecognition.value||stopPending.value)return;const id=activeRecognition.value.id;stopping.value=true;stopRequestedId.value=id;try{await call('cancelRun',{id});await refresh();}catch(e){stopRequestedId.value='';notifyError(e.message);}finally{stopping.value=false;}}
+async function startWorkflow(mode=draft.value.mode||'auto',expectedId=draft.value.id){if(busy.value||workflowLocked.value)return;try{await save();if(draft.value.id!==expectedId){notify('任务已变化，未启动其他任务的自动流程');return;}await call('startWorkflow',{id:expectedId,mode});await refresh(true);notifySuccess(mode==='background'?'已创建后台任务，可继续查看其他页面':'已启动自动串行处理');}catch(error){notifyError(String(error.message).replace(/^Error invoking remote method '[^']+': (?:Error: )?/u,''));}}
+async function stopWorkflow(){if(!currentWorkflow.value)return;try{await call('stopWorkflow',{jobId:currentWorkflow.value.id});await refresh();notify('已请求停止流程，远程结果仍按实际状态保留');}catch(error){notifyError(error.message);}}
+
+// 全局快捷键
+const shortcuts = useGlobalShortcuts()
+onMounted(()=>{
+  // 注册全局快捷键
+  shortcuts.register('ctrl+s',()=>save().catch(()=>{}))
+  shortcuts.register('ctrl+shift+s',()=>save().catch(()=>{}))
+  shortcuts.register('ctrl+n',()=>newTask())
+  shortcuts.register('ctrl+w',()=>closeWindow())
+  shortcuts.register('ctrl+,',()=>navigate('settings'))
+  shortcuts.register('esc',()=>{if(menu.value)menu.value=false;else if(dialog.value)dialog.value=null})
+})
+onUnmounted(()=>{
+  shortcuts.destroy()
+})
+provide('studio',{registerPageLeaveGuard,registerDraftFlusher,currentWorkflow,workflowLocked,startWorkflow,stopWorkflow,activeRecognition,stopPending,stopRecognition,state,draft,busy,notify,dismissTransient,dismissTransientNotice:dismissTransient,act,refresh,save,importAssets,showDialog,selectTask,newTask,navigate,stepNames,checkEnvironment,licenseActivated});
+onMounted(async()=>{try{await refresh(true);view.value=state.value.settings?.view||'new';if(activated.value){await checkEnvironment();try{wizardAccepted.value=creationReady.value&&window.localStorage?.getItem('super-ip.environment-wizard.v1')==='accepted';}catch{}}}catch(e){notifyError(releaseMessage(e,'工作台读取失败，请重新读取。'));}pollTimer=setInterval(()=>{if(activated.value&&!environmentChecking.value&&Date.now()-environmentCheckedAt>=30000)checkEnvironment();if(localEnvironmentBusy(state.value?.localEnvironment)||(state.value?.localEnvironment&&Date.now()-environmentPolledAt>=15000)||busy.value||activeRecognition.value||state.value?.runs?.some(r=>r.type==='publish'&&['running','queued'].includes(r.status))||state.value?.avatarQueryRunIds?.length||state.value?.workflowJobs?.some(job=>['queued','running','stopping'].includes(job.status))||state.value?.accounts?.some(account=>['waiting_login','connected'].includes(account.connection?.status)))refresh().catch(()=>{});},2000);});
 onUnmounted(()=>{clearInterval(pollTimer);clearTimeout(saveTimer);});
 const menuItems=[['new','新工作流','House'],['old','旧工作流','FlaskConical'],['voices','声音管理','Volume2'],['avatars','形象管理','Video'],['assets','素材管理','FolderOpen'],['tasks','任务中心','List'],['accounts','账号管理','Users'],['settings','设置','Settings'],['help','帮助','HelpCircle']];
 </script>
 <template>
-  <div class="app" :data-size="state?.settings?.fontSize||'comfortable'" :data-theme="state?.settings?.theme||'default'">
-    <header class="titlebar"><div class="brand"><span class="brand-symbol"><I name="Play" :size="23"/></span><strong>轻语IP</strong></div><div class="titlebar-spacer"></div><button v-if="activated" class="environment-title-button" :class="state.localEnvironment?.status" :title="environmentLabel+'，点击查看详情'" :aria-label="environmentLabel+'，查看本地环境'" @click="environmentDialog=true"><I :name="localEnvironmentBusy(state.localEnvironment)?'LoaderCircle':'Monitor'" :class="{spin:localEnvironmentBusy(state.localEnvironment)}" :size="16"/><span>{{environmentLabel}}</span></button><div v-if="activated" class="top-menu"><button :aria-expanded="menu" @click="menu=!menu"><I name="Grid2X2" :size="16"/> 菜单 <I name="ChevronDown" :size="15"/></button><nav v-if="menu" aria-label="主菜单"><button v-for="[id,label,icon] of menuItems" :key="id" :class="{active:(page==='workflow'&&id===view)||id===page,separator:['voices','accounts'].includes(id)}" @click="navigate(id)"><I :name="icon"/><span>{{label}}</span></button></nav></div><button v-if="activated" class="user-button" @click="showDialog('本地用户','当前为独立本地工作台。模型服务请在设置中配置，发布平台账号需要单独连接。')"><span class="avatar">L</span>本地用户<I name="ChevronDown" :size="15"/></button><div class="window-actions"><button aria-label="最小化" @click="desktop?.window('minimize')"><I name="Minus" :size="18"/></button><button aria-label="最大化或还原" @click="desktop?.window('maximize')"><I name="Square" :size="16"/></button><button class="close" aria-label="关闭窗口" @click="closeWindow"><I name="X" :size="20"/></button></div></header>
+  <div class="app studio-app" :data-size="state?.settings?.fontSize||'comfortable'" :data-theme="state?.settings?.theme||'default'">
+    <header class="titlebar"><div class="brand"><span class="brand-symbol"><I name="Play" :size="23"/></span><strong>轻语IP</strong></div><div class="titlebar-spacer"></div><button v-if="activated" class="environment-title-button" :class="state.localEnvironment?.status" :title="environmentLabel+'，点击查看详情'" :aria-label="environmentLabel+'，查看本地环境'" @click="environmentDialog=true"><I :name="localEnvironmentBusy(state.localEnvironment)?'LoaderCircle':'Monitor'" :class="{spin:localEnvironmentBusy(state.localEnvironment)}" :size="16"/><span>{{environmentLabel}}</span></button><div v-if="activated&&draft" class="workspace-task-context"><span>当前创作</span><strong :title="draft.title">{{draft.title||'未命名任务'}}</strong><small :class="{'save-error':saveState==='保存失败'}" role="status">{{saveState}}</small></div><button v-if="activated" class="user-button" @click="showDialog('本地用户','当前为独立本地工作台。模型服务请在设置中配置，发布平台账号需要单独连接。')"><span class="avatar">L</span>本地用户<I name="ChevronDown" :size="15"/></button><div class="window-actions"><button aria-label="最小化" @click="desktop?.window('minimize')"><I name="Minus" :size="18"/></button><button aria-label="最大化或还原" @click="desktop?.window('maximize')"><I name="Square" :size="16"/></button><button class="close" aria-label="关闭窗口" @click="closeWindow"><I name="X" :size="20"/></button></div></header>
     <div v-if="state&&!activated" class="release-screen"><ActivationDialog :license="state.license" @activated="licenseActivated"/></div>
     <aside v-if="activated&&page==='workflow'&&!wizardVisible&&missingEnvironment.length" class="environment-reminder" aria-label="待配置的创作环境"><div><strong>部分创作能力暂不可用</strong><span>{{missingEnvironment.map(item=>item.name+'（'+(item.status==='startable'?'可一键启动':'缺失')+'）').join('、')}}</span><p v-if="environmentError">{{environmentError}}</p></div><button @click="wizardAccepted=false">查看环境检查</button><button @click="wizardSettings('models')">去设置</button></aside>
-    <main v-if="activated&&state&&draft" :class="{'management-main':page!=='workflow'}" @click="menu=false"><nav v-if="page!=='workflow'" class="page-navigation" aria-label="页面导航"><button class="page-back" :title="'返回'+backLabel" :aria-label="'返回'+backLabel" @click="goBack"><I name="ArrowLeft" :size="18"/><span>返回{{backLabel}}</span></button></nav><FirstRunWizard v-if="wizardVisible" :report="environmentReport" :busy="environmentChecking" :error="environmentError" @check="checkEnvironment()" @start="checkEnvironment(true)" @settings="wizardSettings" @complete="enterCreation"/><Workflow v-else-if="page==='workflow'&&view==='new'" :view="view"/><LegacyWorkflow v-else-if="page==='workflow'"/><SettingsView v-else-if="page==='settings'" :initial-tab="settingsInitialTab"/><TaskCenter v-else-if="page==='tasks'"/><div v-else-if="page==='help'" class="help-page"><h1>使用帮助</h1><article class="card"><h2>从文案到视频，按步骤完成创作</h2><ol><li>学习对标：导入或填写原文，建立任务。</li><li>改写文案：配置模型后生成，或直接填写并确认最终文案。</li><li>声音生成：选择服务音色，或导入已有音频。</li><li>视频生成：接入口型服务，或导入已有视频进入剪辑。</li><li>网感剪辑：导入SRT字幕，配置标题、音量与背景音乐，生成实际视频。</li><li>标题封面：调整模板、背景、文字与遮罩，导出PNG封面。</li><li>一键发布：编辑发布信息，导出发布包。平台连接完成后再进行发布验收。</li></ol><p>模型未配置时不会返回模拟结果。任务和资源保存在本地，原软件保持独立。</p><button class="primary" @click="navigate('settings')">配置模型与媒体工具</button></article><article class="card"><h2>参考与开发进度</h2><p>本地版本 0.1.1 · 参考界面 轻语IP 8.4.0</p><p>拆解证据、教程采样和实现设计已保存在项目的 docs 与 evidence 目录中。</p></article></div><Resources v-else :page="page"/></main>
-    <div v-else-if="!state||(activated&&!draft)" class="startup"><I name="LoaderCircle" :size="32" class="spin"/><p>正在读取本地工作台…</p><button @click="refresh(true).catch(e=>notify(e.message,'error'))">重新读取</button></div>
-    <div v-if="toast" class="toast" :class="toast.type" role="status"><I :name="toast.type==='error'?'ShieldCheck':'CheckCircle2'" :size="20"/><span>{{toast.message}}</span><button aria-label="关闭提示" @click="toast=null"><I name="X" :size="16"/></button></div>
+    <div v-if="activated&&state&&draft" class="studio-workspace"><WorkspaceNavigation :page="page" :view="view"/><main :class="{'management-main':page!=='workflow'}" @click="menu=false"><nav v-if="page!=='workflow'" class="page-navigation" aria-label="页面导航"><button class="page-back" :title="'返回'+backLabel" :aria-label="'返回'+backLabel" @click="goBack"><I name="ArrowLeft" :size="18"/><span>返回{{backLabel}}</span></button></nav><FirstRunWizard v-if="wizardVisible" :report="environmentReport" :busy="environmentChecking" :error="environmentError" @check="checkEnvironment()" @start="checkEnvironment(true)" @settings="wizardSettings" @complete="enterCreation"/><Workflow v-else-if="page==='workflow'&&view==='new'" :view="view"/><LegacyWorkflow v-else-if="page==='workflow'"/><SettingsView v-else-if="page==='settings'" :initial-tab="settingsInitialTab"/><TaskCenter v-else-if="page==='tasks'"/><div v-else-if="page==='help'" class="help-page"><h1>使用帮助</h1><article class="card"><h2>从文案到视频，按步骤完成创作</h2><ol><li>学习对标：导入或填写原文，建立任务。</li><li>改写文案：配置模型后生成，或直接填写并确认最终文案。</li><li>声音生成：选择服务音色，或导入已有音频。</li><li>视频生成：接入口型服务，或导入已有视频进入剪辑。</li><li>网感剪辑：导入SRT字幕，配置标题、音量与背景音乐，生成实际视频。</li><li>标题封面：调整模板、背景、文字与遮罩，导出PNG封面。</li><li>一键发布：编辑发布信息，导出发布包。平台连接完成后再进行发布验收。</li></ol><p>模型未配置时不会返回模拟结果。任务和资源保存在本地，原软件保持独立。</p><button class="primary" @click="navigate('settings')">配置模型与媒体工具</button></article><article class="card"><h2>参考与开发进度</h2><p>本地版本 0.1.1 · 参考界面 轻语IP 8.4.0</p><p>拆解证据、教程采样和实现设计已保存在项目的 docs 与 evidence 目录中。</p></article></div><Resources v-else :page="page"/></main></div>
+    <div v-else-if="!state||(activated&&!draft)" class="startup"><I name="LoaderCircle" :size="32" class="spin"/><p>正在读取本地工作台…</p><button @click="refresh(true).catch(e=>notifyError(e.message))">重新读取</button></div>
+    <EnhancedToast
+      v-if="toast"
+      :message="toast.message"
+      :type="toast.type"
+      :icon="toast.icon"
+      :persistent="toast.persistent"
+      :actions="toast.actions"
+      :progress="toast.progress"
+      @close="dismissToast"
+      @action="(action) => action.handler && action.handler()"
+    />
     <OperationStatus v-if="activated&&!wizardVisible&&!(state&&draft&&page==='workflow'&&view==='new')"/>
     <Modal v-if="activated&&environmentDialog" title="本地运行环境" wide variant="environment" @close="environmentDialog=false"><LocalEnvironment @settings="openEnvironmentSettings"/><template #footer><button @click="environmentDialog=false">关闭</button></template></Modal>
     <Modal v-if="activated&&dialog" :title="dialog.title" @close="dialog=null"><p class="dialog-message">{{dialog.message}}</p><template #footer><button class="primary" @click="dialog=null">知道了</button></template></Modal>

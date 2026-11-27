@@ -27,3 +27,6 @@ import './edit-preview.css';
 import './namecard.css';
 import './bgm.css';
 import './product-studio.css';
+
+// 最后加载工作台统一样式，业务组件保持原有逻辑。
+import './studio-ui.css';

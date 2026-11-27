@@ -27,10 +27,10 @@ const jobLabels={queued:'排队中',running:'处理中',stopping:'正在停止',
 const stageLabels={pending:'待处理',running:'处理中',succeeded:'已完成',reused:'复用已有结果',skipped:'跳过',waiting:'等待发布',failed:'失败',cancelled:'已取消',unknown:'远程待确认',interrupted:'已中断'};
 const detailRun=computed(()=>state.value.runs.find(run=>run.id===detailRunId.value));
 const stats=computed(()=>[
-  {icon:'📝',label:'总任务',value:summaries.value.length},
-  {icon:'⚙️',label:'进行中',value:summaries.value.filter(task=>task.status==='running').length},
-  {icon:'✅',label:'已完成',value:summaries.value.filter(task=>task.status==='succeeded').length},
-  {icon:'❌',label:'失败',value:summaries.value.filter(task=>task.status==='failed').length},
+  {icon:'FileText',label:'总任务',value:summaries.value.length},
+  {icon:'LoaderCircle',label:'进行中',value:summaries.value.filter(task=>task.status==='running').length},
+  {icon:'CheckCircle2',label:'已完成',value:summaries.value.filter(task=>task.status==='succeeded').length},
+  {icon:'CircleAlert',label:'失败',value:summaries.value.filter(task=>task.status==='failed').length},
 ]);
 const uncertainCount=computed(()=>summaries.value.filter(task=>['unknown','interrupted','cancelled'].includes(task.status)).length);
 const time=value=>value&&Number.isFinite(Date.parse(value))?new Date(value).toLocaleString('zh-CN',{hour12:false}):'—';
@@ -91,14 +91,14 @@ async function remove(){
 <template>
   <section class="management-page task-page">
     <div class="management-title">
-      <div><h1><span aria-hidden="true">📊</span>任务中心</h1><p>这里存储创作任务；移动或删除素材文件后，当前产物可能失效。状态和进度按当前内容与产物更新。</p></div>
+      <div><h1><I name="List" :size="26"/>任务中心</h1><p>这里存储创作任务；移动或删除素材文件后，当前产物可能失效。状态和进度按当前内容与产物更新。</p></div>
       <div class="toolbar task-title-actions">
         <button @click="tab=tab==='drafts'?'runs':'drafts'">{{tab==='drafts'?'执行记录':'创作任务'}}</button>
         <button :disabled="!!busy" @click="refreshTasks"><I name="RefreshCw"/>刷新</button>
         <button class="primary" :disabled="!!busy" @click="newTask"><I name="Plus"/>新建任务</button>
       </div>
     </div>
-    <div class="stat-grid"><article v-for="stat in stats" :key="stat.label" class="card"><span class="task-stat-icon" aria-hidden="true">{{stat.icon}}</span><span>{{stat.label}}</span><strong>{{stat.value}}</strong></article></div>
+    <div class="stat-grid"><article v-for="stat in stats" :key="stat.label" class="card"><I class="task-stat-icon" :name="stat.icon" :size="28" aria-hidden="true"/><span>{{stat.label}}</span><strong>{{stat.value}}</strong></article></div>
     <div class="toolbar task-filterbar">
       <strong class="task-filter-title"><I name="Search"/>筛选条件</strong>
       <select v-model="filter" aria-label="筛选任务状态"><option value="all">任务状态</option><option v-for="(label,key) in tab==='drafts'?taskLabels:labels" :key="key" :value="key">{{label}}</option></select>
