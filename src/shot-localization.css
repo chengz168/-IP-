@@ -1,4 +1,6 @@
 .shot-translation-panel{display:grid;gap:12px;min-width:0;}
+.shot-translation-panel:not([open]){display:block;}
+.shot-translation-content{display:grid;gap:12px;margin-top:12px;min-width:0;}
 .shot-translation-panel .card-heading{margin-bottom:0;gap:12px;flex-wrap:wrap;}
 .shot-translation-panel p{margin:0;line-height:1.65;overflow-wrap:anywhere;}
 .shot-translation-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}

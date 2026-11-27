@@ -133,6 +133,37 @@ test('真实组件模板可编译，视频页就地绑定，错误恢复仅版�
  const f=await componentFixture();try{assert.deepEqual(f.sfc.compileTemplate({id:'story-ui-test',source:f.descriptor.template.content,filename:f.filename}).errors,[]);assert.match(f.descriptor.template.content,/aria-label="视频页本地构图主参考"/);assert.match(f.descriptor.template.content,/v-if="versionConflict"[^>]*@click="loadServer"/);f.vm.error.value='fetch failed';assert.equal(f.vm.versionConflict.value,false);const before=JSON.stringify(f.vm.story.value);f.vm.loadServer();assert.equal(JSON.stringify(f.vm.story.value),before);f.vm.error.value='创作内容已更新，请刷新后再保存，未覆盖新结果';assert.equal(f.vm.versionConflict.value,true);}finally{f.dispose();}
 });
 
+test('已有成片的分镜页仍显示分镜操作，切换阶段不触发生成或改写草稿',async()=>{
+ const f=await componentFixture();try{
+  const vm=f.vm;
+  vm.story.value.assets[1].selectedImageId='scene-1-image';
+  for(const shot of vm.episode.value.shots){shot.images=[{id:shot.id+'-frame',status:'ready'}];shot.selectedImageId=shot.id+'-frame';shot.videos=[{id:shot.id+'-video',status:'ready'}];shot.selectedVideoId=shot.id+'-video';f.state.value.assets.push({id:shot.selectedImageId,type:'image'},{id:shot.selectedVideoId,type:'video'});}
+  vm.episode.value.resultId='result';
+  const before=JSON.stringify(vm.story.value);
+  assert.equal(vm.progress.value.next.stage,'compose');assert.equal(vm.visibleProgressStage.value,'shots');assert.equal(vm.visibleProgressAction.value.label,'继续编辑本集分镜');
+  await vm.goTo(vm.visibleProgressAction.value.target);assert.equal(vm.tab.value,'episodes');
+  vm.tab.value='assets';assert.equal(vm.visibleProgressStage.value,'assets');assert.equal(vm.visibleProgressAction.value.target.tab,'assets');
+  for(const [section,stage] of [['frame','frames'],['motion','videos'],['composition','compose']]){await vm.goTo({tab:'videos',section,episodeId:vm.episode.value.id});assert.equal(vm.visibleProgressStage.value,stage);assert.equal(vm.tab.value,'videos');assert.equal(vm.visibleProgressAction.value.target.section,section);}
+  vm.tab.value='episodes';assert.equal(vm.visibleProgressStage.value,'shots');assert.equal(vm.visibleProgressAction.value.target.section,'episode');
+  assert.equal(JSON.stringify(vm.story.value),before);assert.equal(f.calls.length,0);
+ }finally{f.dispose();}
+});
+
+test('点击页签回到工作区顶部，不沿用合成滚动位置或提交任务',async()=>{
+ const f=await componentFixture();try{
+  const scroll=[];f.vm.rootElement.value={querySelector:selector=>{assert.equal(selector,'.story-toolbar');return {scrollIntoView:options=>scroll.push(options)};}};
+  await f.vm.selectTab('assets');assert.equal(f.vm.visibleProgressStage.value,'assets');await f.vm.selectTab('episodes');assert.equal(f.vm.visibleProgressStage.value,'shots');
+  assert.deepEqual(scroll,[{block:'start',behavior:'auto'},{block:'start',behavior:'auto'}]);assert.equal(f.calls.length,0);
+ }finally{f.dispose();}
+});
+
+test('分镜来源过期或尚未拆集时导航到创作来源，保持原生成门禁',async()=>{
+ const f=await componentFixture();try{
+  f.vm.story.value.episodesSourceHash='previous-source';assert.equal(f.vm.visibleProgressAction.value.target.section,'source');assert.equal(f.vm.visibleProgressAction.value.label,'检查创作来源');assert.equal(f.vm.visibleProgressStage.value,'shots');
+  f.vm.story.value.episodes=[];assert.equal(f.vm.visibleProgressAction.value.target.section,'source');assert.equal(f.vm.visibleProgressAction.value.label,'设置创作来源与集数');assert.equal(f.calls.length,0);
+ }finally{f.dispose();}
+});
+
 test('具体待办只导航本集资产或镜头，不调用生成确认，网络错误不丢编辑',async()=>{
  const f=await componentFixture();try{assert.equal(f.vm.assetScope.value,'episode');await f.vm.goTo(f.vm.progress.value.next.target);assert.equal(f.vm.tab.value,'assets');assert.equal(f.vm.asset.value.id,'scene-1');assert.equal(f.calls.length,0);await f.vm.goTo({tab:'videos',episodeId:'e2',shotId:'s3',section:'bindings'});assert.equal(f.vm.episode.value.id,'e2');assert.equal(f.vm.shot.value.id,'s3');assert.equal(f.calls.length,0);f.vm.setBinding('scene-1',true);assert(f.vm.shot.value.assetIds.includes('scene-1'));f.vm.primaryReference.value='scene-1';assert.equal(f.vm.shot.value.primaryReferenceAssetId,'scene-1');assert.equal(f.draft.value.story.episodes[1].shots[0].primaryReferenceAssetId,undefined);f.vm.error.value='fetch failed';f.vm.loadServer();assert(f.vm.shot.value.assetIds.includes('scene-1'));assert.equal(f.calls.length,0);}finally{f.dispose();}
 });

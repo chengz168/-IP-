@@ -112,6 +112,18 @@ function chooseLastFrame(){if(!locked.value&&localVideo.value&&!assetReferenceMo
 const narrationMissing=computed(()=>story.value.narrationMode==='upstream'&&!episode.value?.narrationAssetId&&(story.value.episodes.length>1||!draft.value.voice.audioId));
 const candidatePresets=computed(()=>storyCandidatePresets(draft.value,story.value));
 const progress=computed(()=>storyEpisodeProgress(story.value,episode.value,{media:state.value.assets,sourceChanged:sourceChanged.value,narrationMissing:narrationMissing.value,videoProtocol:state.value.settings.provider.storyVideoProtocol||'comfy-h3',presets:candidatePresets.value}));
+// 当前查看位置独立于制作完成度，不能用历史成片把分镜页标为合成页。
+const videoSection=ref('frame');
+const visibleProgressStage=computed(()=>tab.value==='episodes'?'shots':tab.value==='assets'?'assets':({frame:'frames',motion:'videos',composition:'compose'})[videoSection.value]||'frames');
+const visibleProgressAction=computed(()=>{
+  const target={tab:tab.value,episodeId:episode.value?.id||''};
+  if(tab.value==='episodes')return {label:sourceChanged.value?'检查创作来源':episode.value?'继续编辑本集分镜':'设置创作来源与集数',reason:sourceChanged.value?'创作来源尚未确认或已变化，请先核对来源，再继续分集与分镜。':episode.value?.shots.length?'当前为分集分镜：编辑本集剧本、拆分镜头、绑定或提取资产。确认后再进入资产图片。':'先确认创作来源和集数，完成拆集后再拆分本集镜头。',target:{...target,section:episode.value&&!sourceChanged.value?'episode':'source'}};
+  if(tab.value==='assets')return {label:'查看本集资产图片',reason:'当前为资产图片：检查本集绑定的人物、场景和道具，生成或导入图片并确认选用。',target:{...target,section:'asset'}};
+  if(progress.value.next.stage===visibleProgressStage.value)return progress.value.next;
+  const view=({frame:{label:'查看当前镜头画面参考',reason:'当前查看画面参考，请核对镜头构图或绑定的资产图，再生成动态视频。'},motion:{label:'查看当前镜头视频',reason:'当前查看镜头视频，请按本镜头要求生成、预览并明确选用。'},composition:{label:'查看当前集合成',reason:'当前查看合成，请先确认本集各镜头有效版本与旁白，再合成和检查完整成片。'}})[videoSection.value];
+  return {...view,target:{...target,section:videoSection.value}};
+});
+watch(tab,()=>{videoSection.value='frame';},{flush:'sync'});
 const narrationAlignment=computed(()=>storyNarrationAlignment(story.value,episode.value));
 const composeReason=computed(()=>!episode.value?.shots.length?'请先拆分镜头':narrationAlignment.value.reason|| (progress.value.stages.slice(1,4).some(item=>!item.done)?'请先确认当前集引用资产、各镜头画面参考和视频的有效版本':narrationMissing.value?'请选择当前集旁白音频后再合成':''));
 const versionConflict=computed(()=>storyVersionConflict(error.value));
@@ -252,10 +264,16 @@ function describeCandidate(item,kind='image'){return storyCandidateDescription(i
 function candidateInstruction(item){return item.instruction||item.prompt||'未记录提示词';}
 function episodeName(item,index){return '第 '+(index+1)+' 集 · '+(item.title||'未命名');}
 function loadServer(){if(locked.value||!versionConflict.value)return;hydrate(remoteStory.value);error.value='';notify('已载入服务器保存的非口播版本');}
+async function selectTab(value){
+  tab.value=value;await nextTick();
+  // 切换页签后回到页签下的工作区起点，避免沿用上一页滚动位置造成错页感。
+  rootElement.value?.querySelector('.story-toolbar')?.scrollIntoView({block:'start',behavior:'auto'});
+}
 async function goTo(target){
   if(!target||locked.value)return;const id=draft.value.id;
   if(target.episodeId&&story.value.episodes.some(item=>item.id===target.episodeId))episodeId.value=target.episodeId;
   tab.value=target.tab||tab.value;await nextTick();if(draft.value.id!==id)return;
+  if(tab.value==='videos')videoSection.value=['motion','composition'].includes(target.section)?target.section:'frame';
   if(target.shotId&&episode.value?.shots.some(item=>item.id===target.shotId))shotId.value=target.shotId;
   if(target.assetId){kind.value='all';assetScope.value='episode';assetId.value=target.assetId;}
   await nextTick();if(draft.value.id!==id)return;
@@ -296,10 +314,12 @@ async function stopBatch(){
     <header class="story-intro card"><div><span class="story-eyebrow">{{props.productMode?'产品介绍':'非口播创作'}}</span><h3>{{props.productMode?'产品介绍动态镜头':'非口播创作'}}</h3><p>{{props.productMode?'已关联商品脚本、确认文案、第三步旁白和商品素材；逐镜生成动态视频并确认后合成。':'从前文拆集与分镜，确认人物、场景和道具，再生成镜头视频。当前集成片可继续剪辑、制作封面和发布。'}}</p></div><button :disabled="locked" @click="navigate('settings')"><I name="Settings" :size="16"/>服务设置</button></header>
     <StoryModelSettings ref="modelSettings"/>
     <p v-if="activeRun&&!busy" class="story-notice warning" role="status">当前非口播任务仍在执行或有远程结果待确认，请保留原任务，避免重复生成。<button @click="navigate('tasks')">进入任务中心查看 / 查询</button></p>
-    <div class="story-toolbar"><div class="segmented story-tabs" role="tablist" :aria-label="props.productMode?'产品介绍制作阶段':'非口播制作阶段'"><button v-if="!props.productMode" v-for="item in [['episodes','分集分镜'],['assets','资产图片']]" :key="item[0]" role="tab" :aria-selected="tab===item[0]" :class="{active:tab===item[0]}" @click="tab=item[0]">{{item[1]}}</button><button role="tab" :aria-selected="tab==='videos'" :class="{active:tab==='videos'}" @click="tab='videos'">{{props.productMode?'逐镜动态视频':'镜头视频'}}</button></div><span class="story-save-state">{{dirty?'有未保存修改':'版本 '+story.revision+' · 已保存'}}</span><button :disabled="locked||!dirty" @click="run('saveStory')"><I name="Save" :size="16"/>保存修改</button></div>
+    <div class="story-toolbar"><div class="segmented story-tabs" role="tablist" :aria-label="props.productMode?'产品介绍制作阶段':'非口播制作阶段'"><button v-if="!props.productMode" v-for="item in [['episodes','分集分镜'],['assets','资产图片']]" :key="item[0]" role="tab" :aria-selected="tab===item[0]" :class="{active:tab===item[0]}" @click="selectTab(item[0])">{{item[1]}}</button><button role="tab" :aria-selected="tab==='videos'" :class="{active:tab==='videos'}" @click="selectTab('videos')">{{props.productMode?'逐镜动态视频':'镜头视频'}}</button></div><span class="story-save-state">{{dirty?'有未保存修改':'版本 '+story.revision+' · 已保存'}}</span><button :disabled="locked||!dirty" @click="run('saveStory')"><I name="Save" :size="16"/>保存修改</button></div>
 
     <CreativePresets :stage="tab==='videos'?'video':'shots'" :context="props.productMode?{kind:'product'}:{}" :disabled="locked"/>
-    <section v-if="episode?.shots.length" class="card shot-translation-panel" aria-label="历史镜头中文译稿">
+    <details v-if="episode?.shots.length" class="card shot-translation-panel" aria-label="历史镜头中文译稿">
+      <summary>镜头中文阅读与转换（可选）</summary>
+      <div class="shot-translation-content">
       <div class="card-heading"><h4>镜头中文阅读</h4><span>{{shotDisplay.translated?'当前显示中文译稿 · 只读':'保留当前镜头设计'}}</span></div>
       <p>旧英文可以单镜或整集转换，译稿仅用于阅读，不改变原设计、素材与已选用视频。需要改变生成内容时，再明确进入编辑。</p>
       <div class="shot-translation-actions"><button :disabled="locked||dirty||!shot" @click="translateDesign('shot')">转换当前镜头为中文</button><button :disabled="locked||dirty" @click="translateDesign('episode')">转换当前集为中文</button><button v-if="shotDisplay.translated" :disabled="locked" @click="editChineseTranslation">用中文译稿编辑设计</button></div>
@@ -307,14 +327,15 @@ async function stopBatch(){
       <p v-if="shotDisplay.translated" class="story-help">当前字段只读。点击“用中文译稿编辑设计”会把译稿写入设计，保存后受影响的首帧与视频选用将失效，历史候选保留。</p>
       <p v-if="translationStatus" class="story-help" role="status">{{translationStatus}}</p>
       <details v-if="shotDisplay.translated"><summary>核对原始镜头内容</summary><dl><template v-for="[key,label] in shotDesignFields" :key="key"><dt>{{label}}</dt><dd>{{shot[key]||'未填写'}}</dd></template></dl></details>
-    </section>
+      </div>
+    </details>
     <div v-if="error" class="story-notice error" role="alert"><span>{{error}}<small v-if="versionConflict">载入服务器版本会替换当前编辑，请先保留需要的修改。</small></span><div class="story-error-actions"><button v-if="versionConflict" :disabled="locked" @click="loadServer">载入服务器版本</button><button v-else :disabled="locked" @click="openModelSettings">检查服务设置</button><button aria-label="关闭错误提示" @click="error=''">关闭</button></div></div>
     <p v-if="sourceChanged" class="story-notice warning" role="status">{{props.productMode?'商品资料、确认稿或声音已变化，请回上方重新核对产品介绍分镜。':!sourceConfirmed?'前文尚未确认，已暂停生成、合成和交接。请先回到第二步确认最终文案；前文变化后需要重新拆集。':'剧本、指定集数或每集参考时长已变化；当前分集仍来自旧版本。请检查来源并重新拆集，再继续生成。'}}</p>
 
     <section v-if="!props.productMode" class="card story-flow" aria-label="当前集制作进度">
       <div class="story-flow-context"><label>当前分集<select :value="episode?.id||''" :disabled="locked||!story.episodes.length" @change="episodeId=$event.target.value"><option v-if="!story.episodes.length" value="">尚未拆集</option><option v-for="(item,index) in story.episodes" :key="item.id" :value="item.id">{{episodeName(item,index)}}</option></select></label><p>仅统计本集引用资产与已明确选用的版本，生成候选后仍需预览确认。</p></div>
-      <ol class="story-flow-stages"><li v-for="(stage,index) in progress.stages" :key="stage.id"><button :disabled="locked" :class="{complete:stage.done,current:progress.next.stage===stage.id}" :aria-current="progress.next.stage===stage.id?'step':undefined" @click="goTo(progress.next.stage===stage.id?progress.next.target:{tab:stage.tab,episodeId:episode?.id,section:stage.id==='compose'?'composition':stage.id==='assets'?'asset':stage.id==='frames'?'frame':stage.id==='videos'?'motion':'episode'})"><span>{{index+1}} · {{stage.label}}</span><small>{{sourceChanged?'来源待核对':stage.detail}}{{stage.done?stage.id==='shots'?' · 已拆分':stage.id==='compose'?' · 已合成':' · 已选用':''}}</small></button></li></ol>
-      <div class="story-flow-next"><div><strong>{{currentEpisodeLabel}}</strong><p>{{activeRun?'当前有执行中或结果待确认的任务，请查询原任务。':progress.next.reason}}</p><small v-if="dirty">有未保存修改，操作前会保存并重新核对有效版本。</small></div><button v-if="activeRun" @click="navigate('tasks')">查看原任务</button><button v-else class="secondary" :disabled="locked" @click="goTo(progress.next.target)">{{progress.next.label}}<I name="ArrowRight" :size="16"/></button></div>
+      <ol class="story-flow-stages"><li v-for="(stage,index) in progress.stages" :key="stage.id"><button :disabled="locked" :class="{complete:stage.done,current:visibleProgressStage===stage.id}" :aria-current="visibleProgressStage===stage.id?'step':undefined" @click="goTo(progress.next.stage===stage.id&&progress.next.target.tab===stage.tab?progress.next.target:{tab:stage.tab,episodeId:episode?.id,section:stage.id==='compose'?'composition':stage.id==='assets'?'asset':stage.id==='frames'?'frame':stage.id==='videos'?'motion':'episode'})"><span>{{index+1}} · {{stage.label}}</span><small>{{sourceChanged?'来源待核对':stage.detail}}{{stage.done?stage.id==='shots'?' · 已拆分':stage.id==='compose'?' · 已合成':' · 已选用':''}}{{visibleProgressStage===stage.id?' · 当前查看':''}}</small></button></li></ol>
+      <div class="story-flow-next"><div><strong>{{currentEpisodeLabel}}</strong><p>{{activeRun?'当前有执行中或结果待确认的任务，请查询原任务。':visibleProgressAction.reason}}</p><small v-if="dirty">有未保存修改，操作前会保存并重新核对有效版本。</small></div><button v-if="activeRun" @click="navigate('tasks')">查看原任务</button><button v-else class="secondary" :disabled="locked" @click="goTo(visibleProgressAction.target)">{{visibleProgressAction.label}}<I name="ArrowRight" :size="16"/></button></div>
     </section>
 
     <section v-if="recentBatch&&!props.productMode" class="card story-batch-results" aria-label="资产批量生成进度">
