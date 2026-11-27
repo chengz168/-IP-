@@ -116,7 +116,10 @@ export function storyBatchSummary(run){
 
 export function storyEpisodeProgress(story,episode,options={}){
   const shots=episode?.shots||[],assets=storyEpisodeAssets(story,episode),media=options.media,presets=options.presets;
-  const referenceReady=shot=>shot.referenceMode==='assets'?!storyShotProblems(shot,story.assets,{video:true,media}).length&&!storyVideoControlProblems(shot,options.videoProtocol||'comfy-h3').length:storySelectedCandidate(shot,'image',media,presets,'reference');
+  const protocol=options.videoProtocol||'comfy-h3',controlProblems=shot=>storySelectedCandidate(shot,'video',media,presets)?[]:storyVideoControlProblems(shot,protocol);
+  const controlSection=shot=>shot.referenceMode!==undefined&&!['first-frame','assets'].includes(shot.referenceMode)||shot.referenceMode==='assets'&&protocol!=='comfy-h3'?'frame':'motion';
+  // 当前模型能力仅限制新生成；已有有效视频仍可合成，参考与素材资格照常核对。
+  const referenceReady=shot=>!controlProblems(shot).length&&(shot.referenceMode==='assets'?!storyShotProblems(shot,story.assets,{video:true,media}).length:storySelectedCandidate(shot,'image',media,presets,'reference'));
   const assetReady=assets.filter(item=>storySelectedCandidate(item,'image',media,presets,'reference')),frameReady=shots.filter(referenceReady),videoReady=shots.filter(item=>storySelectedCandidate(item,'video',media,presets)),usesAssets=shots.some(item=>item.referenceMode==='assets');
   const missingBinding=shots.find(item=>!item.assetIds?.length||item.assetIds.some(id=>!(story.assets||[]).some(asset=>asset.id===id)));
   const counts={shots:shots.length,assets:assets.length,assetsReady:assetReady.length,framesReady:frameReady.length,videosReady:videoReady.length};
@@ -134,7 +137,7 @@ export function storyEpisodeProgress(story,episode,options={}){
   else if(!shots.length)next={stage:'shots',label:'前往拆分本集镜头',reason:'本集尚无分镜，拆分后再提取资产。',target:target('episodes',{section:'episode'})};
   else if(missingBinding)next={stage:'assets',label:'检查镜头资产绑定',reason:'本集存在未绑定或引用缺失资产的镜头。',target:target('videos',{shotId:missingBinding.id,section:'bindings'})};
   else if(assetReady.length<assets.length){const asset=assets.find(item=>!storySelectedCandidate(item,'image',media,presets,'reference'));next={stage:'assets',label:'确认资产：'+asset.name,reason:asset.images?.some(item=>storyCandidateAvailable(item,'image',presets))?'已有图片候选，请预览并明确选用。':'先按当前预设生成或导入资产图片，再预览确认。',target:target('assets',{assetId:asset.id,section:'asset'})};}
-  else if(frameReady.length<shots.length){const shot=shots.find(item=>!referenceReady(item));next={stage:'frames',label:'确认镜头 '+(shots.indexOf(shot)+1)+(shot.referenceMode==='assets'?' 画面参考':' 首帧'),reason:shot.referenceMode==='assets'?'请检查本地H3、1至9张不重复的已确认绑定图，资产参考不支持尾帧。':shot.images?.some(item=>item.status==='ready')?'首帧已有候选，预览确认后才能生成视频。':'先生成或选用本镜头首帧。',target:target('videos',{shotId:shot.id,section:'frame'})};}
+  else if(frameReady.length<shots.length){const shot=shots.find(item=>!referenceReady(item)),problem=controlProblems(shot)[0];next={stage:'frames',label:problem?'调整镜头 '+(shots.indexOf(shot)+1)+' 视频参考':'确认镜头 '+(shots.indexOf(shot)+1)+(shot.referenceMode==='assets'?' 画面参考':' 首帧'),reason:problem||(shot.referenceMode==='assets'?'请检查本地H3、1至9张不重复的已确认绑定图，资产参考不支持尾帧。':shot.images?.some(item=>item.status==='ready')?'首帧已有候选，预览确认后才能生成视频。':'先生成或选用本镜头首帧。'),target:target('videos',{shotId:shot.id,section:problem?controlSection(shot):'frame'})};}
   else if(videoReady.length<shots.length){const shot=shots.find(item=>!storySelectedCandidate(item,'video',media,presets));next={stage:'videos',label:'确认镜头 '+(shots.indexOf(shot)+1)+' 视频',reason:shot.videos?.some(item=>storyCandidateAvailable(item,'video',presets))?'已有视频候选，请完整预览后选用。':'请按当前预设生成动态视频，再预览并确认选用；历史视频保留查看。',target:target('videos',{shotId:shot.id,section:'motion'})};}
   else if(options.narrationMissing)next={stage:'compose',label:'选择本集旁白',reason:'当前旁白方式需要本集音频，多集请逐集指定。',target:target('videos',{section:'composition'})};
   else next={stage:'compose',label:episode.resultId?'检查当前集成片':'前往合成当前集',reason:episode.resultId?'请检查完整播放、声音与镜头连续性，再交接剪辑。':'各镜头已明确选用，合成前仍由后台核对有效性。',target:target('videos',{section:'composition'})};

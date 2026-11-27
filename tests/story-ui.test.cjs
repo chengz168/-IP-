@@ -74,6 +74,44 @@ test('首帧视频的生成候选不当作确认，过期或缺素材不计完�
  second.videos[0].status='ready';assert.equal(storyEpisodeProgress(story,episode,{narrationMissing:true}).next.label,'选择本集旁白');assert.equal(storyEpisodeProgress(story,episode).next.label,'前往合成当前集');episode.resultId='result';assert.equal(storyEpisodeProgress(story,episode).next.label,'检查当前集成片');
 });
 
+test('镜头待办遵循当前视频模型能力，不把不支持的参考误报为已就绪',async()=>{
+ const {storyEpisodeProgress}=await import('../src/story-ui.mjs'),{story,episode,candidate}=flowFixture();
+ story.assets[1].selectedImageId='scene-1-image';
+ for(const shot of episode.shots){shot.images=[candidate(shot.id+'-frame')];shot.selectedImageId=shot.id+'-frame';}
+ const first=episode.shots[0],before=structuredClone(story);
+ assert.equal(storyEpisodeProgress(story,episode,{videoProtocol:'comfy-wan22'}).counts.framesReady,2);
+ first.referenceMode='assets';let progress=storyEpisodeProgress(story,episode,{videoProtocol:'comfy-wan22'});
+ assert.equal(progress.next.stage,'frames');assert.equal(progress.next.target.shotId,first.id);assert.equal(progress.next.target.section,'frame');assert.equal(progress.counts.framesReady,1);
+ assert.match(progress.next.label,/调整.*视频参考/);assert.match(progress.next.reason,/仅支持本地H3.*首帧/);
+ assert.equal(storyEpisodeProgress(story,episode,{videoProtocol:'comfy-h3'}).next.stage,'videos');
+ first.referenceMode='first-frame';first.lastFrameId='end';progress=storyEpisodeProgress(story,episode,{videoProtocol:'comfy-wan22'});
+ assert.match(progress.next.reason,/Wan不支持尾帧/);assert.equal(progress.next.target.section,'motion');assert.equal(progress.counts.framesReady,1);
+ delete first.lastFrameId;first.videoSeed=42;progress=storyEpisodeProgress(story,episode,{videoProtocol:'bridge'});
+ assert.equal(progress.next.stage,'frames');assert.equal(progress.next.target.section,'motion');assert.match(progress.next.reason,/清除控制项或切换/);
+ delete first.videoSeed;delete first.referenceMode;assert.deepEqual(story,before);
+});
+
+test('切换生成模型保留已有有效视频的合成资格，失效视频仍需修正控制项',async()=>{
+ const {storyEpisodeProgress}=await import('../src/story-ui.mjs'),{story,episode,candidate}=flowFixture();
+ story.assets[1].selectedImageId='scene-1-image';
+ for(const shot of episode.shots){shot.images=[candidate(shot.id+'-frame')];shot.selectedImageId=shot.id+'-frame';shot.videos=[candidate(shot.id+'-video')];shot.selectedVideoId=shot.id+'-video';shot.lastFrameId='end';shot.videoSeed=42;}
+ const before=structuredClone(story);
+ for(const videoProtocol of ['comfy-wan22','bridge']){const progress=storyEpisodeProgress(story,episode,{videoProtocol});assert.equal(progress.counts.framesReady,2);assert.equal(progress.counts.videosReady,2);assert(progress.stages.slice(1,4).every(item=>item.done));assert.equal(progress.next.target.section,'composition');}
+ assert.deepEqual(story,before);
+ episode.shots[0].videos[0].status='stale';let progress=storyEpisodeProgress(story,episode,{videoProtocol:'comfy-wan22'});assert.equal(progress.counts.videosReady,1);assert.match(progress.next.reason,/Wan不支持尾帧/);assert.equal(progress.next.target.section,'motion');
+ episode.shots[0].videos[0].status='ready';episode.shots[0].images[0].status='stale';progress=storyEpisodeProgress(story,episode,{videoProtocol:'bridge'});assert.equal(progress.counts.framesReady,1);assert.equal(progress.next.stage,'frames');assert.equal(progress.next.target.section,'frame');
+});
+
+test('资产参考旧视频切换模型可复用，缺视频文件或预设不符不得豁免',async()=>{
+ const {storyEpisodeProgress}=await import('../src/story-ui.mjs'),{story,episode,candidate}=flowFixture();
+ story.assets[1].selectedImageId='scene-1-image';
+ for(const shot of episode.shots){shot.referenceMode='assets';shot.videos=[candidate(shot.id+'-video')];shot.selectedVideoId=shot.id+'-video';}
+ const media=[...story.assets.map(a=>({id:a.selectedImageId,type:'image'})),...episode.shots.map(s=>({id:s.selectedVideoId,type:'video'}))],options={media,videoProtocol:'comfy-wan22'};
+ let progress=storyEpisodeProgress(story,episode,options);assert.equal(progress.next.stage,'compose');assert.equal(progress.counts.framesReady,2);
+ progress=storyEpisodeProgress(story,episode,{...options,media:media.filter(a=>a.id!==episode.shots[0].selectedVideoId)});assert.equal(progress.counts.videosReady,1);assert.match(progress.next.reason,/资产参考生成目前仅支持本地H3/);assert.equal(progress.next.target.section,'frame');
+ episode.shots[0].videos[0].creativePreset={id:'old'};progress=storyEpisodeProgress(story,episode,{...options,presets:{video:{id:'new'}}});assert.equal(progress.counts.videosReady,1);assert.equal(progress.next.stage,'frames');assert.equal(progress.next.target.section,'frame');
+});
+
 test('Z-Image绑定参考在提交前给出阻断，版本冲突与网络失败分开',async()=>{
  const {storyShotProblems,storyVersionConflict}=await import('../src/story-ui.mjs'),assets=[{id:'one',name:'人物',selectedImageId:'image'}],shot={assetIds:['one']};assert.match(storyShotProblems(shot,assets,{imageProtocol:'comfy',imageArchitecture:'z-image-turbo'}).join(),/Z-Image.*不能使用/);assert.deepEqual(storyShotProblems(shot,assets,{imageProtocol:'compatible',imageArchitecture:'z-image-turbo'}),[]);
  assert(storyVersionConflict(Error('创作内容已更新，请刷新后再保存，未覆盖新结果')));for(const error of ['fetch failed','无法连接模型服务','请选择资产图片','已恢复上次尚未保存的编辑'])assert(!storyVersionConflict(error));
@@ -97,6 +135,15 @@ test('真实组件模板可编译，视频页就地绑定，错误恢复仅版�
 
 test('具体待办只导航本集资产或镜头，不调用生成确认，网络错误不丢编辑',async()=>{
  const f=await componentFixture();try{assert.equal(f.vm.assetScope.value,'episode');await f.vm.goTo(f.vm.progress.value.next.target);assert.equal(f.vm.tab.value,'assets');assert.equal(f.vm.asset.value.id,'scene-1');assert.equal(f.calls.length,0);await f.vm.goTo({tab:'videos',episodeId:'e2',shotId:'s3',section:'bindings'});assert.equal(f.vm.episode.value.id,'e2');assert.equal(f.vm.shot.value.id,'s3');assert.equal(f.calls.length,0);f.vm.setBinding('scene-1',true);assert(f.vm.shot.value.assetIds.includes('scene-1'));f.vm.primaryReference.value='scene-1';assert.equal(f.vm.shot.value.primaryReferenceAssetId,'scene-1');assert.equal(f.draft.value.story.episodes[1].shots[0].primaryReferenceAssetId,undefined);f.vm.error.value='fetch failed';f.vm.loadServer();assert(f.vm.shot.value.assetIds.includes('scene-1'));assert.equal(f.calls.length,0);}finally{f.dispose();}
+});
+
+test('真实组件切换模型后仍可合成有效旧视频，新生成保留模型门禁',async()=>{
+ const f=await componentFixture();try{
+  f.vm.story.value.assets[1].selectedImageId='scene-1-image';
+  for(const shot of f.vm.episode.value.shots){shot.images=[{id:shot.id+'-frame',status:'ready'}];shot.selectedImageId=shot.id+'-frame';shot.videos=[{id:shot.id+'-video',status:'ready'}];shot.selectedVideoId=shot.id+'-video';shot.lastFrameId='end';shot.videoSeed=42;f.state.value.assets.push({id:shot.selectedImageId,type:'image'},{id:shot.selectedVideoId,type:'video'});}
+  for(const protocol of ['comfy-wan22','bridge']){f.state.value.settings.provider.storyVideoProtocol=protocol;assert.equal(f.vm.composeReason.value,'');assert(f.vm.videoIssues.value.length>0);}
+  f.vm.episode.value.shots[0].videos[0].status='stale';assert.match(f.vm.composeReason.value,/请先确认/);assert.equal(f.vm.progress.value.next.target.section,'motion');assert.equal(f.calls.length,0);
+ }finally{f.dispose();}
 });
 
 test('组件网络失败只提交一次并保留旧稿，unknown任务阻止导航生成',async()=>{
