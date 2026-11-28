@@ -9,7 +9,7 @@ const DEFAULT_H3='minimax_h3_fl2va_pruned_int8_convrot.safetensors';
 const DEFAULT_REFERENCE_H3='minimax_h3_ref2va_pruned_int8_convrot.safetensors';
 const REFERENCE_H3_LORA='minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors';
 const Z_IMAGE_DEFAULTS={storyImageZUnet:'z_image_turbo_bf16.safetensors',storyImageZClip:'qwen_3_4b.safetensors',storyImageZVae:'ae.safetensors'};
-const PROMPT_COMPILER_VERSION=6;
+const PROMPT_COMPILER_VERSION=7;
 function imageArchitecture(config={}){const value=config.storyImageArchitecture||'sdxl';if(!['sdxl','z-image-turbo'].includes(value))throw Error('图片架构尚未接入，请选择SDXL或Z-Image Turbo');return value;}
 function imageWeights(config={}){const architecture=imageArchitecture(config);return architecture==='sdxl'?{architecture,model:config.storyImageModel||DEFAULT_CHECKPOINT}:{architecture,model:config.storyImageZUnet||Z_IMAGE_DEFAULTS.storyImageZUnet,clip:config.storyImageZClip||Z_IMAGE_DEFAULTS.storyImageZClip,vae:config.storyImageZVae||Z_IMAGE_DEFAULTS.storyImageZVae};}
 const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
