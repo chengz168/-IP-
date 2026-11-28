@@ -9,6 +9,11 @@
 .brain-collection-notice>strong{font-size:var(--app-font-size-caption)}
 .brain-collection-notice>p{margin:6px 0 10px;color:var(--muted)}
 .brain-collection-notice>button{min-height:32px;padding:5px 12px;font-size:var(--app-font-size-meta)}
+.brain-collection-notice>p:last-child{margin-bottom:0}
+.brain-profile-evidence{font-size:var(--app-font-size-caption);line-height:1.7;overflow-wrap:anywhere}
+.brain-profile-evidence details{margin-top:10px}.brain-profile-evidence summary{cursor:pointer;color:var(--muted)}
+.brain-source-text{white-space:pre-wrap;margin:10px 0}
+.brain-content-source{margin-top:14px!important}.brain-content-source select{margin-top:6px;width:100%;font-size:var(--app-font-size-caption)}
 /* 窄窗让步骤正文滚动，避免把两种学习模式压进不足一张卡片的内部视口。 */
 .stage-0>.main-tabs+.brain-studio{height:544px;min-height:544px;flex:none}
 .brain-profile-list{overflow:auto;min-height:0;flex:1;display:flex;flex-direction:column;gap:12px;padding:0 5px 4px 0;scrollbar-gutter:stable}

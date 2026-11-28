@@ -9,6 +9,8 @@ const {setTimeout:sleep}=require('node:timers/promises');
 const allowedHosts=['douyin.com','iesdouyin.com','snssdk.com','byteimg.com','ibytedtos.com','bytedance.com'];
 function isAllowed(url){try{const parsed=new URL(url);return parsed.protocol==='https:'&&allowedHosts.some(host=>parsed.hostname===host||parsed.hostname.endsWith('.'+host));}catch{return false;}}
 function isMediaUrl(url){try{const value=new URL(url);return value.protocol==='https:'&&['douyinvod.com','douyinpic.com'].some(host=>value.hostname===host||value.hostname.endsWith('.'+host))&&/media-audio|media-video|video_mp4|\/video\//.test(url);}catch{return false;}}
+// 保留当前 Chromium 版本，仅去掉桌面应用标记，避免网页误走抖音客户端专属路由。
+function webUserAgent(value){return String(value).replace(/\s+[^\s/]+\/[\w.\-]+(?=\s+Chrome\/)/,'').replace(/\s+Electron\/[^\s]+/g,'');}
 // currentSrc能读取尚未下载完成的流媒体，避免只等onCompleted漏掉正在播放的资源。
 const mediaSnapshot=`(()=>[...Array.from(document.querySelectorAll('video')).flatMap(video=>[video.currentSrc,video.src,...Array.from(video.querySelectorAll('source')).map(source=>source.src)]),...performance.getEntriesByType('resource').map(entry=>entry.name)].filter(value=>typeof value==='string'&&value.startsWith('https://')))()`;
 function netscapeCookie(cookie){
@@ -35,10 +37,26 @@ function loadPage(window,url,{signal,timeoutMs=30000}={}){
 }
 class VideoParserBrowser{
   constructor({BrowserWindow,parent,root}){this.BrowserWindow=BrowserWindow;this.parent=parent;this.root=root;this.window=null;this.generation=0;}
+  async exclusive(work){if(this.occupied)throw Error('本地解析器正在处理另一条链接，请等待完成或停止后重试');this.occupied=true;try{return await work();}finally{this.occupied=false;}}
+  async collectProfile(url,{signal,timeoutMs=30000,pollMs=500}={}){
+    return this.exclusive(async()=>{
+      if(!isAllowed(url))throw Error('本地账号采集目前支持抖音公开主页，其他平台可配置采集接口或导入样本');
+      signal?.throwIfAborted();await this.open({silent:true});const win=this.window,generation=++this.generation;
+      const {profileSnapshot,normalizeProfile}=require('./douyin-profile.cjs');
+      await loadPage(win,url,{signal});const deadline=Date.now()+timeoutMs;let lastError;
+      do{signal?.throwIfAborted();if(win.isDestroyed()||this.window!==win||generation!==this.generation)throw Error('解析窗口已关闭');
+        const snapshot=await win.webContents.executeJavaScript('('+profileSnapshot.toString()+')()');
+        try{return normalizeProfile(snapshot,url);}catch(error){lastError=error;}
+        await sleep(pollMs,undefined,{signal});
+      }while(Date.now()<deadline);
+      throw lastError||Error('未读取到账号公开作品');
+    });
+  }
   async open({silent=false}={}){
     if(this.window&&!this.window.isDestroyed()){if(!silent){this.window.show();this.window.focus();}return this.status();}
     const window=new this.BrowserWindow({width:1180,height:860,minWidth:980,minHeight:680,title:'抖音视频解析 · 浏览器会话',show:false,parent:this.parent(),webPreferences:{partition:'persist:studio-douyin-parser',contextIsolation:true,nodeIntegration:false,sandbox:true}});
     window.setMenu(null);window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+    if(window.webContents.getUserAgent&&window.webContents.setUserAgent)window.webContents.setUserAgent(webUserAgent(window.webContents.getUserAgent()));
     const session=window.webContents.session;
     // Chromium 页面可通过 openExternal 权限直接请求系统协议，必须显式拒绝。
     session.setPermissionCheckHandler((_contents,permission)=>permission!=='openExternal');
@@ -70,19 +88,30 @@ class VideoParserBrowser{
     fs.writeFileSync(file,['# Netscape HTTP Cookie File','# 此文件由本地解析临时生成，任务结束后删除',...usable.map(netscapeCookie),''].join('\n'),{mode:0o600});
     return file;
   }
-  async prepare(url,{signal,mediaTimeoutMs=30000,pollMs=500,preferVideo=false}={}){
+  async prepare(url,{signal,mediaTimeoutMs=30000,pollMs=500,preferVideo=false,expectedProfileId=''}={}){
     if(!this.window||this.window.isDestroyed())throw Error('请先打开抖音解析窗口并完成验证');
     if(!isAllowed(url))throw Error('解析窗口只允许访问抖音及其媒体域名');
     const current=this.window,session=current.webContents.session,captured=[];
     const generation=++this.generation;
     const filter={urls:['*://*/*']},onCompleted=details=>{if(isMediaUrl(details.url))captured.push(details.url);};
     session.webRequest.onCompleted(filter,onCompleted);
-    let observed=[],firstMediaAt=0;
+    let observed=[],firstMediaAt=0,identity;
     try{await loadPage(current,url,{signal});const deadline=Date.now()+mediaTimeoutMs;
       do{signal?.throwIfAborted();if(current.isDestroyed()||this.window!==current||generation!==this.generation)throw Error('解析窗口已关闭');const snapshot=await current.webContents.executeJavaScript(mediaSnapshot);observed=(Array.isArray(snapshot)?snapshot:[]).filter(isMediaUrl);const found=[...observed,...captured];if(found.length){firstMediaAt||=Date.now();const split=found.some(url=>/media-video|media-audio/.test(url)),paired=found.some(url=>/media-video/.test(url))&&found.some(url=>/media-audio/.test(url));if(!preferVideo||!split||paired||Date.now()-firstMediaAt>=3000)break;}await sleep(pollMs,undefined,{signal});}while(Date.now()<deadline);
     }catch(error){if(signal?.aborted)throw Error('本地链接提取已取消');throw Error('抖音分享页加载失败：'+error.message);}finally{session.webRequest.onCompleted(filter,null);}
     if(!this.window||this.window!==current||generation!==this.generation||current.isDestroyed())throw Error('解析窗口已关闭，请重新打开后重试');
-    return {url:current.webContents.getURL(),title:await current.webContents.getTitle(),mediaUrls:[...new Set([...observed,...captured])],cookieFile:await this.cookieFile()};
+    if(expectedProfileId){
+      const {identitySnapshot,verifyIdentity,videoId}=require('./douyin-profile.cjs');
+      let snapshot,lastError;const deadline=Date.now()+5000;
+      // 作者区域可能晚于播放器渲染，短暂等待真实作者信息，仍不放宽归属校验。
+      do{signal?.throwIfAborted();if(current.isDestroyed()||this.window!==current||generation!==this.generation)throw Error('解析窗口已关闭');snapshot=await current.webContents.executeJavaScript('('+identitySnapshot.toString()+')()');try{identity=verifyIdentity(snapshot,expectedProfileId,url);break;}catch(error){lastError=error;}await sleep(pollMs,undefined,{signal});}while(Date.now()<deadline);
+      if(!identity)throw lastError;
+      // 账号学习只接受当前作品播放器的媒体，不能混入预加载的下一条推荐。
+      observed=(snapshot.media||[]).filter(isMediaUrl).filter(value=>{const vid=new URL(value).searchParams.get('__vid');return !vid||vid===videoId(url);});
+      captured.length=0;
+      if(!observed.length)throw Error('目标账号作品尚未提供可读取的播放器媒体，未使用推荐视频');
+    }
+    return {url:current.webContents.getURL(),title:await current.webContents.getTitle(),mediaUrls:[...new Set([...observed,...captured])],...(identity?{identity}:{}),cookieFile:await this.cookieFile()};
   }
   async downloadMedia(url,target,{signal}={}){
     if(!this.window||this.window.isDestroyed())throw Error('解析窗口已关闭，请重新打开后重试');
@@ -95,8 +124,8 @@ class VideoParserBrowser{
     return target;
   }
   async withSession(url,work,options={}){
-    const prepared=await this.prepare(url,options);
-    try{return await work(prepared);}finally{if(prepared.cookieFile)fs.rmSync(prepared.cookieFile,{force:true});}
+    return this.exclusive(async()=>{const prepared=await this.prepare(url,options);
+      try{return await work(prepared);}finally{if(prepared.cookieFile)fs.rmSync(prepared.cookieFile,{force:true});}});
   }
 }
-module.exports={VideoParserBrowser,isAllowed,isMediaUrl,loadPage};
+module.exports={VideoParserBrowser,isAllowed,isMediaUrl,loadPage,webUserAgent};

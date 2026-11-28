@@ -2,6 +2,12 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {EventEmitter}=require('node:events');
 const {VideoParserBrowser,isMediaUrl,loadPage}=require('../electron/video-parser-browser.cjs');
+test('网页兼容标识保留实际Chromium版本，删除客户端专属标记',()=>{
+ const {webUserAgent}=require('../electron/video-parser-browser.cjs');
+ const normal='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.7559.236 Safari/537.36';
+ assert.equal(webUserAgent(normal.replace(' Chrome/',' 超级IP智能体/40.10.6 Chrome/').replace(' Safari/',' Electron/40.10.6 Safari/')),normal);
+ assert.equal(webUserAgent(normal),normal);
+});
 
 function windowFixture(){
  const contents=new EventEmitter();contents.stops=0;contents.stop=()=>contents.stops++;

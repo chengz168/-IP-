@@ -26,6 +26,13 @@ test('多个账号或单作品地址在调用采集前拒绝，不产生伪档�
  assert.equal(called,0);assert.equal(s.store.data.brains.length,0);
 });
 test('模型编造摘录或字段类型错误时不保存伪分析',async t=>{const s=fixture(t),d=s.store.draft();for(const value of [{...analysis(),evidence:[{quote:'不在原文中的内容',point:'虚构'}]},{...analysis(),tone:[12]},{}]){s.providers.text=async()=>({text:JSON.stringify(value)});await assert.rejects(s.invoke('brainStudy',{id:d.id}));assert.equal(s.store.data.brains.length,0);}});
+test('摘录仅有排版空格差异时还原原文，改词、英文粘连和跨段拼接仍拒绝',()=>{
+ const {validateAnalysis}=require('../server/brain.cjs');
+ const source='有好用的猫砂推荐吗？ 猫咪太能尿了 #真实生活分享计划  结团嘎嘎硬。';
+ const input={...analysis(),evidence:[{quote:'有好用的猫砂推荐吗？猫咪太能尿了 #真实生活分享计划 结团嘎嘎硬。',point:'配文句式'}]};
+ assert.equal(validateAnalysis(input,source).evidence[0].quote,source);assert.equal(validateAnalysis(input,source).evidence[0].modelQuote,input.evidence[0].quote);
+ for(const [sample,quote]of [['the rapist','therapist'],['第一条\n\n第二条','第一条第二条'],[source,'猫咪不尿了']])assert.throws(()=>validateAnalysis({...analysis(),evidence:[{quote,point:'无效'}]},sample),/不在原样本/);
+});
 test('重新学习失败保留旧可用分析和来源快照',async t=>{const s=fixture(t),b=await learned(s),before=structuredClone(s.store.data.brains);s.providers.text=async()=>{throw new Error('模型不可用');};await assert.rejects(s.invoke('brainStudy',{id:s.store.draft().id,brainId:b.id}),/模型不可用/);assert.deepEqual(s.store.data.brains,before);});
 test('运行中改样本拒绝附着，结果只保留在执行记录',async t=>{const s=fixture(t),d=s.store.draft();let resolve;s.providers.text=()=>new Promise(r=>resolve=r);const pending=s.invoke('brainStudy',{id:d.id,name:'过期分析'});d.brain.sampleText+='后续新增信息';resolve({text:JSON.stringify(analysis())});const result=await pending;assert.equal(result.stale,true);assert.equal(s.store.data.brains.length,0);assert.equal(s.store.data.runs[0].output.stale,true);});
 test('停止和重复提交都不能产生第二份档案',async t=>{const s=fixture(t),d=s.store.draft();let resolve;s.providers.text=()=>new Promise(r=>resolve=r);const pending=s.invoke('brainStudy',{id:d.id});await assert.rejects(s.invoke('brainStudy',{id:d.id}),/正在处理/);s.runtime.cancel(s.store.data.runs[0].id);resolve({text:JSON.stringify(analysis())});await assert.rejects(pending);assert.equal(s.store.data.runs[0].status,'cancelled');assert.equal(s.store.data.brains.length,0);});
