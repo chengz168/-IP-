@@ -38,7 +38,7 @@ async function proposeProductShotDesign(products,{id,episodeId,shotId,instructio
   if(!s.productIntroduction)throw Error('请先准备产品介绍分镜');
   const inputHash=designFingerprint(service,id,episodeId,shotId),revision=s.revision,d=structuredClone(service.store.draft(id));
   const snapshot=structuredClone(shot),creativePreset=resolveCreativePreset(d,'shots',{kind:'product'});
-  return products.run('product-shot-design',id,{episodeId,shotId,inputHash,revision},async ctx=>{
+  return products.run('product-shot-design',id,{episodeId,shotId,inputHash,revision,creativePreset},async ctx=>{
    const referenceId=snapshot.selectedImageId||s.assets.find(a=>a.id===snapshot.primaryReferenceAssetId)?.selectedImageId,referenceSha256=referenceId?referenceStamp(service,referenceId):'';
    const observations=referenceId?await require('./product-vision.cjs').describeProductImages(service,[{id:referenceId,name:'当前镜头首帧',role:'product'}],ctx):{status:'unconfigured',observations:[],warnings:['未确认首帧，优化仅依据文字；请先核对参考图。']};
    const properties=Object.fromEntries(['visual','action','camera','sound'].map(key=>[key,{type:'string'}])),schema={type:'object',properties,required:Object.keys(properties),additionalProperties:false};

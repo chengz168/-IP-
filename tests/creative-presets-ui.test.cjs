@@ -16,7 +16,7 @@ async function fixture(handler){
  const studio={draft,state,busy:vue.ref(''),workflowLocked:vue.ref(false),save:async()=>{calls.push({action:'save'});},refresh:async()=>{calls.push({action:'refresh'});}};
  const call=async(action,payload)=>{calls.push({action,payload:JSON.parse(JSON.stringify(payload))});return currentHandler(action,payload);};
  const dispose=[];
- const component=new Function('computed','inject','onBeforeUnmount','ref','watch','call','setTimeout','clearTimeout','creativeStageNames',compiled)(vue.computed,()=>studio,fn=>dispose.push(fn),vue.ref,vue.watch,call,()=>1,()=>{},require('../server/production-skills.mjs').creativeStageNames);
+ const component=new Function('computed','inject','onBeforeUnmount','ref','watch','call','setTimeout','clearTimeout','creativeStageNames','CreativeLearning','Modal','learningStages',compiled)(vue.computed,()=>studio,fn=>dispose.push(fn),vue.ref,vue.watch,call,()=>1,()=>{},require('../server/production-skills.mjs').creativeStageNames,{}, {},require('../server/creative-learning.mjs').learningStages);
  const scope=vue.effectScope(),vm=scope.run(()=>component.setup(props,{expose(){}}));
  await vue.nextTick();await Promise.resolve();
  return{draft,state,props,vm,calls,handler(fn){currentHandler=fn;},dispose(){dispose.forEach(fn=>fn());scope.stop();}};

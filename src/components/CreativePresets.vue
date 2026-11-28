@@ -3,11 +3,15 @@ import {computed,inject,onBeforeUnmount,ref,watch} from 'vue';
 import {call} from '../api';
 import '../creative-presets.css';
 import {creativeStageNames} from '../../server/production-skills.mjs';
+import CreativeLearning from './CreativeLearning.vue';
+import Modal from './Modal.vue';
+import {learningStages} from '../../server/creative-learning.mjs';
 
 const props=defineProps({stage:{type:String,default:'script'},context:{type:Object,default:()=>({})},disabled:Boolean});
 const {draft:d,state,busy,workflowLocked,save,refresh}=inject('studio');
 const catalog=ref([]),route=ref(null),mode=ref('auto'),presetId=ref(''),instruction=ref(''),error=ref(''),loading=ref(false),saving=ref(false);
 const saved=ref(''),loaded=ref(false);
+const learningOpen=ref(false);
 let requestToken=0,saveToken=0,refreshTimer;
 const stageNames={...creativeStageNames,analysis:'参考拆解'};
 const selection=()=>({mode:mode.value,presetId:presetId.value,instruction:instruction.value});
@@ -94,7 +98,13 @@ onBeforeUnmount(()=>{clearTimeout(refreshTimer);requestToken++;saveToken++;});
    <p v-if="error" class="creative-presets-error" role="alert">{{error}}</p>
    <details v-if="route" class="creative-presets-rules"><summary>查看已保存设置的阶段规则与来源</summary><p class="creative-presets-help">{{routeTitle}}<template v-if="route.version"> · 版本 {{route.version}}</template>。推荐用于本阶段，实际采用情况以生成记录为准。</p><ul v-if="rules.length"><li v-for="(rule,index) in rules" :key="index">{{rule}}</li></ul><p v-else class="creative-presets-help">{{route.mode==='off'?'当前已关闭创作预设。':'此预设当前阶段没有附加规则，沿用原有生成要求。'}}</p><div v-if="sourceRows.length" class="creative-presets-sources"><p>公开方法来源（可核查资料地址）</p><div v-for="(source,index) in sourceRows" :key="index"><strong>{{source.name}}</strong><small v-if="source.version">{{source.version}}</small><small v-if="source.license">许可：{{source.license}}</small><code v-if="source.url">{{source.url}}</code></div></div></details>
    <p v-if="route?.skills?.length" class="creative-presets-help">本阶段将组合：{{route.skills.map(skill=>skill.name).join('、')}}。详情可在设置 → 提示词管理 → 创作技能库查看。</p>
+   <div v-if="learningStages[stage]" class="creative-learning-entry"><span>对生成结果反馈，让同类任务记住你的表达与镜头偏好。</span><button type="button" @click="learningOpen=true">创作反馈与经验</button></div>
    <p v-if="actual" class="creative-presets-actual">最近生成实际采用：{{actual.name||actual.id||'创作预设'}}<template v-if="actual.version"> · 版本 {{actual.version}}</template><template v-if="actual.skills?.length"> · {{actual.skills.map(skill=>skill.name).join('、')}}</template>。</p>
   </div>
  </details>
+ <Modal v-if="learningOpen" title="创作反馈与经验" variant="learning-feedback" wide :mask-closable="false" @close="learningOpen=false"><CreativeLearning :stage="stage"/><template #footer><button type="button" @click="learningOpen=false">返回创作</button></template></Modal>
 </template>
+
+<style>
+.creative-learning-entry{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--border,#454251);font-size:var(--app-font-size-meta,12px);color:var(--muted,#aaa8b7)}.creative-learning-entry button{flex-shrink:0}.learning-feedback-modal{width:min(920px,calc(100vw - 40px))!important;max-height:calc(100dvh - 48px)}.learning-feedback-modal>.modal-body{min-height:0;overflow:auto;scrollbar-gutter:stable}
+</style>

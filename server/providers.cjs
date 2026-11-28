@@ -42,6 +42,8 @@ class Providers{
     }catch(error){if(ticket&&!settled)this.usageGuard.fail(ticket,{usage:error.evidence?.usage,cancelled:!!ctx?.signal?.aborted,upstreamFailure:!ctx?.signal?.aborted});throw error;}
   }
   async text(system,user,ctx,{schema,model,temperature,maxTokens,thinking,presencePenalty}={}){
+    // 固定本次任务的经验快照，后续修改只影响新任务；不介入取证、校对或图像模型。
+    const learning=ctx?.creativeLearning;user+=require('./creative-learning.mjs').learningPrompt(learning);
     const config=this.config(),requestedModel=model||config.model;if(!config.baseUrl||!requestedModel)throw new Error('请在设置 → 模型设置中配置文本服务地址和模型名称');
     const local=config.textProtocol==='ollama',transportTimeoutMs=textTimeoutSeconds(config)*1000;
     if(thinking!==undefined&&typeof thinking!=='boolean')throw Error('本地思考开关需为布尔值');
@@ -63,6 +65,7 @@ class Providers{
     const endpoint=local?address(config.baseUrl).replace(/\/v1$/,'')+'/api/chat':address(config.baseUrl)+'/chat/completions';
     const headers={...(local?{}:await this.headers('text')),'Content-Type':'application/json'},ticket=this.usageGuard?.reserve({capability:'text',protocol:localOllama(local,config.baseUrl)?'ollama':'compatible',reservedTokens:Buffer.byteLength(system+user,'utf8')+(limit||2048)});let settled=false;
     try{
+    ctx?.signal?.throwIfAborted();ctx?.learningUsed?.();
     const response=await this.request(endpoint,{method:'POST',headers,body:JSON.stringify(body)},ctx,transportTimeoutMs);
     let data;try{data=await response.json();}catch(error){if(ctx?.signal?.aborted)throw Error('请求已停止');if(error.name==='AbortError'||error.name==='TimeoutError')throw Error('模型服务请求超时');throw error;}const text=local?data.message?.content:data.choices?.[0]?.message?.content;
     const finishReason=local?data.done_reason:data.choices?.[0]?.finish_reason;
@@ -79,7 +82,7 @@ class Providers{
       throw error;
     }
     const usage=local?{prompt_tokens:data.prompt_eval_count,completion_tokens:data.eval_count}:data.usage||null;settled=true;const usageRecord=ticket?this.usageGuard.succeed(ticket,usage):null;
-    return {text,requestId:data.id||'',usage,...(usageRecord&&!usageRecord.local?{usageRecord}:{}),request:{model:requestedModel,protocol:local?'ollama':'compatible',transportTimeoutMs,messages,parameters:local?{think:body.think,...body.options,...(schema?{format:schema}:{})}:{...(limit?{max_tokens:limit}:{}),...(temperature!==undefined?{temperature}:{}),...(schema?{response_format:body.response_format}:{})}},finishReason};
+    return {text,requestId:data.id||'',usage,...(learning?.entries?.length?{creativeLearning:structuredClone(learning)}:{}),...(usageRecord&&!usageRecord.local?{usageRecord}:{}),request:{model:requestedModel,protocol:local?'ollama':'compatible',transportTimeoutMs,messages,parameters:local?{think:body.think,...body.options,...(schema?{format:schema}:{})}:{...(limit?{max_tokens:limit}:{}),...(temperature!==undefined?{temperature}:{}),...(schema?{response_format:body.response_format}:{})}},finishReason};
     }catch(error){if(ticket&&!settled)this.usageGuard.fail(ticket,{usage:error.evidence?.usage,cancelled:!!ctx?.signal?.aborted,upstreamFailure:!ctx?.signal?.aborted});throw error;}
   }
   async speech(draft,ctx,context){

@@ -72,7 +72,7 @@ test('真实 App 在检查中及时轮询、空闲时低频只读刷新，并能
 
 test('真实模型设置保存不把旧启动配置快照写回专用配置',async()=>{
  const filename=path.resolve(__dirname,'../src/views/SettingsView.vue'),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename});
- const modules=await Promise.all([import('../src/provider-key-drafts.mjs'),import('../src/model-settings.mjs'),import('../src/typography.mjs'),import('../src/release-ui.mjs')]),helpers=Object.assign({ActivationDialog:{}},...modules),calls=[];
+ const modules=await Promise.all([import('../src/provider-key-drafts.mjs'),import('../src/model-settings.mjs'),import('../src/typography.mjs'),import('../src/release-ui.mjs')]),helpers=Object.assign({ActivationDialog:{},CreativeLearning:{}},...modules),calls=[];
  const state=vue.ref({settings:{provider:{},localEnvironment:{autoStart:true,comfyRoot:'D:/Old'}},drafts:[],assets:[],runs:[]}),studio={state,busy:vue.ref(''),act:async(_,work)=>work(),notify(){},showDialog(){},refresh:async()=>{}};
  const names=['computed','inject','ref','watch','onBeforeUnmount','I','call','Modal','PromptManager','ModelPicker','CapabilityKeys','LocalEnvironment','window',...Object.keys(helpers)],values=[vue.computed,()=>studio,vue.ref,vue.watch,()=>{},{},async(action,payload)=>{calls.push({action,payload});return true;},{},{},{},{},{},{studio:{}},...Object.values(helpers)];
  const code=sfc.compileScript(descriptor,{id:'environment-settings-test'}).content.replace(/^import .*;\r?\n/gm,'').replace('export default','return'),scope=vue.effectScope(),component=new Function(...names,code)(...values),vm=scope.run(()=>component.setup({initialTab:'models'}, {expose(){}}));

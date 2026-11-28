@@ -1,6 +1,7 @@
 <script setup>
 import {computed,inject,ref,watch,onBeforeUnmount} from 'vue';import I from '../components/Icon.vue';import {call} from '../api';import Modal from '../components/Modal.vue';
 import PromptManager from '../components/PromptManager.vue';
+import CreativeLearning from '../components/CreativeLearning.vue';
 import ModelPicker from '../components/ModelPicker.vue';
 import CapabilityKeys from '../components/CapabilityKeys.vue';
 import LocalEnvironment from '../components/LocalEnvironment.vue';
@@ -14,7 +15,7 @@ const {state,busy,act,notify,showDialog,refresh,registerPageLeaveGuard,checkEnvi
 config.value.usageLimits={dailyTextRequests:10,dailyTokens:200000,...config.value.usageLimits};
 async function updateLicense(info){if(licenseActivated)await licenseActivated(info);else{state.value.license=info;await refresh();}}
 watch(()=>props.initialTab,value=>{if(tabs.some(item=>item[0]===value))tab.value=value;});
-const tabs=[['general','常规设置','SettingOutlined'],['models','模型设置','RobotOutlined'],['prompts','提示词管理','FormOutlined'],['data','数据设置','DatabaseOutlined'],['update','软件更新','CloudDownloadOutlined']];
+const tabs=[['general','常规设置','SettingOutlined'],['models','模型设置','RobotOutlined'],['prompts','提示词管理','FormOutlined'],['learning','创作学习','FormOutlined'],['data','数据设置','DatabaseOutlined'],['update','软件更新','CloudDownloadOutlined']];
 const keyDrafts=ref(createKeyDrafts());
 Object.assign(config.value.provider,{visionProtocol:config.value.provider.visionProtocol||'ollama',visionBaseUrl:config.value.provider.visionBaseUrl||'',visionModel:config.value.provider.visionModel||'',ttsBaseUrl:config.value.provider.ttsBaseUrl||'',asrBaseUrl:config.value.provider.asrBaseUrl||'',avatarProtocol:config.value.provider.avatarProtocol||'compatible'});
 const environmentEditor=ref(null),settingsSaving=ref(false),leaveDialog=ref(false),leaveSaving=ref(false),leaveError=ref('');
@@ -110,7 +111,7 @@ async function checkLocalLipSync(){
 async function checkVoiceDesign(){if(!await save())return;const result=await act('检查自主音色环境',()=>call('checkVoiceDesign'));if(result)showDialog('自主音色环境检查通过','模型、固定依赖与CUDA检查通过。\n'+result.home+'\n此检查没有执行声音生成，效果需要实际试听。');}
 async function checkAsr(){if(!await save())return;const r=await act('检查本地识别模型',()=>call('checkLocalAsr'));if(r)showDialog('本地识别模型可用','已成功加载已有模型。\nfaster-whisper '+r.version+' · CPU / int8\n可返回带时间轴的识别结果，实际文字请在生成后校对。');}
 
-const headings={general:['常规设置','配置文件存储路径等基本选项'],models:['模型设置','配置AI模型相关参数'],prompts:['提示词管理','管理和自定义AI提示词模板'],data:['数据设置','任务、素材备份与恢复等数据相关设置'],update:['软件更新','查看当前软件版本与更新服务状态']};
+const headings={general:['常规设置','配置文件存储路径等基本选项'],models:['模型设置','配置AI模型相关参数'],prompts:['提示词管理','管理和自定义AI提示词模板'],learning:['创作学习','根据明确反馈，持续积累适合你的表达与镜头经验'],data:['数据设置','任务、素材备份与恢复等数据相关设置'],update:['软件更新','查看当前软件版本与更新服务状态']};
 const currentHeading=computed(()=>headings[tab.value]);
 </script>
 
@@ -153,6 +154,7 @@ const currentHeading=computed(()=>headings[tab.value]);
       <div class="settings-footer"><button class="primary" :disabled="!!busy" @click="save">保存设置</button></div>
     </template>
     <template v-else-if="tab==='prompts'"><PromptManager/></template>
+    <template v-else-if="tab==='learning'"><CreativeLearning global/></template>
     <template v-else-if="tab==='data'">
       <div class="settings-form-section"><h3>数据备份与恢复</h3><button class="primary" :disabled="!!busy" @click="backup"><I name="Download"/>导出备份</button><p class="hint">复制任务、素材文件与执行记录，逐个计算校验值，不包含API Key。</p><p class="hint">备份保存到本地数据目录的backups文件夹，历史发布包需另外保留。</p></div>
       <div class="settings-form-section"><label class="settings-field">恢复备份文件夹<div class="inline"><input v-model="restorePath" placeholder="包含manifest.json的备份文件夹绝对路径"/><button v-if="desktop" @click="restoreDirectory">选择文件夹</button></div></label><button :disabled="!!busy||!restorePath.trim()" @click="restoreDialog=true">恢复任务与素材</button><p class="hint">恢复前自动保存当前数据副本。保留当前模型连接、密钥、输出目录和媒体工具路径。</p></div>

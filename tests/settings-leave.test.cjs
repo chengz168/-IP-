@@ -2,7 +2,8 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vue=require('vue'),sfc=require('@vue/compiler-sfc');
 
 function compile(relative,context,props={}){
- context={ActivationDialog:{},FirstRunWizard:{},...require('../src/release-ui.mjs'),...context};
+ // 组件编译测试剥离 import，显式补齐展示与通知依赖；导航守卫继续使用真实逻辑。
+ context={ActivationDialog:{},FirstRunWizard:{},CreativeLearning:{},EnhancedToast:{},WorkspaceNavigation:{},useNotification:()=>({toast:vue.ref(null),notify(){},success(){},error(){},warning(){},progress(){},dismiss(){},dismissTransient(){}}),useGlobalShortcuts:()=>({register:()=>()=>{}}),...require('../src/release-ui.mjs'),...context};
  const filename=path.resolve(__dirname,'..',relative),{descriptor}=sfc.parse(fs.readFileSync(filename,'utf8'),{filename});
  const script=sfc.compileScript(descriptor,{id:'settings-leave'}),code=script.content.replace(/^import .*;\r?\n/gm,'').replace('export default','return');
  const component=new Function(...Object.keys(context),code)(...Object.values(context)),scope=vue.effectScope();
