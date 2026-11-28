@@ -1,6 +1,7 @@
 const crypto=require('node:crypto');
 const {resolveCreativePreset,creativePresetPrompt,normalizeCreativeSelection}=require('./creative-presets.mjs');
 const {studyPrompt}=require('./brain-study-prompt.cjs');
+const {shareLink,profileShareLink,brainCollectionUnavailable}=require('./share-link.mjs');
 
 const topicSchema={type:'object',properties:{topics:{type:'array',items:{type:'object',properties:{title:{type:'string'},angle:{type:'string'}},required:['title','angle'],additionalProperties:false}}},required:['topics'],additionalProperties:false};
 const copySchema={type:'object',properties:{candidates:{type:'array',items:{type:'object',properties:{title:{type:'string'},text:{type:'string'}},required:['title','text'],additionalProperties:false}}},required:['candidates'],additionalProperties:false};
@@ -10,7 +11,6 @@ function parse(value){try{return JSON.parse(value.replace(/^```(?:json)?\s*/,'')
 // 只允许中英文等价标点映射，保留原文位置和字词；返回的摘录仍是原转写片段。
 function sourceQuote(sample,quote){const punctuation={',':'，',':':'：',';':'；','!':'！','?':'？'},normalize=value=>value.replace(/[,;:!?]/gu,char=>punctuation[char]),index=normalize(sample).indexOf(normalize(quote));return index<0?null:sample.slice(index,index+quote.length);}
 function validateAnalysis(value,sample){const result={summary:text(value?.summary,'风格摘要')};for(const key of ['tone','structure','strengths','avoid','topicAngles']){if(!Array.isArray(value?.[key])||!value[key].length||value[key].length>15)throw new Error('学习模型返回的风格分析字段不完整');result[key]=value[key].map(v=>text(v,'风格条目',500));}if(!Array.isArray(value?.evidence)||!value.evidence.length||value.evidence.length>8)throw new Error('学习结果缺少样本摘录依据');result.evidence=value.evidence.map(item=>{const quote=text(item?.quote,'样本摘录',500);const original=sourceQuote(sample,quote);if(quote.length<4||!original)throw new Error('学习结果的摘录不在原样本中，未保存该分析');return {quote:original,...(original!==quote?{modelQuote:quote}:{}),point:text(item.point,'摘录说明',500)};});return result;}
-function homepage(value){let url;try{url=new URL(value);}catch{throw new Error('请输入完整的账号主页链接，或使用本地样本文案');}if(!['http:','https:'].includes(url.protocol))throw new Error('主页链接仅支持HTTP或HTTPS');return url.href;}
 const fingerprint=d=>JSON.stringify({brain:d.brain,sourceText:d.sourceText,creativePreset:d.creativePreset});
 const revision=b=>JSON.stringify({name:b.name,url:b.url,analysis:b.analysis,sampleText:b.sampleText,mode:b.mode,learnedAt:b.learnedAt,revision:b.revision});
 
@@ -36,11 +36,11 @@ class Brain{
    if(videoId){const retained=prior?.sources?.find(source=>source.assetId===videoId&&source.kind==='local-video'&&source.media?.reviewedTranscription)?.media;collected=await this.video.collect(videoId,mode,ctx,evidence,retained);sample=collected.sample;sources=[{title:collected.source.name,text:sample,url:'',kind:'local-video',assetId:videoId,media:evidence}];}
    else if(!sample){
     if(!url.trim())throw new Error('请填写主页链接或导入真实样本文案');
-    url=homepage(url);if(!this.providers.config().brainUrl)throw new Error('主页采集服务尚未配置，请使用本地样本文案；保存网址不代表已学习');
+    url=profileShareLink(url);if(!String(this.providers.config().brainUrl||'').trim())throw new Error(brainCollectionUnavailable);
     ctx.progress(5,'正在请求配置的主页采集服务');const data=await this.providers.bridge(this.providers.config().brainUrl,{url,mode},ctx,'brain');
     if(data?.jobId){ctx.remote(data.jobId);const error=new Error('采集服务返回异步任务ID，但当前没有可验证的结果查询契约，请保留记录确认');error.unknown=true;throw error;}
     if(!Array.isArray(data?.samples)||!data.samples.length||data.samples.length>100)throw new Error('主页采集服务未返回有效samples文案样本');
-    sources=data.samples.map((s,i)=>({title:text(s?.title||'样本'+(i+1),'样本标题',300),text:text(s?.text,'样本文案',30000),url:s.url?homepage(s.url):''}));sample=sources.map(s=>s.text).join('\n\n');profileName=profileName||text(data.name,'账号名称',60);
+    sources=data.samples.map((s,i)=>({title:text(s?.title||'样本'+(i+1),'样本标题',300),text:text(s?.text,'样本文案',30000),url:s.url?shareLink(s.url):''}));sample=sources.map(s=>s.text).join('\n\n');profileName=profileName||text(data.name,'账号名称',60);
    }else sources=prior?.sampleText===sample&&prior.sources?.length&&!prior.sources.some(source=>source.kind==='local-video')?structuredClone(prior.sources):[{title:'本地导入文案',text:sample,url:''}];
    if(sample.length<(videoId?20:80))throw new Error('请提供至少80字的学习样本文案，不能只提交主页链接');if(sample.length>30000)throw new Error('学习样本文案最多30000字，请精简后重试');
    profileName=text(profileName||'本地风格档案','档案名称',60);

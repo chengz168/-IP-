@@ -7,6 +7,24 @@ function model(s){s.providers.text=async(system,user,ctx,{schema})=>({text:JSON.
 async function learned(s){model(s);return (await s.invoke('brainStudy',{id:s.store.draft().id,name:'收纳风格'})).brain;}
 test('真实样本分析保存可核对摘录且新流程完整接到第二步',async t=>{const s=fixture(t),b=await learned(s),id=s.store.draft().id;assert.equal(b.sources[0].text,sample);assert.equal(b.status,'learned');assert.equal(b.analysis.evidence[0].quote,'先选一个小区域整理');const topics=(await s.invoke('brainTopics',{id,brainId:b.id,requirement:'给首次整理桌面的人'})).topics;assert.equal(topics.items.length,5);const batch=(await s.invoke('brainCopies',{id,brainId:b.id,topicId:topics.id,index:1})).candidates;assert.equal(batch.items.length,3);const d=s.store.draft();d.rewrite='旧改写';d.confirmed=true;const next=await s.invoke('useBrainCopy',{id,brainId:b.id,candidateId:batch.id,index:2});assert.equal(next.sourceText,batch.items[2].text);assert.equal(next.step,1);assert.equal(next.rewrite,'');assert.equal(next.confirmed,false);assert.equal(next.brain.selection.index,2);});
 test('网址未配置采集和不完整样本不能标记学习成功',async t=>{const s=fixture(t),d=s.store.draft();d.brain.sampleText='';d.brain.url='https://www.douyin.com/user/example';await assert.rejects(s.invoke('brainStudy',{id:d.id}),/采集服务尚未配置/);assert.equal(s.store.data.brains.length,0);d.brain.sampleText='过短';await assert.rejects(s.invoke('brainStudy',{id:d.id}),/至少80字/);assert.equal(s.store.data.runs[0].status,'failed');});
+test('账号完整分享文案只将唯一URL传给采集桥，草稿保留原始分享内容',async t=>{
+ const s=fixture(t),d=s.store.draft(),original='长按复制此条消息，打开抖音搜索，查看TA的更多作品。 https://v.douyin.com/AccountSample/';
+ d.brain.sampleText='';d.brain.url=original;d.brain.mode='deep';s.providers.config().brainUrl='http://127.0.0.1:1234/collect';model(s);
+ let body;s.providers.bridge=async(url,payload)=>{body=payload;return {name:'真实样本契约夹具',samples:[{title:'收纳',text:sample,url:'https://www.douyin.com/video/123'}]};};
+ const result=await s.invoke('brainStudy',{id:d.id});
+ assert.deepEqual(body,{url:'https://v.douyin.com/AccountSample/',mode:'deep'});assert.equal(result.brain.url,body.url);assert.equal(result.brain.sources[0].url,'https://www.douyin.com/video/123');assert.equal(s.store.draft(d.id).brain.url,original);assert.equal(s.store.data.runs[0].snapshot.brain.url,original);
+});
+test('账号分享文本缺采集配置时明确报能力缺失，不能冒报链接无效或已学习',async t=>{
+ const s=fixture(t),d=s.store.draft();d.brain.sampleText='';d.brain.url='长按复制此条消息 https://v.douyin.com/AccountSample/';s.providers.config().brainUrl='   ';
+ let called=0;s.providers.bridge=async()=>{called++;};s.providers.text=async()=>{called++;};
+ await assert.rejects(s.invoke('brainStudy',{id:d.id}),error=>{assert.match(error.message,/已识别账号分享链接/);assert.match(error.message,/主页采集服务尚未配置/);assert.match(error.message,/单条视频提取服务不能代替/);return true;});
+ assert.equal(called,0);assert.equal(s.store.data.brains.length,0);assert.equal(s.store.data.runs[0].status,'failed');
+});
+test('多个账号或单作品地址在调用采集前拒绝，不产生伪档案',async t=>{
+ const s=fixture(t),d=s.store.draft();d.brain.sampleText='';s.providers.config().brainUrl='http://127.0.0.1:1234/collect';let called=0;s.providers.bridge=async()=>{called++;};
+ for(const [input,message]of [['https://v.douyin.com/A/ https://v.douyin.com/B/',/只保留一个账号主页/],['https://www.douyin.com/video/123',/单条抖音作品/]]){d.brain.url=input;await assert.rejects(s.invoke('brainStudy',{id:d.id}),message);}
+ assert.equal(called,0);assert.equal(s.store.data.brains.length,0);
+});
 test('模型编造摘录或字段类型错误时不保存伪分析',async t=>{const s=fixture(t),d=s.store.draft();for(const value of [{...analysis(),evidence:[{quote:'不在原文中的内容',point:'虚构'}]},{...analysis(),tone:[12]},{}]){s.providers.text=async()=>({text:JSON.stringify(value)});await assert.rejects(s.invoke('brainStudy',{id:d.id}));assert.equal(s.store.data.brains.length,0);}});
 test('重新学习失败保留旧可用分析和来源快照',async t=>{const s=fixture(t),b=await learned(s),before=structuredClone(s.store.data.brains);s.providers.text=async()=>{throw new Error('模型不可用');};await assert.rejects(s.invoke('brainStudy',{id:s.store.draft().id,brainId:b.id}),/模型不可用/);assert.deepEqual(s.store.data.brains,before);});
 test('运行中改样本拒绝附着，结果只保留在执行记录',async t=>{const s=fixture(t),d=s.store.draft();let resolve;s.providers.text=()=>new Promise(r=>resolve=r);const pending=s.invoke('brainStudy',{id:d.id,name:'过期分析'});d.brain.sampleText+='后续新增信息';resolve({text:JSON.stringify(analysis())});const result=await pending;assert.equal(result.stale,true);assert.equal(s.store.data.brains.length,0);assert.equal(s.store.data.runs[0].output.stale,true);});

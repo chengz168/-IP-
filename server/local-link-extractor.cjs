@@ -1,6 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {spawn}=require('node:child_process');
 const {validateReferenceDuration}=require('./reference-media-limits.cjs');
+const {shareLink}=require('./share-link.mjs');
 const sha=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const maxBytes=200*1024*1024;
 // 只有画面分析显式请求无声视频时，才允许绕过不存在的音轨识别。
@@ -11,15 +12,6 @@ function sourceAudio(info,options={}){
  return hasAudio;
 }
 const silentResult=()=>({text:'',segments:[],timingAvailable:false,unavailableReason:'源视频没有音轨，仅能分析实际可见画面',engine:'none',hasAudio:false});
-function shareLink(value){
- if(typeof value!=='string'||value.length>10000)throw Error('分享文本为空或超过10000字');
- const matches=value.match(/https?:\/\/[^\s<>"'`\u3000-\u303f\uff00-\uffef]+/gi)||[];
- const links=[...new Set(matches.map(link=>link.replace(/[,.!?;:)\]}]+$/gu,'')))];
- if(links.length!==1)throw Error(links.length?'请只保留一个视频分享链接':'没有识别到HTTP或HTTPS视频链接');
- let url;try{url=new URL(links[0]);}catch{throw Error('视频分享链接无效');}
- if(!url.hostname||url.username||url.password)throw Error('视频分享链接不能包含账号或密码');
- url.hash='';return url.href;
-}
 function extractionMode(config){const mode=config.extractProtocol||(config.extractUrl?'bridge':'local');if(!['local','browser-session','bridge'].includes(mode))throw Error('链接提取接入方式无效');return mode;}
 function runWorker(python,worker,args,ctx={},timeout=180000){
  ctx.signal?.throwIfAborted();

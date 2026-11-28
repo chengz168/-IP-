@@ -4,6 +4,11 @@
 .brain-studio .brain-local-entry{margin:0;padding:0;font-size:var(--app-font-size-meta);line-height:1.5;min-height:28px}
 /* 为向外延伸的焦点边框留出四边空间，负外边距保持表单内容对齐。 */
 .brain-studio .brain-fields{margin:-4px;padding:4px 8px 4px 4px}
+.brain-link-feedback{margin:8px 0 0;font-size:var(--app-font-size-meta);line-height:1.6;color:var(--muted);overflow-wrap:anywhere}
+.brain-collection-notice{margin-top:14px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:var(--app-font-size-meta);line-height:1.6}
+.brain-collection-notice>strong{font-size:var(--app-font-size-caption)}
+.brain-collection-notice>p{margin:6px 0 10px;color:var(--muted)}
+.brain-collection-notice>button{min-height:32px;padding:5px 12px;font-size:var(--app-font-size-meta)}
 /* 窄窗让步骤正文滚动，避免把两种学习模式压进不足一张卡片的内部视口。 */
 .stage-0>.main-tabs+.brain-studio{height:544px;min-height:544px;flex:none}
 .brain-profile-list{overflow:auto;min-height:0;flex:1;display:flex;flex-direction:column;gap:12px;padding:0 5px 4px 0;scrollbar-gutter:stable}
