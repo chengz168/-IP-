@@ -57,7 +57,7 @@ function createService(root,secrets={get:async()=>'',set:async()=>{throw new Err
     checkAccountConnection:async({accountId})=>accounts.check(accountId),
     closeAccountLogin:async({accountId})=>accounts.close(accountId),
     preparePublish:async({id})=>accounts.prepare(id),
-    state:async()=>({...publicState(),brainCollection:{local:typeof options.videoParserBrowser?.collectProfile==='function',platform:'douyin',sampleLimits:{shallow:3,deep:6}},license:await license.info(),usage:usageState(),localEnvironment:localEnvironment.state(),accounts:accounts.publicState(),avatarQueryRunIds:[...avatarRecovery.controllers.keys()],taskSummaries:summarizeTasks(store.data),...await keyState(secrets)}),
+    state:async()=>({...publicState(),brainCollection:{local:typeof options.videoParserBrowser?.collectProfile==='function',platform:'douyin',sampleLimits:{shallow:3,deep:6},scopes:['sample','all']},license:await license.info(),usage:usageState(),localEnvironment:localEnvironment.state(),accounts:accounts.publicState(),avatarQueryRunIds:[...avatarRecovery.controllers.keys()],taskSummaries:summarizeTasks(store.data),...await keyState(secrets)}),
     licenseInfo:async()=>license.info(),
     licenseActivate:async({code})=>license.activate(code),
     environmentStatus:async()=>require('./buyer-environment.cjs').buyerEnvironment({store,providers,media,localEnvironment,subtitleFonts}),

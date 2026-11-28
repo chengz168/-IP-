@@ -38,18 +38,63 @@ function loadPage(window,url,{signal,timeoutMs=30000}={}){
 class VideoParserBrowser{
   constructor({BrowserWindow,parent,root}){this.BrowserWindow=BrowserWindow;this.parent=parent;this.root=root;this.window=null;this.generation=0;}
   async exclusive(work){if(this.occupied)throw Error('本地解析器正在处理另一条链接，请等待完成或停止后重试');this.occupied=true;try{return await work();}finally{this.occupied=false;}}
-  async collectProfile(url,{signal,timeoutMs=30000,pollMs=500}={}){
+  async collectProfile(url,{signal,timeoutMs=30000,pollMs=500,scope='sample',onPage,maxPages=300,maxPosts=10000,maxDurationMs=300000,stagnantMs=12000}={}){
     return this.exclusive(async()=>{
       if(!isAllowed(url))throw Error('本地账号采集目前支持抖音公开主页，其他平台可配置采集接口或导入样本');
       signal?.throwIfAborted();await this.open({silent:true});const win=this.window,generation=++this.generation;
-      const {profileSnapshot,normalizeProfile}=require('./douyin-profile.cjs');
-      await loadPage(win,url,{signal});const deadline=Date.now()+timeoutMs;let lastError;
-      do{signal?.throwIfAborted();if(win.isDestroyed()||this.window!==win||generation!==this.generation)throw Error('解析窗口已关闭');
-        const snapshot=await win.webContents.executeJavaScript('('+profileSnapshot.toString()+')()');
-        try{return normalizeProfile(snapshot,url);}catch(error){lastError=error;}
+      const {profileSnapshot,normalizeProfile,scrollProfile,profileDiscovery}=require('./douyin-profile.cjs');
+      const check=()=>{signal?.throwIfAborted();if(win.isDestroyed()||this.window!==win||generation!==this.generation)throw Error('解析窗口已关闭');};
+      const evaluate=fn=>{check();return new Promise((resolve,reject)=>{
+        let settled=false;const finish=(error,result)=>{if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);error?reject(error):resolve(result);};
+        const abort=()=>finish(signal.reason||Error('本地账号采集已取消'));const timer=setTimeout(()=>finish(Error('账号页面读取超时，已停止本次采集')),10000);
+        signal?.addEventListener('abort',abort,{once:true});
+        try{Promise.resolve(win.webContents.executeJavaScript('('+fn.toString()+')()')).then(result=>finish(null,result),error=>finish(error));}catch(error){finish(error);}
+      });};
+      await loadPage(win,url,{signal,timeoutMs});const started=Date.now(),deadline=started+timeoutMs;let lastError,profile;
+      do{
+        const snapshot=await evaluate(profileSnapshot);check();
+        try{profile=normalizeProfile(snapshot,url,{includeNotes:scope==='all',allowEmpty:scope==='all'});if(profile.posts.length||profile.endMarker||profile.loginLimited||profile.verificationRequired)break;profile=null;}catch(error){lastError=error;}
         await sleep(pollMs,undefined,{signal});
       }while(Date.now()<deadline);
-      throw lastError||Error('未读取到账号公开作品');
+      if(!profile)throw lastError||Error('未读取到账号公开作品');
+      if(scope!=='all')return profile;
+      const bounded=(value,fallback,min,max)=>Number.isFinite(value)?Math.max(min,Math.min(max,Math.trunc(value))):fallback;
+      const pageLimit=bounded(maxPages,300,1,1000),postLimit=bounded(maxPosts,10000,1,20000),durationLimit=bounded(maxDurationMs,300000,1,600000),stallLimit=bounded(stagnantMs,12000,1,60000);
+      const posts=new Map(),omitted=new Map();let pages=0,lastGrowth=Date.now(),firstCount=null,countChanged=false,lastEmitted=-1,capped=false,loginLimited=false;
+      const publish=async(reasonCode,reason,complete=false)=>{
+        check();const result=profileDiscovery({...profile,posts:[...posts.values()],omitted:[...omitted.values()]},{pages,reasonCode,reason,complete,omittedCount:omitted.size+(profile.unlinkedCount||0),countChanged});
+        if(onPage)await onPage(result);check();return result;
+      };
+      while(true){
+        check();pages++;const before=posts.size;
+        for(const post of profile.posts){if(posts.size>=postLimit&&!posts.has(post.id)){capped=true;continue;}posts.set(post.id,post);omitted.delete(post.id);}
+        for(const row of profile.omitted||[])if(!posts.has(row.id))omitted.set(row.id,row);
+        if(posts.size>before)lastGrowth=Date.now();
+        if(profile.reportedCount!==null){if(firstCount===null)firstCount=profile.reportedCount;else if(firstCount!==profile.reportedCount)countChanged=true;}
+        loginLimited=profile.loginLimited;
+        const hasOmissions=omitted.size>0||profile.unlinkedCount>0;
+        if(profile.verificationRequired)return publish('verification_required','平台要求安全验证，已保留可读取作品，账号尚未完整解析');
+        if(capped)return publish('post_limit','本次发现作品达到安全数量上限，已保存已发现部分，尚未完整');
+        // 数字相等也必须没有作者归属遗漏或隐藏卡片；停滞绝不等于账号已经采完。
+        const countReached=profile.reportedCount!==null&&profile.reportedCount>0&&posts.size===profile.reportedCount;
+        if((countReached||profile.endMarker)&&!hasOmissions&&!loginLimited){
+          if(countChanged)return publish('count_changed','采集期间账号作品数量发生变化，已保留结果，需要继续核对');
+          if(profile.reportedCount!==null&&posts.size!==profile.reportedCount)return publish('count_mismatch','页面显示已到末尾，但已发现数量与账号作品数不一致，需要继续核对');
+          return publish(profile.endMarker?'end_marker':'reported_count',profile.endMarker?'作品区域明确显示末尾，已发现全部公开作品':'已发现数量与账号明确显示的作品总数一致',true);
+        }
+        if(profile.endMarker&&loginLimited)return publish('login_required','平台提示登录后查看更多作品，已保留公开可读取部分');
+        if(profile.endMarker&&hasOmissions)return publish('omitted_posts','作品区域已到末尾，但有无法核对或读取的作品，未标记完整');
+        if(posts.size>=postLimit)return publish('post_limit','本次发现作品达到安全数量上限，已保存已发现部分，尚未完整');
+        if(pages>=pageLimit)return publish('page_limit','本次达到安全翻页上限，已保存已发现部分，尚未完整');
+        if(Date.now()-started>=durationLimit)return publish('time_limit','本次发现作品达到时间预算，已保存已发现部分，尚未完整');
+        if(Date.now()-lastGrowth>=stallLimit)return publish(loginLimited?'login_required':countChanged?'count_changed':'stalled',loginLimited?'平台提示登录后查看更多作品，滚动已无新增，已保留公开可读取部分':countChanged?'采集期间账号作品数量发生变化，已保留结果，需要继续核对':'页面暂未继续返回作品，不能确认已到账号末尾，已保存已发现部分');
+        if(lastEmitted!==posts.size){await publish('collecting','正在发现账号公开作品');lastEmitted=posts.size;}
+        try{await evaluate(scrollProfile);}catch(error){check();return publish('page_unavailable','后续作品页无法滚动：'+error.message);}await sleep(pollMs,undefined,{signal});
+        let next;
+        try{next=normalizeProfile(await evaluate(profileSnapshot),profile.url,{includeNotes:true,allowEmpty:true});}
+        catch(error){check();return publish('page_unavailable','后续作品页无法核对：'+error.message);}
+        check();profile={...next,reportedCount:next.reportedCount??profile.reportedCount};
+      }
     });
   }
   async open({silent=false}={}){

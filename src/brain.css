@@ -14,6 +14,20 @@
 .brain-profile-evidence details{margin-top:10px}.brain-profile-evidence summary{cursor:pointer;color:var(--muted)}
 .brain-source-text{white-space:pre-wrap;margin:10px 0}
 .brain-content-source{margin-top:14px!important}.brain-content-source select{margin-top:6px;width:100%;font-size:var(--app-font-size-caption)}
+/* 账号采集显示覆盖计数，任务进度与停止操作仍使用全局唯一入口。 */
+.brain-collection-progress{margin-top:16px;padding:12px 14px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font-size:var(--app-font-size-caption);line-height:1.7;overflow-wrap:anywhere}
+.brain-collection-progress.is-partial{border-color:#b48a4155}.brain-collection-progress>strong{display:block;font-size:var(--app-font-size-caption)}
+.brain-coverage-state.is-partial{color:#e8c995}
+.brain-progress-counts{display:flex;flex-wrap:wrap;gap:8px 18px;margin:8px 0}.brain-progress-counts>span{color:var(--muted)}.brain-progress-counts b{font-weight:600;color:var(--text-primary)}
+.brain-collection-progress>p{margin:8px 0 0}.brain-collection-progress>button{min-height:36px;margin-top:10px;font-size:var(--app-font-size-meta)}
+.brain-more-sources{margin-top:18px;min-height:36px;width:100%;white-space:normal;font-size:var(--app-font-size-caption)}
+/* 大账号逐批展开，关闭时不挂载长分析正文，保留键盘可用的原生折叠控件。 */
+.brain-batch-section>.hint{margin:8px 0 12px;line-height:1.7}
+.brain-batch-detail{margin-top:10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);overflow-wrap:anywhere}
+.brain-batch-detail>summary{padding:12px 14px;cursor:pointer;line-height:1.6;font-size:var(--app-font-size-caption)}.brain-batch-detail>summary>span{margin-left:12px;color:var(--muted);font-size:var(--app-font-size-meta)}
+.brain-batch-content{padding:0 14px 14px;font-size:var(--app-font-size-caption);line-height:1.7}.brain-batch-content>.brain-source-text{margin:0 0 12px}
+.brain-batch-sources>summary{cursor:pointer;color:var(--muted);min-height:32px}.brain-batch-source{padding:10px 0;border-bottom:1px solid var(--border);font-size:var(--app-font-size-meta)}.brain-batch-source:last-child{border-bottom:0}.brain-batch-source>strong{font-weight:500}.brain-batch-source>p{margin:4px 0;overflow-wrap:anywhere}
+.brain-studio .study-modes{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.brain-studio .study-modes>button{padding:12px;min-width:0;border-radius:10px}.brain-studio .study-modes strong{font-size:var(--app-font-size-body);line-height:1.5}.brain-studio .study-modes small{line-height:1.5}
 /* 窄窗让步骤正文滚动，避免把两种学习模式压进不足一张卡片的内部视口。 */
 .stage-0>.main-tabs+.brain-studio{height:544px;min-height:544px;flex:none}
 .brain-profile-list{overflow:auto;min-height:0;flex:1;display:flex;flex-direction:column;gap:12px;padding:0 5px 4px 0;scrollbar-gutter:stable}
