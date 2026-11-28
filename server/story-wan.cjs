@@ -24,8 +24,9 @@ function requiresSpeech(text,soundField=false){
   // 后期配音与现场原声是不同契约，不能因同句含后期说明而放过明确现场对白。
   return post&&voice&&!/原声|现场|当场|同步(?:出声|发声|对白)|native (?:speech|audio)|on[ -]?screen (?:speech|dialogue)/i.test(part)?'':part;
  }).join('')
-  .replace(/(?:无|没有|不要|不需要|不生成|不添加|不加入|不产生|不包含|不含|无需|不|禁止|避免)(?:任何|额外|新的)?(?:对白|对话|旁白|画外音|人声|台词|口播|配音|说话|歌声|演唱)(?:[、和及或与]*(?:对白|对话|旁白|画外音|人声|台词|口播|配音|说话|歌声|演唱))*/g,'')
-  .replace(/\b(?:no|without|do not (?:add|generate|include)|avoid|never (?:add|generate|include))\s+(?:any\s+|additional\s+)?(?:speech|spoken dialogue|dialogue|dialog|voice[ -]?over|narration|speaking|singing|vocals)(?:\s*(?:,|or|and)\s*(?:speech|spoken dialogue|dialogue|dialog|voice[ -]?over|narration|speaking|singing|vocals))*/gi,'')
+  // 只消除紧邻的否定人声短语；其后的正向对白仍须由能力检查拦截。
+  .replace(/(?:无|没有|不要|不需要|不生成|不添加|不加入|不产生|不包含|不含|无需|不|禁止|避免)(?:任何|额外|新的)?(?:(?:人物|角色|现场)(?:的)?)?(?:对白|对话|旁白|画外音|人声|台词|口播|配音|说话|歌声|演唱)(?:[、和及或与]*(?:对白|对话|旁白|画外音|人声|台词|口播|配音|说话|歌声|演唱))*/g,'')
+  .replace(/\b(?:no|without|do not (?:add|generate|include)|avoid|never (?:add|generate|include))\s+(?:any\s+|additional\s+)?(?:(?:character|on[ -]?screen)\s+)?(?:speech|spoken dialogue|dialogue|dialog|voice[ -]?over|narration|speaking|singing|vocals)(?:\s*(?:,|or|and)\s*(?:speech|spoken dialogue|dialogue|dialog|voice[ -]?over|narration|speaking|singing|vocals))*/gi,'')
   .replace(/\b(?:post[ -]?production|separately added)\s+(?:narration|voice[ -]?over|speech)\b/gi,'');
  // 声音字段中的正向人声描述可作依据，其它字段只识别明确的发声或对白指令。
  if(soundField&&/对白|对话|旁白|画外音|人声|台词|口播|配音|朗读|演唱|歌声|说话|\b(?:speech|spoken|dialogue|dialog|voice[ -]?over|narration|speaking|singing|vocals)\b/i.test(cleaned))return true;

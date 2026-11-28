@@ -1,6 +1,7 @@
 import {resolveProductionSkills,videoMotionReferenceRule} from './production-skills.mjs';
 import {githubProductionSkillSources} from './github-production-skills.mjs';
-import {contentTypePrompt,contentTopicText,detectContentProfile} from './content-types.mjs';
+import {contentTypePrompt,contentTopicText,detectContentProfile,contentTypeById} from './content-types.mjs';
+import {productionPlanContext,productionPlanPrompt} from './production-plan-context.mjs';
 // 系统预设与任务选择分离；公开技能仅作为方法资料，不执行外部代码。
 export const creativePresetVersion='2026-11-23.1';
 export const creativeSources=[
@@ -70,7 +71,11 @@ export function resolveCreativePreset(draft,stage,context={}){
  // 题材识别只读正文；镜头补充要求仍保留在生成输入和失效签名中。
  const topicContent=context.content===undefined&&['episodes','shots','assets','image','video'].includes(stage)&&!draft.story?.productIntroduction?draft.story?.sourceText||'':content;
  const topicText=contentTopicText(topicContent);
- const contentProfile=detectContentProfile({sourceKind,text:topicText,analysis:context.analysis});
+ const productionPlan=productionPlanContext(draft,stage);
+ let contentProfile=detectContentProfile({sourceKind:productionPlan?.reference?'reference-video':sourceKind,text:topicText,analysis:context.analysis||productionPlan?.reference});
+ // 已核验方案的语义题材优先于旧关键词画像，避免分镜链路又附加人物口型建议。
+ const plannedType=productionPlan?.status==='inferred'?contentTypeById(productionPlan.contentType?.id):null;
+ if(plannedType){const confidence=productionPlan.confidence||'low';contentProfile={...contentProfile,type:plannedType.id,name:plannedType.name,presetId:plannedType.presetId,outputMode:plannedType.outputMode,requires:plannedType.requires,pipeline:plannedType.pipeline,rules:plannedType.rules,confidence,reason:'采用当前制作方案的语义题材建议。',candidates:[],needsUserConfirmation:confidence!=='high'};}
  let id='general',reason='未识别到明确题材，采用通用表达。';
  if(selection.mode==='manual'){id=selection.presetId;reason='由你手动选择。';}
  else if(kind==='product'||(['episodes','shots','assets','image','video'].includes(stage)&&draft.story?.productIntroduction)){id='product';reason='当前是商品宣传流程，采用商品证据与演示规则。';}
@@ -80,18 +85,19 @@ export function resolveCreativePreset(draft,stage,context={}){
   if(scores[0].score>0&&scores[0].score>scores[1].score){id=scores[0].id;reason='根据当前资料的题材关键词推荐；可手动更换。';}
   else if(scores[0].score>0)reason='资料包含多种题材且依据接近，采用通用表达；可手动指定。';
  }
- if(selection.mode==='auto'&&contentProfile?.presetId&&contentProfile.confidence!=='low'&&!(kind==='product'||kind==='marketing'||(['episodes','shots','assets','image','video'].includes(stage)&&draft.story?.productIntroduction))){
+ if(selection.mode==='auto'&&contentProfile?.presetId&&(plannedType||contentProfile.confidence!=='low')&&!(kind==='product'||kind==='marketing'||(['episodes','shots','assets','image','video'].includes(stage)&&draft.story?.productIntroduction))){
   id=contentProfile.presetId;
   reason=contentProfile.needsUserConfirmation?'根据内容类型画像推荐；置信度不足时请确认或手动更换。':'根据内容类型画像推荐。';
  }
  const preset=presets.find(p=>p.id===id),enabled=selection.mode!=='off'&&stage!=='analysis';
  const skills=enabled?resolveProductionSkills(stage,id):[];
- const rules=enabled?[...(preset.rules[stage]||[]),...skills.flatMap(skill=>skill.rules)]:[];
+ const rules=enabled?[...(preset.rules[stage]||[]),...skills.flatMap(skill=>skill.rules),...(productionPlan?[productionPlanPrompt(productionPlan)]:[])]:[];
  const sourceIds=preset.sourceIds.filter(id=>['shots','video'].includes(stage)?['video','h3'].includes(id):!['video','h3'].includes(id));
  const actualSourceIds=new Set([...(['topic','script','rewrite','shots','video'].includes(stage)?sourceIds:[]),...skills.flatMap(skill=>skill.sourceIds)]);
  const sources=enabled?creativeSources.filter(source=>actualSourceIds.has(source.id)).map(source=>({...source})):[];
- const contentProfileApplied=enabled&&(selection.mode!=='manual'||contentProfile.presetId===id);
- return {id:selection.mode==='off'?'off':id,name:selection.mode==='off'?'已关闭':preset.name,mode:selection.mode,stage,reason:selection.mode==='off'?'本任务不附加创作预设。':stage==='analysis'?'分析阶段只依据原视频证据，不套用创作结构。':reason,rules,skills,version:creativePresetVersion,sources,instruction:enabled?selection.instruction:'',contentProfile,contentProfileApplied,sourceKind,inputHash:JSON.stringify({selection,stage,kind,sourceKind,content,contentProfile}),enabled};
+ // 制作方案已给出呈现步骤时，不再混入题材目录自带的旧执行链路。
+ const contentProfileApplied=enabled&&!productionPlan&&(selection.mode!=='manual'||contentProfile.presetId===id);
+ return {id:selection.mode==='off'?'off':id,name:selection.mode==='off'?'已关闭':preset.name,mode:selection.mode,stage,reason:selection.mode==='off'?'本任务不附加创作预设。':stage==='analysis'?'分析阶段只依据原视频证据，不套用创作结构。':reason,rules,skills,version:creativePresetVersion,sources,instruction:enabled?selection.instruction:'',contentProfile,contentProfileApplied,sourceKind,...(productionPlan?{productionPlan}:{}),inputHash:JSON.stringify({selection,stage,kind,sourceKind,content,contentProfile,...(productionPlan?{productionPlan}:{})}),enabled};
 }
 export function creativePresetPrompt(route,{referenceMode}={}){
  if(!route?.enabled)return '';

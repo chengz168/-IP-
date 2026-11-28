@@ -8,7 +8,7 @@ import StoryImageEdit from './StoryImageEdit.vue';
 import CreativePresets from './CreativePresets.vue';
 import {localizeShotView,localizeAssetView,assetTranslationSource,needsTranslation} from '../../server/shot-localization-view.mjs';
 import {call,mediaUrl} from '../api';
-import {storyEditorValue,upstreamStoryText,storyShotProblems,storyVideoControlProblems,storyPrimaryReferenceId,createStoryShot,createStoryAsset,storyKindLabel,storyUiDrafts,storyEpisodeFingerprint,storyEpisodeProgress,storyEpisodeAssets,storyVersionConflict,storyScopedSelection,storyAssetNeedsGeneration,storyBatchStatusLabel,storyBatchSummary,storyOriginalAudioPercent,storyCandidatePresets,storyCandidateAvailable,storyCandidateSelectable,storyCandidateDescription,storySelectedCandidate,storyNarrationAlignment} from '../story-ui.mjs';
+import {storyEditorValue,upstreamStoryText,storyShotProblems,storyVideoControlProblems,storyPrimaryReferenceId,createStoryShot,createStoryAsset,storyKindLabel,storyUiDrafts,storyEpisodeFingerprint,storyProductionPlanChanged,storyEpisodeProgress,storyEpisodeAssets,storyVersionConflict,storyScopedSelection,storyAssetNeedsGeneration,storyBatchStatusLabel,storyBatchSummary,storyOriginalAudioPercent,storyCandidatePresets,storyCandidateAvailable,storyCandidateSelectable,storyCandidateDescription,storySelectedCandidate,storyNarrationAlignment} from '../story-ui.mjs';
 import '../story-studio.css';
 import '../shot-localization.css';
 
@@ -87,7 +87,7 @@ async function confirmBatchLost(){
 }
 const upstream=computed(()=>upstreamStoryText(draft.value));
 const sourceConfirmed=computed(()=>props.productMode?draft.value.confirmed&&!!draft.value.finalText?.trim():story.value.sourceMode==='custom'||draft.value.confirmed&&!!draft.value.finalText?.trim());
-const sourceChanged=computed(()=>props.productMode?(!sourceConfirmed.value||story.value.sourceText!==draft.value.finalText||JSON.stringify(draft.value.product)!==JSON.stringify(story.value.productIntroduction?.productSnapshot)||story.value.productIntroduction?.audioId!==draft.value.voice.audioId):!sourceConfirmed.value||story.value.episodes.length>0&&((story.value.sourceMode!=='custom'&&story.value.sourceText!==upstream.value)||story.value.episodesSourceHash!==inputFingerprint.value));
+const sourceChanged=computed(()=>storyProductionPlanChanged(draft.value,story.value)||(props.productMode?(!sourceConfirmed.value||story.value.sourceText!==draft.value.finalText||JSON.stringify(draft.value.product)!==JSON.stringify(story.value.productIntroduction?.productSnapshot)||story.value.productIntroduction?.audioId!==draft.value.voice.audioId):!sourceConfirmed.value||story.value.episodes.length>0&&((story.value.sourceMode!=='custom'&&story.value.sourceText!==upstream.value)||story.value.episodesSourceHash!==inputFingerprint.value)));
 const planningReady=computed(()=>sourceConfirmed.value&&story.value.episodes.length>0&&!sourceChanged.value);
 const issues=computed(()=>storyShotProblems(shot.value,story.value.assets));
 const localImage=computed(()=>(state.value.settings.provider.storyImageProtocol||'comfy')==='comfy');

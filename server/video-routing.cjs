@@ -4,7 +4,7 @@ const digest=text=>crypto.createHash('sha256').update(String(text||'')).digest('
 const count=(text,pattern)=>(String(text||'').match(pattern)||[]).length;
 
 // 题材类型与制作方式分开判断；只按文案里可见的结构和制作指令作解释性路由。
-function detectVideoRoute(draft={}){
+function detectVideoRoute(draft={},context={}){
  const text=String(draft.finalText||'').trim();
  const cues=[];
  const sceneCount=count(text,/(?:^|\n)\s*(?:[【\[])?(?:场景\s*[一二三四五六七八九十\d：:]|(?:内景|外景|地点)\s*[：:]|第[一二三四五六七八九十\d]+场|场\s*[：:]|镜头\s*[一二三四五六七八九十\d])/g);
@@ -31,7 +31,11 @@ function detectVideoRoute(draft={}){
  if(sequenceCount)cues.push(`事件/场景转换 ${sequenceCount} 处`);
  if(productBacked)cues.push('已有商品脚本与镜头商品图');
  if(explicitVisual)cues.push('明确无口播/画面叙事要求');
- return {version:'video-route-v1',sourceHash:digest(text),mode,kind,confidence,reason,cues,textLength:text.length};
+ const plan=context.plan===undefined?require('./video-production-plan.cjs').currentPlan(draft):context.plan;
+ if(plan&&!/多镜头口播|切换不同形象|多个形象轮流/.test(text))return {version:'video-route-v2',sourceHash:plan.inputHash,mode:plan.mode,kind:plan.kind,confidence:plan.confidence,reason:plan.reason,cues:plan.cues,textLength:text.length,narrationMode:plan.narrationMode,productionPlan:plan};
+ const reference=context.reference;
+ if(reference&&['music-visual','visual'].includes(reference.contentType)&&!explicitDrama&&!/(?:本人|真人|数字人|主持人).{0,8}(?:出镜|口播)/.test(text)){mode='story';kind='visual';confidence='high';reason='当前关联的参考报告以画面为主，进入分镜创作；采样不代表逐帧动作验证。';cues.push('有效参考画面结构');}
+ return {version:'video-route-v2',sourceHash:digest(JSON.stringify({text,reference:reference||null})),mode,kind,confidence,reason,cues,textLength:text.length,narrationMode:['spoken','demonstration','narrative','product'].includes(kind)?'upstream':'none'};
 }
 
 function effectiveVideoRoute(draft={}){
@@ -40,11 +44,11 @@ function effectiveVideoRoute(draft={}){
  return {...detected,policy,recommendedMode:detected.mode,suggestion:detected.reason,manualOverride:false};
 }
 
-function applyVideoRoute(draft,{select=true}={}){
+function applyVideoRoute(draft,{select=true,...context}={}){
  draft.video??={};
- const route=detectVideoRoute(draft),policy=draft.video.routing?.policy==='auto'?'auto':'manual';
+ const route=detectVideoRoute(draft,context),policy=draft.video.routing?.policy==='auto'?'auto':'manual';
  if(select&&policy==='auto'&&draft.confirmed&&draft.finalText?.trim())draft.video.mode=route.mode;
- draft.video.routing={version:route.version,policy,mode:draft.video.mode,recommendedMode:route.mode,kind:route.kind,sourceHash:route.sourceHash,confidence:route.confidence,reason:policy==='manual'?'沿用手动选择的制作方式。':route.reason,suggestion:route.reason,cues:route.cues};
+ draft.video.routing={version:route.version,policy,mode:draft.video.mode,recommendedMode:route.mode,kind:route.kind,sourceHash:route.sourceHash,confidence:route.confidence,reason:policy==='manual'?'沿用手动选择的制作方式。':route.reason,suggestion:route.reason,cues:route.cues,narrationMode:route.narrationMode,...(route.productionPlan?{productionPlan:route.productionPlan}:{})};
  return draft;
 }
 

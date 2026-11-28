@@ -12,7 +12,7 @@ function checkedAudio(service,draft){
 }
 function currentIntroduction(service,draft,story){
  const input=story.productIntroduction;if(!input)return true;
- try{return story.sourceMode==='upstream'&&story.narrationMode==='upstream'&&story.episodeCount===1&&story.episodes.length===1&&story.episodes[0].narrationAssetId===input.audioId&&draft.confirmed&&draft.finalText===story.sourceText&&hash(draft.product)===input.productHash&&draft.voice.audioId===input.audioId&&stamp(checkedAudio(service,draft))===input.audioSha256&&input.images.every(image=>stamp(service.store.asset(image.id))===image.sha256);}catch{return false;}
+ try{const plan=draft.video?.routing?.policy==='auto'?require('./reference-production.cjs').trustedPlan(draft,service.store.data,{verifyFile:true}):null;return (story.productionPlanHash||'')===(plan?.inputHash||'')&&story.sourceMode==='upstream'&&story.narrationMode==='upstream'&&story.episodeCount===1&&story.episodes.length===1&&story.episodes[0].narrationAssetId===input.audioId&&draft.confirmed&&draft.finalText===story.sourceText&&hash(draft.product)===input.productHash&&draft.voice.audioId===input.audioId&&stamp(checkedAudio(service,draft))===input.audioSha256&&input.images.every(image=>stamp(service.store.asset(image.id))===image.sha256);}catch{return false;}
 }
 // 使用识别段落的真实边界；落在段内的切点明确记录为插值估计，并量化到视频帧。
 function alignShots(shots,rows,duration){
@@ -33,7 +33,7 @@ function alignShots(shots,rows,duration){
 }
 function introductionStory(draft,script,shots,audio,recognition,captions,proofreading,audioSha256=stamp(audio)){
  const s=createStory(draft);Object.assign(s,{episodeCount:1,episodeDuration:shots.at(-1).end,aspect:draft.product.aspect,narrationMode:'upstream',style:'真实产品介绍；以商品原图为外观基准，不改变结构与包装',instructions:'每镜动作须与台词对应。不虚构实测功效；不生成字幕、图标、包装文字或水印。配音来自第三步，镜头不生成对白。'});
- s.episodesSourceHash=hash([s.sourceText,1,s.episodeDuration]);
+ s.episodesSourceHash=hash([s.sourceText,1,s.episodeDuration,...(s.productionPlanHash?[s.productionPlanHash]:[])]);
  s.productIntroduction={version:1,productHash:hash(draft.product),productSnapshot:structuredClone(draft.product),scriptRunId:draft.product.scriptRunId,audioId:audio.id,audioSha256,images:script.images.map(image=>({id:image.id,sha256:image.sha256,role:image.role||'product'})),recognition,captions,proofreading,timingMethod:'asr-segment-boundaries-with-explicit-interpolation',qualityAccepted:false};
  const assets=new Map();
  for(const image of script.images){const a={id:uid(),kind:'prop',role:image.role||'product',name:image.name,description:image.role==='icon'?'原始图标，仅用于确定性叠加':'当前商品的已确认参考图片',prompt:'保留参考商品的外观、结构与比例',images:[],selectedImageId:image.id};a.images.push({id:image.id,inputHash:hash(assetInput(s,a)),status:'ready',imported:true});s.assets.push(a);assets.set(image.id,a);}
@@ -54,7 +54,7 @@ async function prepareIntroduction(products,{id}){return products.locked(id,asyn
  if(hash(form(d))!==hash(script.input)||selection(p)!==script.selectionHash)throw Error('商品资料或所选素材已变化，请先重新生成商品脚本');
  const shots=validateShots(p.shots,script.images);if(shots.map(shot=>shot.text.replace(/\s/g,'')).join('')!==d.finalText.replace(/\s/g,''))throw Error('确认稿与镜头台词不一致，请先同步镜头文案');
  for(const image of script.images)if(stamp(service.store.asset(image.id))!==image.sha256)throw Error('商品原素材已变化，请重新生成脚本');
- const audio=checkedAudio(service,d),audioSha256=stamp(audio),snapshot=hash([d.product,d.finalText,d.voice,audio.speech]);
+ const audio=checkedAudio(service,d),audioSha256=stamp(audio),snapshot=hash([d.product,d.finalText,d.voice,audio.speech]),storySnapshot=hash(d.story||null);
  if(d.story?.productIntroduction&&currentIntroduction(service,d,d.story))return {story:d.story,unchanged:true,stale:false};
  return products.run('product-introduction',id,{scriptRunId:p.scriptRunId,audioId:audio.id},async ctx=>{
   ctx.progress(5,'正在校验第三步配音与商品脚本');const probe=await service.media.probe(audio.path),duration=Number(probe.format?.duration);
@@ -66,7 +66,7 @@ async function prepareIntroduction(products,{id}){return products.locked(id,asyn
   if(stamp(audio)!==audioSha256)throw Error('配音文件在识别期间已变化，请重新生成或核对声音后再准备分镜');
   const timed=alignShots(shots,captions,duration),story=introductionStory(d,script,timed,audio,recognition,captions,proofreading,audioSha256);
   ctx.signal.throwIfAborted();const now=service.store.draft(id);
-  if(hash([now.product,now.finalText,now.voice,audio.speech])!==snapshot||!currentIntroduction(service,now,story))return {story,stale:true};
+  if(hash([now.product,now.finalText,now.voice,audio.speech])!==snapshot||hash(now.story||null)!==storySnapshot||!currentIntroduction(service,now,story))return {story,stale:true};
   if(d.story?.episodes?.length)story.productIntroductionHistory=[{savedAt:new Date().toISOString(),story:structuredClone(d.story)},...(d.story.productIntroductionHistory||[])].slice(0,3).map(entry=>{if(entry.story)delete entry.story.productIntroductionHistory;return entry;});
   ctx.progress(95,'商品原图、图标与配音已关联，请逐镜生成并检查动态效果');
   return {story:service.stories.write(id,story),stale:false,timing:timed.map(shot=>({text:shot.text,start:shot.start,end:shot.end,timing:shot.timing})),qualityAccepted:false};

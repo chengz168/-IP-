@@ -30,6 +30,16 @@ test('分集输入指纹与服务端一致，集数或时长变化使旧分集�
   assert.equal(await storyEpisodeFingerprint(story),expected);
   assert.notEqual(await storyEpisodeFingerprint({...story,episodeCount:3}),expected);
   assert.notEqual(await storyEpisodeFingerprint({...story,episodeDuration:15}),expected);
+  const planned={...story,productionPlanHash:'plan-hash'};
+  assert.equal(await storyEpisodeFingerprint(planned),crypto.createHash('sha256').update(JSON.stringify([story.sourceText,2,30,'plan-hash'])).digest('hex'));
+  assert.notEqual(await storyEpisodeFingerprint(planned),expected);
+});
+
+test('制作方案过期在前端立即阻止使用旧分镜，独立剧本不受上游方案影响',async()=>{
+ const {storyProductionPlanChanged}=await import('../src/story-ui.mjs');
+ const d={video:{routing:{policy:'auto',productionPlan:{inputHash:'new-plan'}}}},s={sourceMode:'upstream',productionPlanHash:'old-plan'};
+ assert.equal(storyProductionPlanChanged(d,s),true);assert.equal(storyProductionPlanChanged(d,{...s,productionPlanHash:'new-plan'}),false);
+ assert.equal(storyProductionPlanChanged(d,{...s,sourceMode:'custom'}),false);delete d.video.routing.productionPlan;assert.equal(storyProductionPlanChanged(d,s),true);
 });
 
 test('本地多资产构图要求有效主参考，单资产自动选用，云端多图不受限制',async()=>{

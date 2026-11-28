@@ -9,7 +9,7 @@ const DEFAULT_H3='minimax_h3_fl2va_pruned_int8_convrot.safetensors';
 const DEFAULT_REFERENCE_H3='minimax_h3_ref2va_pruned_int8_convrot.safetensors';
 const REFERENCE_H3_LORA='minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors';
 const Z_IMAGE_DEFAULTS={storyImageZUnet:'z_image_turbo_bf16.safetensors',storyImageZClip:'qwen_3_4b.safetensors',storyImageZVae:'ae.safetensors'};
-const PROMPT_COMPILER_VERSION=7;
+const PROMPT_COMPILER_VERSION=8;
 function imageArchitecture(config={}){const value=config.storyImageArchitecture||'sdxl';if(!['sdxl','z-image-turbo'].includes(value))throw Error('图片架构尚未接入，请选择SDXL或Z-Image Turbo');return value;}
 function imageWeights(config={}){const architecture=imageArchitecture(config);return architecture==='sdxl'?{architecture,model:config.storyImageModel||DEFAULT_CHECKPOINT}:{architecture,model:config.storyImageZUnet||Z_IMAGE_DEFAULTS.storyImageZUnet,clip:config.storyImageZClip||Z_IMAGE_DEFAULTS.storyImageZClip,vae:config.storyImageZVae||Z_IMAGE_DEFAULTS.storyImageZVae};}
 const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -177,9 +177,9 @@ class StoryGenerator{
  async image(input,ctx={}){
   // 仅新编译的任务记录当前版本；恢复旧任务沿用冻结输入，不能补签新规则已执行。
   input={...input,promptCompilerVersion:PROMPT_COMPILER_VERSION};
-  const checkedPrompt=validPrompt(input),assetPrompt=require('./asset-image-prompt.cjs').assetImagePrompt(input);
-  const prompt=assetPrompt||(checkedPrompt+require('./creative-presets.mjs').creativePresetPrompt(input.creativePreset)),refs=this.refs(input),config=this.config(),protocol=config.storyImageProtocol||'comfy';
-  const weights=protocol==='comfy'?imageWeights(config):null;
+  const checkedPrompt=validPrompt(input),config=this.config(),protocol=config.storyImageProtocol||'comfy',weights=protocol==='comfy'?imageWeights(config):null;
+  const assetPrompt=require('./asset-image-prompt.cjs').assetImagePrompt(input,{architecture:weights?.architecture});
+  const prompt=assetPrompt||(checkedPrompt+require('./creative-presets.mjs').creativePresetPrompt(input.creativePreset)),refs=this.refs(input);
   if(input.imageEditRegion!==undefined){require('./story-image-edit.cjs').editRegion(input.imageEditRegion);if(protocol!=='comfy'||weights?.architecture!=='sdxl')throw Error('框选局部重绘仅支持本地SDXL，请切换图片设置；未提交任务');if(!refs.length)throw Error('局部重绘需要一张已确认主参考图片');}
   if(weights?.architecture==='z-image-turbo'&&(refs.length||input.primaryReferenceAssetId))throw Error('当前Z-Image本地工作流仅支持纯文生图，不支持参考图。请切回SDXL或显式建立无参考的独立构图资产，不能忽略已绑定参考。');
   if(refs.length>12)throw Error('单次最多使用12张参考资产图片');if(input.primaryReferenceAssetId&&!refs.length)throw Error('当前没有可用主参考图片，请先选用资产图片');ctx.signal?.throwIfAborted();

@@ -40,6 +40,9 @@ class Store{
     const before=this.data.drafts[index],next=structuredClone(input);
     // 参考选用凭据仅由专用服务写入，普通草稿不能伪造或覆盖事实核对。
     if(!options.referenceSelection){if(before.referenceSelection)next.referenceSelection=structuredClone(before.referenceSelection);else delete next.referenceSelection;}
+    // 制作方案只接受服务端语义识别结果，普通草稿不能伪造或擦除。
+    if(!options.productionPlan){if(before.video?.productionPlan)next.video.productionPlan=structuredClone(before.video.productionPlan);else delete next.video.productionPlan;}
+    if(next.video?.productionInstruction!==undefined&&(typeof next.video.productionInstruction!=='string'||next.video.productionInstruction.length>1500))throw Error('视频制作要求最多1500字');
     // 分集资产由带版本校验的专用服务写入，普通草稿保存不得覆盖异步产物。
     if(before.story)next.story=structuredClone(before.story);else delete next.story;
     // 翻译属于服务端结果，旧界面保存和客户端输入不能覆盖或伪造译稿。
@@ -62,13 +65,16 @@ class Store{
     if(!next.video.routing||!['auto','manual'].includes(next.video.routing.policy)||!['single','multi','story','product'].includes(next.video.mode))throw new Error('视频制作方式选择无效');
     // 兼容旧界面直接切模式；明确切换优先于自动判断，恢复自动必须显式更改策略。
     if(before.video.routing?.policy===next.video.routing.policy&&(next.video.mode!==before.video.mode||before.video.routing.mode&&before.video.mode!==before.video.routing.mode))next.video.routing.policy='manual';
-    const selectRoute=before.finalText!==next.finalText||!before.confirmed&&next.confirmed||before.video.routing?.policy!==next.video.routing.policy;
-    if(selectRoute||before.video.mode!==next.video.mode)require('./video-routing.cjs').applyVideoRoute(next,{select:selectRoute});
+    const {trustedPlan,productionReference}=require('./reference-production.cjs');
+    if(next.video.productionPlan&&!trustedPlan(next,this.data))delete next.video.productionPlan;
+    const routeContext={reference:productionReference(next,this.data),plan:trustedPlan(next,this.data)};
+    const selectRoute=before.finalText!==next.finalText||!before.confirmed&&next.confirmed||before.video.routing?.policy!==next.video.routing.policy||options.productionPlan===true||JSON.stringify(before.referenceSelection)!==JSON.stringify(next.referenceSelection)||JSON.stringify(before.video.productionPlan)!==JSON.stringify(next.video.productionPlan)||before.video.productionInstruction!==next.video.productionInstruction||JSON.stringify(before.product)!==JSON.stringify(next.product);
+    if(selectRoute||before.video.mode!==next.video.mode||JSON.stringify(before.video.routing)!==JSON.stringify(next.video.routing))require('./video-routing.cjs').applyVideoRoute(next,{select:selectRoute,...routeContext});
     if(options.confirmCopy&&['story','product'].includes(next.video.mode)&&!next.video.assetId&&!next.edit.sourceId)next.step=3;
     // 展示型稿件首次进入分镜时，沿用上游正文及旁白；已有分集和独立剧本绝不重建。
     if(next.video.mode==='story'&&next.video.routing.policy==='auto'&&!before.story){
       next.story=require('./story-contract.cjs').createStory(next);
-      if(next.video.routing.kind==='demonstration'||next.video.routing.kind==='narrative'){
+      if(next.video.routing.narrationMode==='upstream'||!next.video.routing.narrationMode&&(next.video.routing.kind==='demonstration'||next.video.routing.kind==='narrative')){
         next.story.narrationMode='upstream';
         const audio=before.finalText===next.finalText?this.data.assets.find(asset=>asset.id===next.voice.audioId&&asset.type==='audio'):null;
         if(Number.isFinite(audio?.duration)&&audio.duration>=4&&audio.duration<=600)next.story.episodeDuration=audio.duration;

@@ -141,6 +141,34 @@ test('准备产品介绍通过服务入口保留确认稿、原图角色、台�
   assert.equal(currentIntroduction(service, d, story), true);
   assert.equal(service.store.data.runs.find(run => run.id === prepared.runId).type, 'product-introduction');
 });
+test('商品自动方案绑定分集指纹，重新准备保留旧分镜历史', async t => {
+  const env=await preparedFixture(t),{service,id,d}=env;
+  const old=structuredClone(d.story);
+  d.video.productionPlan=await require('../server/video-production-plan.cjs').inferProductionPlan({draft:d});
+  require('../server/video-routing.cjs').applyVideoRoute(d);
+  assert.equal(currentIntroduction(service,d,old),false);
+  const result=await service.invoke('prepareProductIntroduction',{id});
+  assert.equal(result.stale,false);
+  assert.equal(result.story.productionPlanHash,d.video.productionPlan.inputHash);
+  assert.equal(result.story.episodesSourceHash,hash([result.story.sourceText,1,result.story.episodeDuration,result.story.productionPlanHash]));
+  assert.equal(service.stories.ready(id).productionPlanHash,d.video.productionPlan.inputHash);
+  assert.deepEqual(result.story.productIntroductionHistory[0].story,old);
+  d.video.productionInstruction='改成自然写实近景';
+  assert.equal(currentIntroduction(service,d,result.story),false);
+});
+
+test('准备商品分镜期间保留用户修改，不覆盖当前已编辑镜头', async t => {
+  const {service,id,d}=await preparedFixture(t);
+  d.product.shots[0].visual='用户更新商品画面';
+  let release,enter;const entered=new Promise(resolve=>enter=resolve),original=service.providers.transcribe;
+  service.providers.transcribe=async(...args)=>{enter();await new Promise(resolve=>release=resolve);return original(...args);};
+  const pending=service.invoke('prepareProductIntroduction',{id});await entered;
+  d.story.episodes[0].shots[0].camera='用户编辑的特写机位';
+  const edited=structuredClone(d.story);release();
+  assert.equal((await pending).stale,true);
+  assert.deepEqual(service.store.draft(id).story,edited);
+});
+
 test('未确认稿、缺少第三步配音和镜头台词不同步时拒绝准备', async t => {
   const { service, id, d } = await preparedFixture(t, false);
   d.confirmed = false;

@@ -132,7 +132,7 @@ class ReferenceAnalysis{
   // 只解除参考关联，正文与媒体文件保留，旧产物不再作为独立创作的当前选用。
   try{
    draft.artifacts??={};draft.artifacts.referenceDetachments=[...(draft.artifacts.referenceDetachments||[]),{selection:structuredClone(draft.referenceSelection),referenceFacts:structuredClone(draft.story?.referenceFacts||null),detachedAt:new Date().toISOString()}];
-   delete draft.referenceSelection;
+   delete draft.referenceSelection;delete draft.video.productionPlan;require('./video-routing.cjs').applyVideoRoute(draft);
    if(draft.story?.referenceFacts){const prior=structuredClone(draft.story),next=structuredClone(prior);delete next.referenceFacts;draft.story=require('./story-contract.cjs').reconcile(prior,next);draft.story.revision++;}
    draft.video.assetId='';draft.edit.sourceId='';draft.edit.resultId='';draft.cover.assetId='';draft.cover.videoId='';draft.publish.videoId='';draft.publish.coverId='';draft.publish.recordId='';
    require('./caption-history.cjs').archiveOnSourceChange(before,draft);draft.updatedAt=new Date().toISOString();this.store.save();return structuredClone(draft);

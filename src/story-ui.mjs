@@ -26,7 +26,9 @@ export function storyCandidateDescription(candidate,{kind='image',presets,select
 // 按任务保留尚未保存的界面编辑，版本冲突时不把旧编辑静默丢弃。
 export const storyUiDrafts=new Map();
 
-export async function storyEpisodeFingerprint(story){const bytes=new TextEncoder().encode(JSON.stringify([story.sourceText,story.episodeCount,story.episodeDuration]));return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(value=>value.toString(16).padStart(2,'0')).join('');}
+export async function storyEpisodeFingerprint(story){const bytes=new TextEncoder().encode(JSON.stringify([story.sourceText,story.episodeCount,story.episodeDuration,...(story.productionPlanHash?[story.productionPlanHash]:[])]));return [...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(value=>value.toString(16).padStart(2,'0')).join('');}
+
+export function storyProductionPlanChanged(draft,story){return story?.sourceMode!=='custom'&&(story?.productionPlanHash||'')!==(draft.video?.routing?.policy==='auto'?draft.video.routing.productionPlan?.inputHash||'':'');}
 
 export function upstreamStoryText(draft){return String(draft?.finalText||draft?.rewrite||draft?.sourceText||'');}
 

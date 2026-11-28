@@ -23,7 +23,7 @@ actions.add('importVoiceSample');
 actions.add('prepareVoiceSample');actions.add('trimVoiceSample');
 actions.add('queryAvatarResult');
 actions.add('continueAvatarSegments');
-actions.add('confirmCopy');actions.add('checkLinkExtractor');
+actions.add('confirmCopy');actions.add('planVideo');actions.add('checkLinkExtractor');
 actions.add('importRecording');
 actions.add('previewEditFrame');
 actions.add('subtitlePreviewSource');

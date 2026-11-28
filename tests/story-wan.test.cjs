@@ -57,6 +57,17 @@ test('画外旁白与后期配音、第三步既有配音及真实自动预设�
  assert.throws(()=>validateWanInput({...input,sound:'旁白使用第三步完整配音；现场对白：请开始。'}),/不支持显式对白/);
  assert.equal(validateWanInput({...input,approvedProductDesign:{sound:productSound}}).supportsAudio,false);
 });
+
+test('无人物对白的否定声音描述允许通过，同句及后句的正向声音要求仍被拦截',()=>{
+ for(const sound of ['微弱办公室环境底噪，无人物对白。','没有角色的对话。','不添加现场对白，只保留静音画面。','No character dialogue.','Without on-screen speech.']){
+  assert.doesNotThrow(()=>validateWanInput({...input,approvedStoryDesign:{sound}}));
+  assert.doesNotThrow(()=>wanGraph({input,image:'first.png',prompt:sound}));
+ }
+ for(const sound of ['无人物对白，但需要旁白。','没有角色对话；现场对白：请开始。','No character dialogue, add narration.','无人物对白和需要生成旁白。']){
+  assert.throws(()=>validateWanInput({...input,approvedStoryDesign:{sound}}),/不支持显式对白/);
+  assert.throws(()=>wanGraph({input,image:'first.png',prompt:sound}),/编译后的指令包含人声/);
+ }
+});
 test('检查报告区分节点缺失、模型缺失、选项不兼容与实际生成验收',()=>{
  const ready=inspectWanModels(objectInfo());assert.equal(ready.ready,true);assert.equal(ready.generationVerified,false);assert.equal(ready.supportsLastFrame,false);assert.equal(ready.supportsSeed,true);assert.equal(ready.supportsAudio,false);
  const absent=objectInfo();delete absent.ModelSamplingSD3;absent.VAELoader.input.required.vae_name=[[]];absent.KSampler.input.required.sampler_name=[['euler']];delete absent.Wan22ImageToVideoLatent.input.optional.start_image;

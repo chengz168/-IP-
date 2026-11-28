@@ -1,0 +1,32 @@
+/* 制作建议使用现有主题；说明按需展开，长文本和窄窗口自然换行。 */
+.video-route-note.video-production-plan{align-items:flex-start;gap:14px;padding:14px 16px;min-width:0;background:var(--panel);border-color:var(--border);color:var(--muted);container-type:inline-size}
+.studio-app .video-route-note.video-production-plan{font-size:var(--app-font-size-caption,13px)}
+.video-route-note.video-production-plan>.video-production-summary{display:block;flex:1;min-width:0;overflow-wrap:anywhere}
+.video-production-heading{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 12px}
+.video-production-heading>strong{color:var(--text-primary,#e9ebf2)}
+.video-production-confidence{font-size:var(--app-font-size-micro,12px);color:var(--muted)}
+.video-production-facts{display:flex;flex-wrap:wrap;gap:6px 28px;margin:10px 0 6px}
+.video-production-facts>div{display:flex;align-items:baseline;gap:8px;min-width:0}
+.video-production-facts dt{color:var(--muted);flex:none}
+.video-production-facts dd{margin:0;color:var(--text-primary,#e9ebf2);font-weight:600;overflow-wrap:anywhere}
+.video-route-note.video-production-plan .video-production-reason{margin:6px 0;line-height:1.65}
+.video-route-note.video-production-plan .video-production-help{margin:6px 0 0;color:var(--muted);font-size:var(--app-font-size-micro,12px);line-height:1.65}
+.video-production-details,.video-production-instruction{margin-top:10px;border-top:1px solid var(--border);padding-top:6px}
+.video-production-plan summary{width:fit-content;max-width:100%;min-height:36px;padding:6px 0;color:var(--accent);cursor:pointer;line-height:1.6;overflow-wrap:anywhere}
+.video-production-plan summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
+.video-production-plan summary>span{margin-left:8px;color:var(--muted);font-size:var(--app-font-size-micro,12px)}
+.video-production-detail-body{display:grid;gap:10px;padding:4px 0 8px;min-width:0}
+.video-production-detail-body b{font-weight:600;color:var(--text-primary,#e9ebf2)}
+.video-production-detail-body :is(ol,ul){margin:6px 0 0;padding-left:22px}
+.video-production-detail-body li{padding-left:2px;margin:4px 0;line-height:1.65}
+.video-production-instruction label{margin:6px 0;color:var(--text-primary,#e9ebf2)}
+.video-production-instruction textarea{display:block;min-height:82px;max-height:320px;width:100%;background:var(--surface);border-color:var(--border);font-size:inherit;line-height:1.7}
+.video-production-instruction-meta{display:flex;align-items:baseline;justify-content:space-between;gap:8px 16px;margin-top:6px;font-size:var(--app-font-size-micro,12px);line-height:1.65;flex-wrap:wrap}
+.video-production-instruction-meta>p{flex:1;min-width:180px}
+.video-production-instruction-meta>span{flex:none;margin-left:auto;font-variant-numeric:tabular-nums}
+.video-route-note.video-production-plan>.video-production-actions{display:flex;align-items:stretch;flex-direction:column;gap:8px;flex:0 0 auto;max-width:100%}
+.video-route-note.video-production-plan .video-production-actions>button{min-height:36px;white-space:normal;line-height:1.5;font-size:var(--app-font-size-micro,12px)}
+.video-route-note.video-production-plan .video-production-message{margin-top:10px;padding:8px 10px;border-left:3px solid var(--accent);background:var(--surface);color:var(--text-primary,#e9ebf2);line-height:1.65}
+.video-route-note.video-production-plan .video-production-message.error{border-left-color:#f19b98;color:#ffc0b9}
+@media(max-width:1000px){.video-route-note.video-production-plan{flex-direction:column}.video-route-note.video-production-plan>.video-production-summary{width:100%}.video-route-note.video-production-plan>.video-production-actions{width:100%;flex-direction:row;flex-wrap:wrap;justify-content:flex-end}}
+@container(max-width:520px){.video-production-facts{display:grid;gap:6px}.video-production-facts>div{flex-wrap:wrap}.video-production-instruction-meta>p{min-width:0;flex-basis:100%}}
