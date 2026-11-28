@@ -47,8 +47,8 @@ def main():
             if info.get('is_live') or info.get('live_status') in ['is_live', 'is_upcoming']:
                 return '不支持直播或预告'
             duration = info.get('duration')
-            if duration is not None and (duration <= 0 or duration > 1800):
-                return '媒体时长须大于0且不超过30分钟'
+            if duration is not None and (duration <= 0 or duration > 3600):
+                return '媒体时长须大于0且不超过60分钟'
             return None
         options.update({
             # 单文件带音轨视频优先，避免新增合流依赖；不可用时仍按原音轨路径回退。

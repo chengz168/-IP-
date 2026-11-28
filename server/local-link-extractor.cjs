@@ -1,5 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {spawn}=require('node:child_process');
+const {validateReferenceDuration}=require('./reference-media-limits.cjs');
 const sha=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const maxBytes=200*1024*1024;
 // 只有画面分析显式请求无声视频时，才允许绕过不存在的音轨识别。
@@ -63,14 +64,15 @@ class LocalLinkExtractor{
   try{
    ctx.progress?.(5,'正在解析视频分享链接');
    const metadata=await runWorker(python,worker,['--package',packagePath,'--url',url,'--mode','metadata','--output',directory,...cookieArgs],ctx);
-   if(metadata.is_live||metadata.duration!=null&&(!Number.isFinite(metadata.duration)||metadata.duration<=0||metadata.duration>1800))throw Error('只支持30分钟以内的非直播音视频');
+   if(metadata.is_live)throw Error('只支持非直播音视频');
+   if(metadata.duration!=null)validateReferenceDuration(metadata.duration,'链接媒体');
    ctx.progress?.(15,'正在下载链接对应的音视频');
    const downloaded=await runWorker(python,worker,['--package',packagePath,'--url',url,'--mode','download','--output',directory,...cookieArgs,...(extractOptions.preferVideo?['--prefer-video']:[])],ctx,10*60*1000);
    if(typeof downloaded.file!=='string'||path.dirname(path.resolve(downloaded.file))!==directory||fs.lstatSync(downloaded.file).isSymbolicLink())throw Error('解析器返回的媒体文件不在本次独立目录');
    const stat=fs.statSync(downloaded.file);if(!stat.isFile()||stat.size<=0||stat.size>maxBytes)throw Error('下载媒体为空或超过200MB');
    const info=await this.media.probe(downloaded.file),duration=Number(info.format.duration);
    const hasAudio=sourceAudio(info,extractOptions);
-   if(!Number.isFinite(duration)||duration<=0||duration>1800)throw Error('链接媒体有效时长须在30分钟以内');
+   validateReferenceDuration(duration,'链接媒体');
    ctx.signal?.throwIfAborted();
    asset=this.store.addAsset(downloaded.file,{type:info.streams.some(stream=>stream.codec_type==='video')?'video':'audio',origin:'local-link-extract',sourceUrl:url,sourceTitle:metadata.title||'',duration},{persist:false});
    if(!['audio','video'].includes(asset.type))throw Error('解析媒体扩展名不受支持');
@@ -90,7 +92,7 @@ class LocalLinkExtractor{
    if(!fs.existsSync(file)||!fs.statSync(file).isFile()||fs.statSync(file).size<=0||fs.statSync(file).size>maxBytes)throw Error('浏览器返回的媒体文件为空或超过200MB');
    const info=await this.media.probe(file),duration=Number(info.format.duration);
    const hasAudio=sourceAudio(info,metadata);
-   if(!Number.isFinite(duration)||duration<=0||duration>1800)throw Error('链接媒体有效时长须在30分钟以内');
+   validateReferenceDuration(duration,'链接媒体');
    ctx.signal?.throwIfAborted();
    asset=this.store.addAsset(file,{type:info.streams.some(stream=>stream.codec_type==='video')?'video':'audio',origin:'browser-link-extract',sourceUrl:url,sourceTitle:String(metadata.title||''),duration},{persist:false});
    const source={url,originalShareText:value,title:String(metadata.title||'').slice(0,2000),extractor:'douyin-browser-session',version:'browser-session',assetId:asset.id,sha256:sha(asset.path),bytes:asset.size,duration,hasAudio};

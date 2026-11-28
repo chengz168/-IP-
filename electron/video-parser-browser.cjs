@@ -70,16 +70,16 @@ class VideoParserBrowser{
     fs.writeFileSync(file,['# Netscape HTTP Cookie File','# 此文件由本地解析临时生成，任务结束后删除',...usable.map(netscapeCookie),''].join('\n'),{mode:0o600});
     return file;
   }
-  async prepare(url,{signal,mediaTimeoutMs=30000,pollMs=500}={}){
+  async prepare(url,{signal,mediaTimeoutMs=30000,pollMs=500,preferVideo=false}={}){
     if(!this.window||this.window.isDestroyed())throw Error('请先打开抖音解析窗口并完成验证');
     if(!isAllowed(url))throw Error('解析窗口只允许访问抖音及其媒体域名');
     const current=this.window,session=current.webContents.session,captured=[];
     const generation=++this.generation;
     const filter={urls:['*://*/*']},onCompleted=details=>{if(isMediaUrl(details.url))captured.push(details.url);};
     session.webRequest.onCompleted(filter,onCompleted);
-    let observed=[];
+    let observed=[],firstMediaAt=0;
     try{await loadPage(current,url,{signal});const deadline=Date.now()+mediaTimeoutMs;
-      do{signal?.throwIfAborted();if(current.isDestroyed()||this.window!==current||generation!==this.generation)throw Error('解析窗口已关闭');const snapshot=await current.webContents.executeJavaScript(mediaSnapshot);observed=(Array.isArray(snapshot)?snapshot:[]).filter(isMediaUrl);if(observed.length||captured.length)break;await sleep(pollMs,undefined,{signal});}while(Date.now()<deadline);
+      do{signal?.throwIfAborted();if(current.isDestroyed()||this.window!==current||generation!==this.generation)throw Error('解析窗口已关闭');const snapshot=await current.webContents.executeJavaScript(mediaSnapshot);observed=(Array.isArray(snapshot)?snapshot:[]).filter(isMediaUrl);const found=[...observed,...captured];if(found.length){firstMediaAt||=Date.now();const split=found.some(url=>/media-video|media-audio/.test(url)),paired=found.some(url=>/media-video/.test(url))&&found.some(url=>/media-audio/.test(url));if(!preferVideo||!split||paired||Date.now()-firstMediaAt>=3000)break;}await sleep(pollMs,undefined,{signal});}while(Date.now()<deadline);
     }catch(error){if(signal?.aborted)throw Error('本地链接提取已取消');throw Error('抖音分享页加载失败：'+error.message);}finally{session.webRequest.onCompleted(filter,null);}
     if(!this.window||this.window!==current||generation!==this.generation||current.isDestroyed())throw Error('解析窗口已关闭，请重新打开后重试');
     return {url:current.webContents.getURL(),title:await current.webContents.getTitle(),mediaUrls:[...new Set([...observed,...captured])],cookieFile:await this.cookieFile()};

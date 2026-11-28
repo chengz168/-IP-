@@ -61,3 +61,9 @@ test('匿名页延迟产生currentSrc时继续轮询，不依赖媒体下载完�
 test('等待媒体期间取消立即退出并解绑采集器，不进入后备重复请求',async()=>{
  const win=windowFixture(),controller=new AbortController();let listener;win.loadURL=async()=>{};win.webContents.session={webRequest:{onCompleted:(_filter,handler)=>{listener=handler;}}};win.webContents.executeJavaScript=async()=>{controller.abort();return [];};const parser=new VideoParserBrowser({root:__dirname});parser.window=win;await assert.rejects(parser.prepare('https://www.douyin.com/video/123',{signal:controller.signal,mediaTimeoutMs:200,pollMs:1}),/已取消/);assert.equal(listener,null);
 });
+
+test('参考分析等待同页延迟出现的独立音轨，不把先到达的视频当成无声片',async()=>{
+ const win=windowFixture();let reads=0;win.loadURL=async()=>{};win.webContents.getURL=()=> 'https://www.douyin.com/video/123';win.webContents.getTitle=async()=> '同页音画';win.webContents.session={webRequest:{onCompleted(){}},cookies:{get:async()=>[]}};
+ const video='https://v26.douyinvod.com/media-video/source',audio='https://v26.douyinvod.com/media-audio/source';win.webContents.executeJavaScript=async()=>++reads<3?[video]:[video,audio];
+ const parser=new VideoParserBrowser({root:__dirname});parser.window=win;const result=await parser.prepare('https://www.douyin.com/video/123',{preferVideo:true,mediaTimeoutMs:200,pollMs:1});assert.equal(reads,3);assert.deepEqual(result.mediaUrls,[video,audio]);
+});

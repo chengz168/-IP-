@@ -85,7 +85,8 @@ async function requestAnalysis(providers,user,collected,ctx,evidence){
    evidence.validationAttempts??=[];evidence.validationAttempts.push({attempt:attempt+1,response:result,error:error.message});
    if(attempt===1)throw error;
    // 原始回复保存在证据中，不回填整篇长报告占用纠正请求的上下文。
-   const repairUser=user+'\n上一份报告未通过校验，原因：'+error.message+'。请基于相同来源返回修正后的完整JSON。sections仅放按时间先后的独立阶段，不放覆盖全片的总览；相邻阶段不要倒序或重叠，前一段终止编号必须小于下一段起始编号。转写引用使用transcriptRange=[起始编号,结束编号]且quote为空，由程序取回原文；basis为none或visual时transcriptRange必须为[]。不得为通过校验而删除真实阶段。不得修改转写或采样观察。';
+   let ranges=[];try{ranges=parse(result.text).sections?.map(row=>({label:row.label,basis:row.basis,transcriptRange:row.transcriptRange,visualSamples:row.visualSamples}))||[];}catch{}
+   const repairUser=user+'\n上一份报告未通过校验，原因：'+error.message+'。上一份报告的段落编号为：'+JSON.stringify(ranges)+'。请基于相同来源返回修正后的完整JSON。sections仅放按时间先后的独立阶段，不放覆盖全片的总览；相邻阶段不要倒序或重叠，前一段终止编号必须小于下一段起始编号。范围包含首尾，例如[0,5]和[5,9]重复了编号5，必须将该编号只归给其中一个阶段，不能原样再提交。转写引用使用transcriptRange=[起始编号,结束编号]且quote为空，由程序取回原文；basis为none或visual时transcriptRange必须为[]。不得为通过校验而删除真实阶段。不得修改转写或采样观察。';
    evidence.repairPrompt={system:analysisSystem,user:repairUser,version:'reference-analysis-repair-v2'};ctx.progress(85,'报告依据校验未通过，正在做一次限定纠正');
    result=await providers.text(analysisSystem,repairUser,ctx,options);evidence.response=result;
   }

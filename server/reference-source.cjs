@@ -34,7 +34,7 @@ class ReferenceSource{
   ctx.signal?.throwIfAborted();const {store,media}=this.service,asset=store.asset(assetId);if(!['audio','video'].includes(asset.type))throw Error('参考素材必须为音频或视频');
   if(!fs.existsSync(asset.path)||!fs.statSync(asset.path).isFile()||fs.statSync(asset.path).size<=0)throw Error('参考源文件缺失或为空');
   const digest=sha(asset.path),info=await media.probe(asset.path),duration=Number(info.format?.duration);ctx.signal?.throwIfAborted();
-  if(!Number.isFinite(duration)||duration<=0||duration>1800)throw Error('参考媒体有效时长须大于0且不超过30分钟');
+  require('./reference-media-limits.cjs').validateReferenceDuration(duration);
   const hasAudio=!!info.streams?.some(row=>row.codec_type==='audio'),hasVideo=!!info.streams?.some(row=>row.codec_type==='video');
   if(!hasAudio&&!(allowSilentVideo&&hasVideo))throw Error('参考媒体没有音轨，无法识别脚本；请开启画面观察分析无声视频');
   if(sha(asset.path)!==digest)throw Error('参考源文件在探测期间发生变化');
