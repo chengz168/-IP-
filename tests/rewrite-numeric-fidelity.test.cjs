@@ -64,12 +64,12 @@ test('短促排比和普通对比重复不触发相邻长片段提醒',async()=>
  }
 });
 
-test('无句号ASR重复固定开头的失败继续保留原回包，不调用重试',async t=>{
+test('无句号ASR重复固定开头最多纠正一次，持续失败保留原回包和旧稿',async t=>{
  const s=fixture(t),d=s.store.draft();Object.assign(d,{sourceText:'哈喽,大家好,我是财哥最近盘点商业航天持仓加仓266%这里还有完整后文便于复核',wordLimit:'60',template:'reference-copy-v840',rewrite:'旧稿'});s.store.save();let calls=0;
  const raw=JSON.stringify({units:{u1:'哈喽，大家好。我是财哥，接着盘点商业航天加仓266%。'}});
  s.providers.text=async()=>{calls++;return {text:raw};};
  await assert.rejects(s.invoke('text',{id:d.id,kind:'rewrite'}),/重复了保留开头/);
- assert.equal(calls,1);assert.equal(s.store.data.runs[0].status,'failed');assert.equal(s.store.data.runs[0].failureOutput.rawText,raw);assert.equal(s.store.draft().rewrite,'旧稿');
+ assert.equal(calls,2);assert.equal(s.store.data.runs[0].status,'failed');assert.equal(s.store.data.runs[0].failureOutput.rawText,raw);assert.equal(s.store.data.runs[0].failureOutput.attempts.length,2);assert.equal(s.store.draft().rewrite,'旧稿');
 });
 
 test('真实历史默认模板回包从needs-review变为拒绝，长度偏差和原始正文均留存',async()=>{
@@ -80,21 +80,20 @@ test('真实历史默认模板回包从needs-review变为拒绝，长度偏差�
  assert.equal(actual.targetDeviation,h.originalQuality.targetDeviation);assert.equal(JSON.stringify(h),before);
 });
 
-test('真实历史参考模板的固定opening重复仍拒绝且无重试或自动删前缀',async()=>{
+test('真实历史无标点长稿改走正文生成，旧JSON回包仍拒绝并留证',async()=>{
  const {generateRewrite}=await import('../server/rewrite-generation.mjs'),h=history.opening,before=JSON.stringify(h);let calls=0;
  const provider={text:async()=>{calls++;return {text:h.rawText};}};
- await assert.rejects(generateRewrite(provider,h.input,{}),error=>{
-  assert.match(error.message,/重复了保留开头/);assert.equal(error.evidence.rawText,h.rawText);assert.equal(error.evidence.unitPlan.units.length,1);return true;
- });
- assert.equal(calls,1);assert.equal(JSON.stringify(h),before);
+ const result=await generateRewrite(provider,h.input,{});
+ assert.equal(result.wrapperSource,'local-reference-long-transcript-v1');assert.equal(result.rawText,h.rawText);assert.equal(result.attempts[1].quality.status,'rejected');assert(result.assembly.validationIssues.some(issue=>issue.includes('JSON')));
+ assert.equal(calls,2);assert.equal(JSON.stringify(h),before);
 });
 
-test('后文请求明确由应用拼固定首段，system模板不改，合格后文只拼一次且不修改回包',async()=>{
+test('后文请求明确由应用拼固定首段，保留模板原件并补执行分工，合格后文只拼一次',async()=>{
  const {generateRewrite}=await import('../server/rewrite-generation.mjs'),{rewriteUnits}=await import('../server/rewrite-units.mjs');
  const input={fields:{sourceText:'先把书放好。按类别整理卡片。',wordLimit:25},template:{content:'原厂可见system模板原文',source:{kind:'reference-visible'}},generation:{model:'fixture'}},plan=rewriteUnits(input.fields.sourceText,25);
  const raw=JSON.stringify({units:{u1:'请先按不同类别把卡片整理好。'}});let calls=0;
  const provider={text:async(system,user,ctx,options)=>{
-  calls++;assert.equal(system,input.template.content);assert.match(user,/应用已完成模板的首段保留步骤/);assert.match(user,/不得返回opening字段/);assert.match(user,/不含固定首段/);
+  calls++;assert(system.startsWith(input.template.content));assert.match(system,/已经由应用完成/);assert.match(user,/应用已完成模板的首段保留步骤/);assert.match(user,/不得返回opening字段/);assert.match(user,/不含固定首段/);
   assert.match(options.schema.properties.units.properties.u1.description,/不重复固定首段/);assert.equal(options.schema.additionalProperties,false);assert.deepEqual(options.schema.properties.units.required,['u1']);return {text:raw};
  }};
  const result=await generateRewrite(provider,input,{});assert.equal(calls,1);assert.equal(result.text,plan.opening+'\n请先按不同类别把卡片整理好。');assert.equal(result.rawText,raw);assert.equal(result.wrapperSource,'local-reference-rewrite-units-v2');

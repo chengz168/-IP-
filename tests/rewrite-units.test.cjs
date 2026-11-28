@@ -47,3 +47,35 @@ test('前导空白不导致保留开头误判，结构合格仍不代表质量�
 });
 
 test('段落长度偏差提示复核，不能据此认定信息错误或质量已通过',async()=>{const {rewriteUnits,assembleUnits}=await load(),{assessRewrite}=await import('../server/copy-quality.mjs'),{referencePrompts}=await import('../server/reference-prompts.mjs');const source='先登记。每人限5本书。最后带走余书。',plan=rewriteUnits(source,source.length),r=assembleUnits(plan,{units:{u1:'每人5本。',u2:'字'.repeat(100)}}),quality=assessRewrite(source,r.text,source.length,referencePrompts[0],r.assembly);assert.equal(r.assembly.lengthWarnings.length,1);assert(quality.warnings.some(value=>value.includes('信息单元u2')));assert.equal(quality.accepted,false);});
+
+test('固定开头重复可通过一次模型纠正恢复，原回包留证且不裁剪内容',async()=>{
+ const {generateRewrite}=await import('../server/rewrite-generation.mjs');
+ const input={fields:{sourceText:'先登记。把书按主题分类摆放，结束后带走余书。',wordLimit:30},template:{content:'第一段照抄原文。',source:{kind:'reference-visible'}},generation:{model:'fixture'}};
+ const raw=JSON.stringify({units:{u1:'先登记。请将书籍按主题摆好，结束时带走余下的书。'}}),corrected=JSON.stringify({units:{u1:'请将书籍按主题分类摆好，结束时把余下的书带走。'}});let calls=0;
+ const result=await generateRewrite({text:async(system,user)=>{
+  calls++;assert.match(system,/第一段照抄原文/);assert.match(system,/已经由应用完成/);
+  if(calls===2){assert.match(user,/后文重复了保留开头/);assert(!user.includes(raw));}
+  return {text:calls===1?raw:corrected};
+ }},input,{});
+ assert.equal(calls,2);assert.equal(result.text,'先登记。\n请将书籍按主题分类摆好，结束时把余下的书带走。');
+ assert.equal(result.attempts.length,2);assert.equal(result.attempts[0].rawText,raw);assert.match(result.attempts[0].validationError,/重复/);assert.equal(result.rawText,corrected);assert.equal(result.attempts[1].quality.accepted,false);
+});
+
+test('第二次仍校验失败时两次不同回包完整保留，不能自动删除重复开头',async()=>{
+ const {generateRewrite}=await import('../server/rewrite-generation.mjs');
+ const input={fields:{sourceText:'先登记。每人限5本书。',wordLimit:25},template:{content:'模板',source:{kind:'reference-visible'}},generation:{model:'fixture'}};
+ const replies=[JSON.stringify({units:{u1:'先登记。每人最多5本。'}}),JSON.stringify({units:{u1:'每人最多8本。'}})];let calls=0;
+ await assert.rejects(generateRewrite({text:async()=>({text:replies[calls++]})},input,{}),error=>{
+  assert.match(error.message,/数字或标识/);assert.deepEqual(error.evidence.attempts.map(a=>a.rawText),replies);assert.equal(error.evidence.rawText,replies[1]);return true;
+ });assert.equal(calls,2);
+});
+
+test('网络或取消错误不触发纠正请求，普通模板仍单次调用',async()=>{
+ const {generateRewrite}=await import('../server/rewrite-generation.mjs');
+ const input={fields:{sourceText:'先登记。把书分类摆好。',wordLimit:25},template:{content:'模板',source:{kind:'reference-visible'}},generation:{model:'fixture'}};let calls=0;
+ await assert.rejects(generateRewrite({text:async()=>{calls++;throw Error('网络不可用');}},input,{}),/网络不可用/);assert.equal(calls,1);
+ const controller=new AbortController();calls=0;
+ await assert.rejects(generateRewrite({text:async()=>{calls++;controller.abort();return {text:'无效JSON'};}},input,{signal:controller.signal}),{name:'AbortError'});assert.equal(calls,1);
+ calls=0;const ordinary={...input,template:{content:'普通模板'}};
+ const result=await generateRewrite({text:async()=>{calls++;return {text:'普通模板的原始返回'};}},ordinary,{});assert.equal(calls,1);assert.equal(result.text,'普通模板的原始返回');
+});
