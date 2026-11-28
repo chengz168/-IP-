@@ -1,0 +1,12 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const load=()=>import('../src/brain-generation-progress.mjs');
+const startedAt=Date.parse('2026-11-28T12:00:00Z');
+const pending={draftId:'draft',brainId:'brain',type:'brain-topics',startedAt};
+const task=(extra={})=>({draftId:'draft',parameters:{brainId:'brain'},type:'brain-topics',status:'running',createdAt:new Date(startedAt+1).toISOString(),progress:0,...extra});
+const input=(extra={})=>({draftId:'draft',brainId:'brain',runs:[],...extra});
+test('保存和提交阶段立即有反馈，不制造百分比',async()=>{const {brainGenerationProgress:f}=await load();const p=f(input({pending}));assert.match(p.label,/准备选题/);assert.equal(p.value,undefined);});
+test('没有可计算进度时使用不定进度，文案生成有独立标题',async()=>{const {brainGenerationProgress:f}=await load();assert.equal(f(input({runs:[task()]})).value,undefined);assert.match(f(input({runs:[task({type:'brain-copies'})]})).label,/3 条文案/);});
+test('弹窗重新打开仍读取实际运行任务，其他草稿和档案不串进度',async()=>{const {brainGenerationProgress:f}=await load();assert.match(f(input({runs:[task()]})).label,/5 个选题/);assert.equal(f(input({runs:[task({draftId:'other'})]})),null);assert.equal(f(input({runs:[task({parameters:{brainId:'other'}})]})),null);assert.equal(f(input({runs:[task({type:'speech'})]})),null);});
+test('新一轮提交不读取旧成功或旧运行记录',async()=>{const {brainGenerationProgress:f}=await load();const old=task({createdAt:new Date(startedAt-1000).toISOString(),status:'succeeded',progress:100});assert.match(f(input({pending,runs:[old]})).label,/准备/);assert.match(f(input({pending,runs:[{...old,status:'running'},task()]})).label,/5 个选题/);});
+test('服务端真实进度可显示，非法进度不会变成伪百分比',async()=>{const {brainGenerationProgress:f}=await load();assert.equal(f(input({runs:[task({progress:42.8})]})).value,42);for(const progress of [undefined,NaN,-1,'50'])assert.equal(f(input({runs:[task({progress})]})).value,undefined);assert.equal(f(input({runs:[task({progress:100})]})).value,99);});
+test('停止立即反映，终态清除加载，不把失败冒充成功',async()=>{const {brainGenerationProgress:f}=await load();const p=f(input({runs:[task({cancelRequestedAt:'now',progress:42})]}));assert.match(p.label,/正在停止/);assert.equal(p.value,undefined);for(const status of ['failed','cancelled','interrupted','unknown'])assert.equal(f(input({pending,runs:[task({status})]})),null);assert.equal(f(input({runs:[task({status:'succeeded'})]})),null);assert.match(f(input({pending,runs:[task({status:'succeeded'})]})).label,/读取生成结果/);});
